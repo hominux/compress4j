@@ -89,7 +89,6 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     /** Whether to overwrite existing files. */
     private final boolean overwrite;
 
-    /** Extraction limits configured through the builder's max-entries, max-entry-size and max-total-size options. */
     private final ExtractionLimits limits;
 
     private final EntryPipeline pipeline;
@@ -417,8 +416,8 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     /** Specifies the action to be taken by the error handler. */
     public enum ErrorHandlerChoice {
         /**
-         * Stop the extraction and return normally. Entries extracted before the failure are left in place; the
-         * extractor never deletes anything it has already written.
+         * Stop the extraction and return normally. Entries extracted before the failure are left in place, except
+         * symlinks that resolve outside the output directory, which are deleted.
          */
         ABORT,
 

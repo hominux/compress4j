@@ -3,3 +3,6 @@
 #
 # These are explicitly windows files and should use crlf
 *.bat           text eol=crlf
+
+# Docs partials are compared byte for byte by tests; keep LF on every platform
+*.adoc          text eol=lf

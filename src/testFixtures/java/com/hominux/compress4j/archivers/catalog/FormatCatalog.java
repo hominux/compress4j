@@ -60,7 +60,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.commons.io.function.IOFunction;
 
-/** Every archive format Compress4J supports, with the capabilities the contract suite verifies. */
+/** The archive formats the contract suite exercises, with their capabilities. */
 public final class FormatCatalog {
 
     private static final Set<Capability> TAR =

@@ -20,9 +20,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 
 /**
- * Hands a caller's channel to a commons-compress reader without letting a failed open close it: {@code ZipFile} and
- * {@code SevenZFile} 1.28 close a caller-supplied channel when reading the archive fails. {@link #close()} does nothing
- * until {@link #built()} is called, then closes the wrapped channel.
+ * Hands a caller's channel to a commons-compress reader without letting a failed open close it. As of commons-compress
+ * 1.28, {@code ZipFile} and {@code SevenZFile} close a caller-supplied channel when reading the archive fails.
+ * {@link #close()} does nothing until {@link #built()} is called, then closes the wrapped channel.
  */
 public final class BuildGatedChannel implements SeekableByteChannel {
 

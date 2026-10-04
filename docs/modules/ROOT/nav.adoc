@@ -22,4 +22,6 @@
 *** xref:compressors/zstd.adoc[]
 ** xref:read_only_formats.adoc[]
 ** xref:additional_formats.adoc[]
+** xref:streaming.adoc[]
+** xref:migration_5.adoc[]
 ** xref:migration_4.adoc[]

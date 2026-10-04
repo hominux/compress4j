@@ -15,3 +15,11 @@ include::example$java/com/example/archivers/zip/ZipExamples.java[tag=zip-creator
 ----
 include::example$java/com/example/archivers/zip/ZipExamples.java[tag=zip-extractor,indent=0]
 ----
+
+.Zip extraction from an InputStream
+[,java]
+----
+include::example$java/com/example/StreamingExamples.java[tag=zip-streaming,indent=0]
+----
+
+WARNING: Streaming mode reads only local headers; zip keeps Unix modes in the central directory. In streaming mode entries extract with default permissions and symlinks become regular files holding their target. Read from a file or `SeekableByteChannel` to keep them. See xref:streaming.adoc#_format_capabilities[format capabilities].

@@ -57,8 +57,8 @@ The library's design centers around a few key components:
 
 * **`Compressor` Interface:** Defines the contract for compressing an `OutputStream`. Implementations handle the specifics of a particular compression algorithm.
 * **`Decompressor` Interface:** Defines the contract for decompressing an `InputStream`. Implementations handle the specifics of decompressing data from a particular format.
-* **`ArchiveCreator`:** An abstract base class for writing archive entries (files, directories, symlinks) to an archive format such as Tar or Zip.
-* **`ArchiveExtractor`:** An abstract base class for reading and safely extracting entries from an archive format such as Tar or Zip.
+* **`ArchiveExtractor`:** reads an archive as a stream of `ArchiveItem`s (entry plus content) or extracts it safely to a directory. See xref:streaming.adoc[].
+* **`ArchiveCreator`:** writes `EntrySource`s — files, directories and symlinks from disk, memory or another archive.
 
 Each supported archive or compression format has its own `ArchiveCreator`/`ArchiveExtractor` or `Compressor`/`Decompressor` implementation, so developers work with the concrete class for the format they need (e.g., `TarArchiveCreator`, `GzipDecompressor`).
 
@@ -87,7 +87,7 @@ Compress4J supports a variety of common stream compression formats. The goal is 
 
 Formats marked (read-only) can be extracted or decompressed, as applicable, but not created; see xref:read_only_formats.adoc[Read-only formats].
 
-The library often achieves this by integrating with robust, high-performance backend libraries or by providing its own implementations.
+The library often achieves this by integrating with high-performance backend libraries or by providing its own implementations.
 
 IMPORTANT: Some compression formats may require additional support libraries to be included in your project. Please refer to the xref:additional_formats.adoc[Additional Formats] for details on any extra dependencies needed for specific formats.
 

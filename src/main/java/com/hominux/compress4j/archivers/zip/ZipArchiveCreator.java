@@ -88,8 +88,8 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
     }
 
     /**
-     * Creates a builder writing to the channel. A seekable channel lets zip record sizes in local headers instead of
-     * data descriptors. The creator closes the channel when it is closed.
+     * Creates a builder writing at the channel's current position. A seekable channel lets zip record sizes in local
+     * headers instead of data descriptors. The creator closes the channel when it is closed.
      *
      * @param channel the channel to write the archive to
      * @return the builder
