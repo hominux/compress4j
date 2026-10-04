@@ -21,12 +21,15 @@ import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.function.IOSupplier;
 
 /**
  * The 7z archive creator. A symbolic link is stored the way p7zip stores it: a Unix-mode entry whose content is the
@@ -66,6 +69,19 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
      */
     public static SevenZArchiveCreatorBuilder builder(Path path) throws IOException {
         return new SevenZArchiveCreatorBuilder(path);
+    }
+
+    /**
+     * Creates a builder writing to the channel from absolute offset 0, whatever its current position, overwriting any
+     * bytes already there; 7z rewrites its start header on close, so the channel must be seekable. The creator closes
+     * the channel when it is closed; a failed {@code build()} leaves it open.
+     *
+     * @param channel the channel to write the archive to
+     * @return the builder
+     * @since 5.0
+     */
+    public static SevenZArchiveCreatorBuilder builder(SeekableByteChannel channel) {
+        return new SevenZArchiveCreatorBuilder(() -> new SevenZOutputFile(channel));
     }
 
     /** {@inheritDoc} */
@@ -123,23 +139,23 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
             extends ArchiveCreatorBuilder<
                     SevenZFileArchiveOutputStream, SevenZArchiveCreatorBuilder, SevenZArchiveCreator> {
 
-        private final SevenZFileArchiveOutputStream stream;
+        private final IOSupplier<SevenZOutputFile> file;
 
         /**
-         * Create a new builder that writes to the given path.
+         * Create a new builder that writes to the given path. {@code build()} creates the file.
          *
          * <p>7z needs a seekable target to patch its header, so only a path is accepted.
          *
          * @param path the path to write the archive to
-         * @throws IOException if an I/O error occurred
+         * @throws IOException not thrown; {@code build()} opens the file
          */
         public SevenZArchiveCreatorBuilder(Path path) throws IOException {
-            this(new SevenZFileArchiveOutputStream(new SevenZOutputFile(path.toFile())));
+            this(() -> new SevenZOutputFile(path.toFile()));
         }
 
-        private SevenZArchiveCreatorBuilder(SevenZFileArchiveOutputStream stream) {
-            super(stream);
-            this.stream = stream;
+        private SevenZArchiveCreatorBuilder(IOSupplier<SevenZOutputFile> file) {
+            super(OutputStream.nullOutputStream());
+            this.file = file;
         }
 
         @Override
@@ -149,8 +165,8 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
 
         /** {@inheritDoc} */
         @Override
-        public SevenZFileArchiveOutputStream buildArchiveOutputStream() {
-            return stream;
+        public SevenZFileArchiveOutputStream buildArchiveOutputStream() throws IOException {
+            return new SevenZFileArchiveOutputStream(file.get());
         }
 
         /** {@inheritDoc} */

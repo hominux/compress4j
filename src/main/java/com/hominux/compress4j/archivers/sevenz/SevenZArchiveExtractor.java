@@ -16,10 +16,13 @@
 package com.hominux.compress4j.archivers.sevenz;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.utils.BuildFailureCleanup;
+import com.hominux.compress4j.utils.BuildGatedChannel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Date;
 import java.util.Objects;
@@ -44,7 +47,7 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
      *
      * @param archiveInputStream the input 7z Archive Input Stream
      */
-    public SevenZArchiveExtractor(SevenZFileArchiveInputStream archiveInputStream) {
+    protected SevenZArchiveExtractor(SevenZFileArchiveInputStream archiveInputStream) {
         super(archiveInputStream);
     }
 
@@ -65,7 +68,20 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
      * @return An instance of the {@link SevenZArchiveExtractorBuilder}
      */
     public static SevenZArchiveExtractorBuilder builder(Path path) {
-        return new SevenZArchiveExtractorBuilder(path);
+        return new SevenZArchiveExtractorBuilder(Optional.of(path), Optional.empty());
+    }
+
+    /**
+     * Creates a builder reading the whole channel, whatever its current position: {@code build()} seeks to the start,
+     * so the archive must begin at offset 0. 7z keeps its header at the end of the archive, so the channel must be
+     * seekable. The extractor closes the channel when it is closed; a failed {@code build()} leaves it open.
+     *
+     * @param channel the channel holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static SevenZArchiveExtractorBuilder builder(SeekableByteChannel channel) {
+        return new SevenZArchiveExtractorBuilder(Optional.empty(), Optional.of(channel));
     }
 
     /** {@inheritDoc} */
@@ -116,17 +132,13 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
             extends ArchiveExtractorBuilder<
                     SevenZFileArchiveInputStream, SevenZArchiveExtractorBuilder, SevenZArchiveExtractor> {
 
-        private final Path origin;
-        private SeekableByteChannel seekableByteChannel;
+        private final Optional<Path> path;
+        private final Optional<SeekableByteChannel> channel;
         private char[] password;
 
-        /**
-         * Create a new builder for the archive at the given path.
-         *
-         * @param path the path to the archive to extract
-         */
-        public SevenZArchiveExtractorBuilder(Path path) {
-            this.origin = path;
+        SevenZArchiveExtractorBuilder(Optional<Path> path, Optional<SeekableByteChannel> channel) {
+            this.path = path;
+            this.channel = channel;
         }
 
         /**
@@ -137,17 +149,6 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
          */
         public SevenZArchiveExtractorBuilder password(char[] password) {
             this.password = password == null ? null : password.clone();
-            return this;
-        }
-
-        /**
-         * The actual channel, overrides the path.
-         *
-         * @param seekableByteChannel The actual channel.
-         * @return {@code this} instance.
-         */
-        public SevenZArchiveExtractorBuilder setSeekableByteChannel(SeekableByteChannel seekableByteChannel) {
-            this.seekableByteChannel = seekableByteChannel;
             return this;
         }
 
@@ -164,12 +165,26 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
          */
         @Override
         public SevenZFileArchiveInputStream buildArchiveInputStream() throws IOException {
-            SevenZFile.Builder file = SevenZFile.builder().setUseDefaultNameForUnnamedEntries(true);
-            if (seekableByteChannel != null) {
-                file.setSeekableByteChannel(seekableByteChannel);
-            } else {
-                file.setPath(origin);
+            if (channel.isEmpty()) {
+                Path archive = path.orElseThrow();
+                SeekableByteChannel opened = Files.newByteChannel(archive);
+                return BuildFailureCleanup.build(
+                        Optional.of(opened),
+                        () -> open(opened, Optional.of(archive.toAbsolutePath().toString())));
             }
+            var gated = new BuildGatedChannel(channel.orElseThrow());
+            gated.position(0);
+            var stream = open(gated, Optional.empty());
+            gated.built();
+            return stream;
+        }
+
+        private SevenZFileArchiveInputStream open(SeekableByteChannel source, Optional<String> name)
+                throws IOException {
+            SevenZFile.Builder file = SevenZFile.builder()
+                    .setUseDefaultNameForUnnamedEntries(true)
+                    .setSeekableByteChannel(source);
+            name.ifPresent(file::setDefaultName);
             if (password != null) {
                 file.setPassword(password);
             }

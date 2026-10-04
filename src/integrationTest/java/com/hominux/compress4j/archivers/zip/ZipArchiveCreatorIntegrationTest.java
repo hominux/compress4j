@@ -114,7 +114,8 @@ class ZipArchiveCreatorIntegrationTest extends AbstractArchiverIntegrationTest {
 
         assertThat(extractDir.resolve("file.txt")).exists().hasContent("File content");
 
-        var symlinkStoredAsRegularFile = extractDir.resolve("link.txt");
-        assertThat(symlinkStoredAsRegularFile).exists().isRegularFile().hasContent("link_target.txt");
+        var extractedLink = extractDir.resolve("link.txt");
+        assertThat(extractedLink).isSymbolicLink();
+        assertThat(Files.readSymbolicLink(extractedLink)).isEqualTo(Path.of("link_target.txt"));
     }
 }

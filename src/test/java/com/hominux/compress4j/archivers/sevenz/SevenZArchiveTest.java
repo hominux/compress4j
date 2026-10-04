@@ -30,14 +30,18 @@ import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.Arrays;
+import java.util.Optional;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
@@ -289,9 +293,7 @@ class SevenZArchiveTest {
         Path out = tmp.resolve("out");
 
         try (SeekableByteChannel channel = Files.newByteChannel(archive);
-                var extractor = SevenZArchiveExtractor.builder(tmp.resolve("ignored.7z"))
-                        .setSeekableByteChannel(channel)
-                        .build()) {
+                var extractor = SevenZArchiveExtractor.builder(channel).build()) {
             extractor.extract(out);
         }
 
@@ -374,10 +376,64 @@ class SevenZArchiveTest {
         var stream = mock(SevenZFileArchiveInputStream.class);
         when(stream.getNextEntry()).thenReturn(new SevenZArchiveEntry());
 
-        var extractor = new SevenZArchiveExtractor(stream);
+        var extractor = new SevenZArchiveExtractor.SevenZArchiveExtractorBuilder(Optional.empty(), Optional.empty()) {
+            @Override
+            public SevenZFileArchiveInputStream buildArchiveInputStream() {
+                return stream;
+            }
+        }.build();
 
         assertThatThrownBy(extractor::nextEntry)
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("7z entry has no name");
+    }
+
+    @Test
+    void roundTripsThroughInMemoryChannels() throws IOException {
+        // Given
+        var channel = new SeekableInMemoryByteChannel();
+        try (var creator = SevenZArchiveCreator.builder(channel).build()) {
+            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+        }
+
+        // When
+        try (var extractor = SevenZArchiveExtractor.builder(new SeekableInMemoryByteChannel(channel.array()))
+                .build()) {
+            var item = extractor.stream().findFirst().orElseThrow();
+
+            // Then
+            assertThat(new String(item.content().readAllBytes(), StandardCharsets.UTF_8))
+                    .isEqualTo("alpha");
+        }
+    }
+
+    @Test
+    void creatorWritesFromOffsetZeroOverPrecedingBytes() throws IOException {
+        // Given
+        var channel = new SeekableInMemoryByteChannel("prefix-bytes".getBytes(StandardCharsets.UTF_8));
+        channel.position(channel.size());
+
+        // When
+        try (var creator = SevenZArchiveCreator.builder(channel).build()) {
+            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+        }
+
+        // Then
+        try (var extractor = SevenZArchiveExtractor.builder(new SeekableInMemoryByteChannel(channel.array()))
+                .build()) {
+            assertThat(extractor.stream().map(item -> item.entry().name())).containsExactly("a.txt");
+        }
+    }
+
+    @Test
+    void offersNoStreamBuilders() {
+        assertThat(Arrays.stream(SevenZArchiveExtractor.class.getMethods())
+                        .filter(m -> m.getName().equals("builder"))
+                        .flatMap(m -> Arrays.stream(m.getParameterTypes())))
+                .doesNotContain(InputStream.class);
+        assertThat(Arrays.stream(SevenZArchiveCreator.class.getMethods())
+                        .filter(m -> m.getName().equals("builder"))
+                        .flatMap(m -> Arrays.stream(m.getParameterTypes())))
+                .doesNotContain(OutputStream.class);
     }
 }

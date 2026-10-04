@@ -25,6 +25,8 @@ import static org.mockito.Mockito.when;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import java.io.IOException;
+import java.util.Optional;
+import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,8 +45,13 @@ class ZipArchiveExtractorTest {
     private ZipArchiveExtractor extractor;
 
     @BeforeEach
-    void setUp() {
-        extractor = new ZipArchiveExtractor(mockInputStream);
+    void setUp() throws IOException {
+        extractor = new ZipArchiveExtractor.ZipArchiveExtractorBuilder(Optional.empty(), Optional.empty()) {
+            @Override
+            public ArchiveInputStream<ZipArchiveEntry> buildArchiveInputStream() {
+                return mockInputStream;
+            }
+        }.build();
     }
 
     @SuppressWarnings("OctalInteger")

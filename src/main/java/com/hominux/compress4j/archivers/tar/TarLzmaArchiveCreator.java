@@ -18,6 +18,8 @@ package com.hominux.compress4j.archivers.tar;
 import com.hominux.compress4j.compressors.lzma.LZMACompressor.LZMACompressorOutputStreamBuilder;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -57,6 +59,18 @@ public class TarLzmaArchiveCreator extends BaseTarArchiveCreator {
      */
     public static TarLzmaArchiveCreatorBuilder builder(Path path) throws IOException {
         return new TarLzmaArchiveCreatorBuilder(path);
+    }
+
+    /**
+     * Creates a builder writing at the channel's current position. The creator closes the channel when it is closed; a
+     * failed {@code build()} leaves it open.
+     *
+     * @param channel the channel to write the archive to
+     * @return the builder
+     * @since 5.0
+     */
+    public static TarLzmaArchiveCreatorBuilder builder(SeekableByteChannel channel) {
+        return builder(Channels.newOutputStream(channel));
     }
 
     /**

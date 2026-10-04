@@ -17,6 +17,8 @@ package com.hominux.compress4j.archivers.tar;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -58,6 +60,18 @@ public class TarBZip2ArchiveExtractor extends BaseTarArchiveExtractor {
      */
     public static TarBZip2ArchiveExtractorBuilder builder(Path path) throws IOException {
         return new TarBZip2ArchiveExtractorBuilder(path);
+    }
+
+    /**
+     * Creates a builder reading from the channel's current position. The extractor closes the channel when it is
+     * closed; a failed {@code build()} leaves it open.
+     *
+     * @param channel the channel holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static TarBZip2ArchiveExtractorBuilder builder(SeekableByteChannel channel) {
+        return builder(Channels.newInputStream(channel));
     }
 
     /**

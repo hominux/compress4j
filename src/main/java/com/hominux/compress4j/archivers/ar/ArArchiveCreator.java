@@ -20,6 +20,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,6 +79,18 @@ public class ArArchiveCreator extends ArchiveCreator<ArArchiveOutputStream> {
      */
     public static ArArchiveCreatorBuilder builder(Path path) throws IOException {
         return new ArArchiveCreatorBuilder(path);
+    }
+
+    /**
+     * Creates a builder writing at the channel's current position. The creator closes the channel when it is closed; a
+     * failed {@code build()} leaves it open.
+     *
+     * @param channel the channel to write the archive to
+     * @return the builder
+     * @since 5.0
+     */
+    public static ArArchiveCreatorBuilder builder(SeekableByteChannel channel) {
+        return builder(Channels.newOutputStream(channel));
     }
 
     /**

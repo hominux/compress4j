@@ -18,6 +18,8 @@ package com.hominux.compress4j.archivers.ar;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,6 +62,18 @@ public class ArArchiveExtractor extends ArchiveExtractor<ArArchiveInputStream> {
      */
     public static ArArchiveExtractorBuilder builder(Path path) throws IOException {
         return new ArArchiveExtractorBuilder(path);
+    }
+
+    /**
+     * Creates a builder reading from the channel's current position. The extractor closes the channel when it is
+     * closed; a failed {@code build()} leaves it open.
+     *
+     * @param channel the channel holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static ArArchiveExtractorBuilder builder(SeekableByteChannel channel) {
+        return builder(Channels.newInputStream(channel));
     }
 
     /**

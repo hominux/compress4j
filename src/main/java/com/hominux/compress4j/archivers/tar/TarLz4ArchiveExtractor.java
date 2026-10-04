@@ -18,6 +18,8 @@ package com.hominux.compress4j.archivers.tar;
 import com.hominux.compress4j.compressors.lz4.Lz4FramedDecompressor.Lz4FramedDecompressorInputStreamBuilder;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -57,6 +59,18 @@ public class TarLz4ArchiveExtractor extends BaseTarArchiveExtractor {
      */
     public static TarLz4ArchiveExtractorBuilder builder(Path path) throws IOException {
         return new TarLz4ArchiveExtractorBuilder(path);
+    }
+
+    /**
+     * Creates a builder reading from the channel's current position. The extractor closes the channel when it is
+     * closed; a failed {@code build()} leaves it open.
+     *
+     * @param channel the channel holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static TarLz4ArchiveExtractorBuilder builder(SeekableByteChannel channel) {
+        return builder(Channels.newInputStream(channel));
     }
 
     /**

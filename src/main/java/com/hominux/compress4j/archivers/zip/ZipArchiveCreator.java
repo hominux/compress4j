@@ -25,9 +25,11 @@ import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.apache.commons.compress.archivers.zip.Zip64Mode;
 import org.apache.commons.compress.archivers.zip.Zip64RequiredException;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
@@ -41,6 +43,8 @@ import org.apache.commons.io.IOUtils;
  * @since 2.2
  */
 public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
+
+    private static final int DEFAULT_SYMLINK_PERMISSIONS = 0777;
 
     /**
      * Create a new ZipArchiveCreator with the given output stream.
@@ -82,6 +86,18 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
         return new ZipArchiveCreatorBuilder(outputStream);
     }
 
+    /**
+     * Creates a builder writing to the channel. A seekable channel lets zip record sizes in local headers instead of
+     * data descriptors. The creator closes the channel when it is closed.
+     *
+     * @param channel the channel to write the archive to
+     * @return the builder
+     * @since 5.0
+     */
+    public static ZipArchiveCreatorBuilder builder(SeekableByteChannel channel) {
+        return new ZipArchiveCreatorBuilder(new ZipArchiveOutputStream(channel));
+    }
+
     /** {@inheritDoc} */
     @Override
     protected void writeDirectoryEntry(String name, FileTime modTime) throws IOException {
@@ -106,7 +122,9 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
             String name, InputStream inputStream, long size, FileTime modTime, int mode, Path symlinkTarget)
             throws IOException {
         byte[] symlinkStoredAsFileContent = symlinkTarget.toString().getBytes(StandardCharsets.UTF_8);
-        archiveOutputStream.putArchiveEntry(newEntry(name, symlinkStoredAsFileContent.length, modTime, mode));
+        int permissions = mode == NO_MODE ? DEFAULT_SYMLINK_PERMISSIONS : mode & UnixStat.PERM_MASK;
+        archiveOutputStream.putArchiveEntry(
+                newEntry(name, symlinkStoredAsFileContent.length, modTime, UnixStat.LINK_FLAG | permissions));
         archiveOutputStream.write(symlinkStoredAsFileContent);
         archiveOutputStream.closeArchiveEntry();
     }

@@ -20,11 +20,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.zip.ZipArchiveExtractor.ZipArchiveExtractorBuilder;
+import com.hominux.compress4j.utils.BuildGatedChannel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
@@ -78,10 +80,11 @@ class ZipArchiveExtractorBuilderTest {
     private void stubFluentSetters() {
         when(mockZipFileBuilder.setIgnoreLocalFileHeader(any(boolean.class))).thenReturn(mockZipFileBuilder);
         when(mockZipFileBuilder.setMaxNumberOfDisks(any(long.class))).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.setSeekableByteChannel(nullable(SeekableByteChannel.class)))
+        lenient()
+                .when(mockZipFileBuilder.setSeekableByteChannel(nullable(SeekableByteChannel.class)))
                 .thenReturn(mockZipFileBuilder);
         when(mockZipFileBuilder.setUseUnicodeExtraFields(any(boolean.class))).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.setPath(any(Path.class))).thenReturn(mockZipFileBuilder);
+        lenient().when(mockZipFileBuilder.setPath(any(Path.class))).thenReturn(mockZipFileBuilder);
     }
 
     @AfterEach
@@ -107,10 +110,9 @@ class ZipArchiveExtractorBuilderTest {
         when(mockZipFileBuilder.get()).thenReturn(mockZipFile);
 
         // Given
-        var builder = new ZipArchiveExtractorBuilder(archivePath)
+        var builder = ZipArchiveExtractor.builder(mockChannel)
                 .setIgnoreLocalFileHeader(true)
                 .setMaxNumberOfDisks(10)
-                .setSeekableByteChannel(mockChannel)
                 .setUseUnicodeExtraFields(false)
                 .setZstdInputStreamFactory(mockFactory);
 
@@ -124,10 +126,10 @@ class ZipArchiveExtractorBuilderTest {
 
         verify(mockZipFileBuilder).setIgnoreLocalFileHeader(true);
         verify(mockZipFileBuilder).setMaxNumberOfDisks(10);
-        verify(mockZipFileBuilder).setSeekableByteChannel(mockChannel);
+        verify(mockZipFileBuilder).setSeekableByteChannel(any(BuildGatedChannel.class));
         verify(mockZipFileBuilder).setUseUnicodeExtraFields(false);
         verify(mockZipFileBuilder).setZstdInputStreamFactory(mockFactory);
-        verify(mockZipFileBuilder).setPath(archivePath);
+        verify(mockZipFileBuilder, never()).setPath(any(Path.class));
 
         verify(mockZipFileBuilder).get();
     }
@@ -140,7 +142,7 @@ class ZipArchiveExtractorBuilderTest {
         when(mockZipFileBuilder.setZstdInputStreamFactory(isNull())).thenReturn(mockZipFileBuilder);
         when(mockZipFileBuilder.get()).thenReturn(mockZipFile);
 
-        var builder = new ZipArchiveExtractorBuilder(archivePath);
+        var builder = ZipArchiveExtractor.builder(archivePath);
 
         // When
         var inputStream = builder.buildArchiveInputStream();
@@ -153,7 +155,7 @@ class ZipArchiveExtractorBuilderTest {
         verify(mockZipFileBuilder).setMaxNumberOfDisks(1);
         verify(mockZipFileBuilder).setUseUnicodeExtraFields(true);
         verify(mockZipFileBuilder).setPath(archivePath);
-        verify(mockZipFileBuilder).setSeekableByteChannel(null);
+        verify(mockZipFileBuilder, never()).setSeekableByteChannel(any(SeekableByteChannel.class));
         verify(mockZipFileBuilder).setZstdInputStreamFactory(null);
         verify(mockZipFileBuilder).get();
     }
@@ -162,7 +164,7 @@ class ZipArchiveExtractorBuilderTest {
     @DisplayName("getThis() should return the builder instance")
     void testGetThis() throws IOException {
         // Given
-        var builder = new ZipArchiveExtractorBuilder(archivePath);
+        var builder = ZipArchiveExtractor.builder(archivePath);
 
         // When
         var self = builder.getThis();
@@ -179,7 +181,7 @@ class ZipArchiveExtractorBuilderTest {
         when(mockZipFileBuilder.get()).thenThrow(new IOException("Test build error"));
 
         // Given
-        var builder = new ZipArchiveExtractorBuilder(archivePath);
+        var builder = ZipArchiveExtractor.builder(archivePath);
 
         // When & Then
         assertThatThrownBy(builder::build).isInstanceOf(IOException.class).hasMessage("Test build error");
@@ -193,7 +195,7 @@ class ZipArchiveExtractorBuilderTest {
         when(mockZipFileBuilder.get()).thenThrow(new IOException("Test build error"));
 
         // Given
-        var builder = new ZipArchiveExtractorBuilder(archivePath);
+        var builder = ZipArchiveExtractor.builder(archivePath);
 
         // When & Then
         assertThatThrownBy(builder::buildArchiveInputStream)

@@ -19,6 +19,8 @@ import com.hominux.compress4j.archivers.ArchiveExtractor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -103,6 +105,18 @@ public class CpioArchiveExtractor extends ArchiveExtractor<CpioArchiveInputStrea
      */
     public static CpioArchiveExtractorBuilder builder(File file) throws IOException {
         return builder(file.toPath());
+    }
+
+    /**
+     * Creates a builder reading from the channel's current position. The extractor closes the channel when it is
+     * closed; a failed {@code build()} leaves it open.
+     *
+     * @param channel the channel holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static CpioArchiveExtractorBuilder builder(SeekableByteChannel channel) {
+        return builder(Channels.newInputStream(channel));
     }
 
     /**

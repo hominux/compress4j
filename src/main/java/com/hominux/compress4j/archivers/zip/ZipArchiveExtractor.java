@@ -16,12 +16,16 @@
 package com.hominux.compress4j.archivers.zip;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.utils.BuildGatedChannel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
+import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 import org.apache.commons.io.function.IOFunction;
@@ -31,25 +35,19 @@ import org.apache.commons.io.function.IOFunction;
  *
  * @since 2.2
  */
-public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStream> {
+public class ZipArchiveExtractor extends ArchiveExtractor<ArchiveInputStream<ZipArchiveEntry>> {
 
-    /**
-     * Create a new {@link ZipArchiveExtractor} with the given input stream.
-     *
-     * @param zipFileArchiveInputStream the input Zip Archive Input Stream
-     */
-    public ZipArchiveExtractor(ZipFileArchiveInputStream zipFileArchiveInputStream) {
-        super(zipFileArchiveInputStream);
+    private final IOFunction<ZipArchiveEntry, String> symlinkTarget;
+
+    private ZipArchiveExtractor(ZipArchiveExtractorBuilder builder) throws IOException {
+        super(builder);
+        ZipFileArchiveInputStream zip = (ZipFileArchiveInputStream) archiveInputStream;
+        this.symlinkTarget = zip::getUnixSymlink;
     }
 
-    /**
-     * Create a new ZipArchiveExtractor with the given input stream and options.
-     *
-     * @param builder the archive input stream builder
-     * @throws IOException if an I/O error occurred
-     */
-    public ZipArchiveExtractor(ZipArchiveExtractorBuilder builder) throws IOException {
-        super(builder.buildArchiveInputStream());
+    private ZipArchiveExtractor(ZipStreamingExtractorBuilder builder) throws IOException {
+        super(builder);
+        this.symlinkTarget = entry -> null;
     }
 
     /**
@@ -57,10 +55,37 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStr
      *
      * @param path the path to the archive to extract
      * @return An instance of the {@link ZipArchiveExtractorBuilder}
-     * @throws IOException if an I/O error occurred
      */
-    public static ZipArchiveExtractorBuilder builder(Path path) throws IOException {
-        return new ZipArchiveExtractorBuilder(path);
+    public static ZipArchiveExtractorBuilder builder(Path path) {
+        return new ZipArchiveExtractorBuilder(Optional.of(path), Optional.empty());
+    }
+
+    /**
+     * Creates a builder reading the whole channel, whatever its current position; zip keeps its central directory at
+     * the end of the archive. The extractor closes the channel when it is closed; a failed {@code build()} leaves it
+     * open.
+     *
+     * @param channel the channel holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static ZipArchiveExtractorBuilder builder(SeekableByteChannel channel) {
+        return new ZipArchiveExtractorBuilder(Optional.empty(), Optional.of(channel));
+    }
+
+    /**
+     * Creates a builder reading local headers from a forward-only stream.
+     *
+     * <p>A stream carries no central directory, where zip keeps Unix modes: entries report mode 0, and a symlink entry
+     * surfaces as a {@link Entry.Type#FILE} whose content is the link target. An entry's size may be empty until its
+     * content is read. Input that is not a zip archive fails on the first read, not in {@code build()}.
+     *
+     * @param inputStream the stream holding the archive
+     * @return the builder
+     * @since 5.0
+     */
+    public static ZipStreamingExtractorBuilder streaming(InputStream inputStream) {
+        return new ZipStreamingExtractorBuilder(inputStream);
     }
 
     /** {@inheritDoc} */
@@ -72,7 +97,7 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStr
         }
         Entry.Type type = type(ze);
         Entry entry = new Entry(ze.getName(), type, ze.getUnixMode())
-                .withLinkTarget(archiveInputStream.getUnixSymlink(ze))
+                .withLinkTarget(symlinkTarget.apply(ze))
                 .withMetadata(ze.getLastModifiedDate(), type == Entry.Type.FILE ? ze.getSize() : 0);
         return Optional.of(entry);
     }
@@ -100,24 +125,19 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStr
      */
     public static class ZipArchiveExtractorBuilder
             extends ArchiveExtractorBuilder<
-                    ZipFileArchiveInputStream, ZipArchiveExtractorBuilder, ZipArchiveExtractor> {
+                    ArchiveInputStream<ZipArchiveEntry>, ZipArchiveExtractorBuilder, ZipArchiveExtractor> {
 
-        private SeekableByteChannel seekableByteChannel;
         private boolean useUnicodeExtraFields = true;
         private boolean ignoreLocalFileHeader;
         private long maxNumberOfDisks = 1;
         private IOFunction<InputStream, InputStream> zstdInputStreamFactory;
 
-        private final Path origin;
+        private final Optional<Path> path;
+        private final Optional<SeekableByteChannel> channel;
 
-        /**
-         * Create a new {@link ZipArchiveExtractor} with the given path.
-         *
-         * @param path the path to the archive to extract
-         * @throws IOException if an I/O error occurred
-         */
-        public ZipArchiveExtractorBuilder(Path path) throws IOException {
-            this.origin = path;
+        ZipArchiveExtractorBuilder(Optional<Path> path, Optional<SeekableByteChannel> channel) {
+            this.path = path;
+            this.channel = channel;
         }
 
         /**
@@ -139,17 +159,6 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStr
          */
         public ZipArchiveExtractorBuilder setMaxNumberOfDisks(final long maxNumberOfDisks) {
             this.maxNumberOfDisks = maxNumberOfDisks;
-            return this;
-        }
-
-        /**
-         * The actual channel, overrides any other input aspects like a File, Path, and so on.
-         *
-         * @param seekableByteChannel The actual channel.
-         * @return {@code this} instance.
-         */
-        public ZipArchiveExtractorBuilder setSeekableByteChannel(final SeekableByteChannel seekableByteChannel) {
-            this.seekableByteChannel = seekableByteChannel;
             return this;
         }
 
@@ -186,20 +195,26 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStr
         }
 
         /**
-         * Build the ZipArchiveInputStream.
+         * Opens the zip archive.
          *
-         * @return the configured ZipArchiveInputStream
+         * @return the entries of the archive, read through its central directory
          */
-        public ZipFileArchiveInputStream buildArchiveInputStream() throws IOException {
-            var zipfile = ZipFile.builder()
+        @Override
+        public ArchiveInputStream<ZipArchiveEntry> buildArchiveInputStream() throws IOException {
+            var zip = ZipFile.builder()
                     .setIgnoreLocalFileHeader(ignoreLocalFileHeader)
                     .setMaxNumberOfDisks(maxNumberOfDisks)
-                    .setSeekableByteChannel(seekableByteChannel)
                     .setUseUnicodeExtraFields(useUnicodeExtraFields)
-                    .setZstdInputStreamFactory(zstdInputStreamFactory)
-                    .setPath(origin)
-                    .get();
-            return new ZipFileArchiveInputStream(zipfile);
+                    .setZstdInputStreamFactory(zstdInputStreamFactory);
+            if (channel.isEmpty()) {
+                return new ZipFileArchiveInputStream(
+                        zip.setPath(path.orElseThrow()).get());
+            }
+            var gated = new BuildGatedChannel(channel.orElseThrow());
+            var stream = new ZipFileArchiveInputStream(
+                    zip.setSeekableByteChannel(gated).get());
+            gated.built();
+            return stream;
         }
 
         /**
@@ -207,6 +222,45 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ZipFileArchiveInputStr
          *
          * @return the configured ZipArchiveExtractor
          */
+        public ZipArchiveExtractor build() throws IOException {
+            return new ZipArchiveExtractor(this);
+        }
+    }
+
+    /**
+     * Builds a zip extractor that reads local headers from a forward-only stream.
+     *
+     * <p>A stream carries no central directory, where zip keeps Unix modes: entries report mode 0, and a symlink entry
+     * surfaces as a {@link Entry.Type#FILE} whose content is the link target. Stored entries with a data descriptor are
+     * supported. Use {@link #builder(Path)} or {@link #builder(SeekableByteChannel)} to keep modes and symlinks.
+     *
+     * @since 5.0
+     */
+    public static final class ZipStreamingExtractorBuilder
+            extends ArchiveExtractorBuilder<
+                    ArchiveInputStream<ZipArchiveEntry>, ZipStreamingExtractorBuilder, ZipArchiveExtractor> {
+
+        private final InputStream inputStream;
+
+        private ZipStreamingExtractorBuilder(InputStream inputStream) {
+            super(inputStream, false);
+            this.inputStream = inputStream;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        protected ZipStreamingExtractorBuilder getThis() {
+            return this;
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public ArchiveInputStream<ZipArchiveEntry> buildArchiveInputStream() {
+            return new ZipArchiveInputStream(inputStream, StandardCharsets.UTF_8.name(), true, true);
+        }
+
+        /** {@inheritDoc} */
+        @Override
         public ZipArchiveExtractor build() throws IOException {
             return new ZipArchiveExtractor(this);
         }
