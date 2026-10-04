@@ -308,13 +308,7 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.writeFileEntry(
-                    "escape-link",
-                    InputStream.nullInputStream(),
-                    0,
-                    FileTime.from(Instant.now()),
-                    0,
-                    Path.of("../../etc/passwd"));
+            creator.writeSymlink("escape-link", "../../etc/passwd", 0, FileTime.from(Instant.now()));
         }
 
         // when

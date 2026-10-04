@@ -25,6 +25,7 @@ import static com.hominux.compress4j.archivers.catalog.Capability.STREAM_OUTPUT;
 import static com.hominux.compress4j.archivers.catalog.Capability.SYMLINKS;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.ArchiveCreator.ArchiveCreatorBuilder;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.ar.ArArchiveCreator;
 import com.hominux.compress4j.archivers.ar.ArArchiveExtractor;
@@ -74,7 +75,7 @@ public final class FormatCatalog {
                         TAR,
                         TarArchiveExtractor.class,
                         TarArchiveCreator.class,
-                        p -> TarArchiveCreator.builder(p).build(),
+                        TarArchiveCreator::builder,
                         o -> TarArchiveCreator.builder(o).build(),
                         ch -> TarArchiveCreator.builder(ch).build(),
                         p -> TarArchiveExtractor.builder(p).build(),
@@ -85,7 +86,7 @@ public final class FormatCatalog {
                         TAR,
                         TarGzArchiveExtractor.class,
                         TarGzArchiveCreator.class,
-                        p -> TarGzArchiveCreator.builder(p).build(),
+                        TarGzArchiveCreator::builder,
                         o -> TarGzArchiveCreator.builder(o).build(),
                         ch -> TarGzArchiveCreator.builder(ch).build(),
                         p -> TarGzArchiveExtractor.builder(p).build(),
@@ -96,7 +97,7 @@ public final class FormatCatalog {
                         TAR,
                         TarBZip2ArchiveExtractor.class,
                         TarBZip2ArchiveCreator.class,
-                        p -> TarBZip2ArchiveCreator.builder(p).build(),
+                        TarBZip2ArchiveCreator::builder,
                         o -> TarBZip2ArchiveCreator.builder(o).build(),
                         ch -> TarBZip2ArchiveCreator.builder(ch).build(),
                         p -> TarBZip2ArchiveExtractor.builder(p).build(),
@@ -107,7 +108,7 @@ public final class FormatCatalog {
                         TAR,
                         TarXzArchiveExtractor.class,
                         TarXzArchiveCreator.class,
-                        p -> TarXzArchiveCreator.builder(p).build(),
+                        TarXzArchiveCreator::builder,
                         o -> TarXzArchiveCreator.builder(o).build(),
                         ch -> TarXzArchiveCreator.builder(ch).build(),
                         p -> TarXzArchiveExtractor.builder(p).build(),
@@ -118,7 +119,7 @@ public final class FormatCatalog {
                         TAR,
                         TarLzmaArchiveExtractor.class,
                         TarLzmaArchiveCreator.class,
-                        p -> TarLzmaArchiveCreator.builder(p).build(),
+                        TarLzmaArchiveCreator::builder,
                         o -> TarLzmaArchiveCreator.builder(o).build(),
                         ch -> TarLzmaArchiveCreator.builder(ch).build(),
                         p -> TarLzmaArchiveExtractor.builder(p).build(),
@@ -129,7 +130,7 @@ public final class FormatCatalog {
                         TAR,
                         TarLz4ArchiveExtractor.class,
                         TarLz4ArchiveCreator.class,
-                        p -> TarLz4ArchiveCreator.builder(p).build(),
+                        TarLz4ArchiveCreator::builder,
                         o -> TarLz4ArchiveCreator.builder(o).build(),
                         ch -> TarLz4ArchiveCreator.builder(ch).build(),
                         p -> TarLz4ArchiveExtractor.builder(p).build(),
@@ -140,7 +141,7 @@ public final class FormatCatalog {
                         TAR,
                         TarZstdArchiveExtractor.class,
                         TarZstdArchiveCreator.class,
-                        p -> TarZstdArchiveCreator.builder(p).build(),
+                        TarZstdArchiveCreator::builder,
                         o -> TarZstdArchiveCreator.builder(o).build(),
                         ch -> TarZstdArchiveCreator.builder(ch).build(),
                         p -> TarZstdArchiveExtractor.builder(p).build(),
@@ -151,7 +152,7 @@ public final class FormatCatalog {
                         EnumSet.of(MODES, SYMLINKS, LAST_MODIFIED, REQUIRES_SIZE, STREAM_INPUT, STREAM_OUTPUT),
                         ArArchiveExtractor.class,
                         ArArchiveCreator.class,
-                        p -> ArArchiveCreator.builder(p).build(),
+                        ArArchiveCreator::builder,
                         o -> ArArchiveCreator.builder(o).build(),
                         ch -> ArArchiveCreator.builder(ch).build(),
                         p -> ArArchiveExtractor.builder(p).build(),
@@ -169,7 +170,7 @@ public final class FormatCatalog {
                                 STREAM_OUTPUT),
                         CpioArchiveExtractor.class,
                         CpioArchiveCreator.class,
-                        p -> CpioArchiveCreator.builder(p).build(),
+                        CpioArchiveCreator::builder,
                         o -> CpioArchiveCreator.builder(o).build(),
                         ch -> CpioArchiveCreator.builder(ch).build(),
                         p -> CpioArchiveExtractor.builder(p).build(),
@@ -182,7 +183,7 @@ public final class FormatCatalog {
                         Optional.of(ZipArchiveCreator.class),
                         "builder",
                         Optional.empty(),
-                        Optional.of(c(p -> ZipArchiveCreator.builder(p).build())),
+                        Optional.of(b(ZipArchiveCreator::builder)),
                         Optional.of(ch -> ZipArchiveCreator.builder(ch).build()),
                         Optional.of(co(o -> ZipArchiveCreator.builder(o).build())),
                         x(p -> ZipArchiveExtractor.builder(p).build()),
@@ -209,7 +210,7 @@ public final class FormatCatalog {
                         Optional.of(SevenZArchiveCreator.class),
                         "builder",
                         Optional.empty(),
-                        Optional.of(c(p -> SevenZArchiveCreator.builder(p).build())),
+                        Optional.of(b(SevenZArchiveCreator::builder)),
                         Optional.of(ch -> SevenZArchiveCreator.builder(ch).build()),
                         Optional.empty(),
                         x(p -> SevenZArchiveExtractor.builder(p).build()),
@@ -251,7 +252,7 @@ public final class FormatCatalog {
             Set<Capability> capabilities,
             Class<?> extractor,
             Class<?> creator,
-            IOFunction<Path, ArchiveCreator<?>> createAt,
+            IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>> builderAt,
             IOFunction<SeekableByteChannel, ArchiveCreator<?>> createOnChannel,
             IOFunction<OutputStream, ArchiveCreator<?>> createOnStream,
             IOFunction<Path, ArchiveExtractor<?>> readAt,
@@ -264,7 +265,7 @@ public final class FormatCatalog {
                 Optional.of(creator),
                 "builder",
                 Optional.empty(),
-                Optional.of(createAt),
+                Optional.of(builderAt),
                 Optional.of(createOnChannel),
                 Optional.of(createOnStream),
                 readAt,
@@ -272,7 +273,8 @@ public final class FormatCatalog {
                 Optional.of(readFromStream));
     }
 
-    private static IOFunction<Path, ArchiveCreator<?>> c(IOFunction<Path, ArchiveCreator<?>> f) {
+    private static IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>> b(
+            IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>> f) {
         return f;
     }
 

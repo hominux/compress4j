@@ -42,7 +42,7 @@ public class CpioExamples {
                 .blockSize(1024)
                 .encoding(UTF_8.name())
                 .and()
-                .filter((name, p) -> !name.endsWith("temp.txt"))
+                .filter(s -> !s.name().endsWith("temp.txt"))
                 .build()) {
 
             cpioCreator.addFile("document.txt", Path.of("path/to/document.txt"));

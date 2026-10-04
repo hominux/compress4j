@@ -29,6 +29,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.apache.commons.compress.archivers.zip.Zip64Mode;
 import org.apache.commons.compress.archivers.zip.Zip64RequiredException;
@@ -62,7 +63,7 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
      * @throws IOException if an I/O error occurred
      */
     public ZipArchiveCreator(ZipArchiveCreatorBuilder builder) throws IOException {
-        super(builder.buildArchiveOutputStream());
+        super(builder);
     }
 
     /**
@@ -100,43 +101,49 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
 
     /** {@inheritDoc} */
     @Override
-    protected void writeDirectoryEntry(String name, FileTime modTime) throws IOException {
+    protected boolean requiresSize() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
         ZipArchiveEntry entry = new ZipArchiveEntry(name + '/');
-        entry.setTime(modTime);
+        entry.setTime(lastModified);
+        if (mode != NO_MODE) {
+            entry.setUnixMode(UnixStat.DIR_FLAG | mode);
+        }
         archiveOutputStream.putArchiveEntry(entry);
         archiveOutputStream.closeArchiveEntry();
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void writeFileEntry(String name, InputStream inputStream, long size, FileTime modTime, int mode)
+    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
             throws IOException {
-        archiveOutputStream.putArchiveEntry(newEntry(name, size, modTime, mode));
-        IOUtils.copy(inputStream, archiveOutputStream);
+        ZipArchiveEntry entry = new ZipArchiveEntry(name);
+        entry.setTime(lastModified);
+        size.ifPresent(entry::setSize);
+        if (mode != NO_MODE) {
+            entry.setUnixMode(UnixStat.FILE_FLAG | mode);
+        }
+        archiveOutputStream.putArchiveEntry(entry);
+        IOUtils.copy(content, archiveOutputStream);
         archiveOutputStream.closeArchiveEntry();
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void writeFileEntry(
-            String name, InputStream inputStream, long size, FileTime modTime, int mode, Path symlinkTarget)
-            throws IOException {
-        byte[] symlinkStoredAsFileContent = symlinkTarget.toString().getBytes(StandardCharsets.UTF_8);
+    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
+        byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
         int permissions = mode == NO_MODE ? DEFAULT_SYMLINK_PERMISSIONS : mode & UnixStat.PERM_MASK;
-        archiveOutputStream.putArchiveEntry(
-                newEntry(name, symlinkStoredAsFileContent.length, modTime, UnixStat.LINK_FLAG | permissions));
-        archiveOutputStream.write(symlinkStoredAsFileContent);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    private static ZipArchiveEntry newEntry(String name, long size, FileTime modTime, int mode) {
         ZipArchiveEntry entry = new ZipArchiveEntry(name);
-        entry.setTime(modTime);
-        entry.setSize(size);
-        if (mode != NO_MODE) {
-            entry.setUnixMode(mode);
-        }
-        return entry;
+        entry.setTime(lastModified);
+        entry.setSize(bytes.length);
+        entry.setUnixMode(UnixStat.LINK_FLAG | permissions);
+        archiveOutputStream.putArchiveEntry(entry);
+        archiveOutputStream.write(bytes);
+        archiveOutputStream.closeArchiveEntry();
     }
 
     /** {@inheritDoc} */

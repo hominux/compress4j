@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.OptionalLong;
 import java.util.zip.GZIPOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -48,8 +49,12 @@ class TarLz4ArchiveExtractorTest {
     private static byte[] archiveOf(String name, byte[] content) throws IOException {
         var bytes = new ByteArrayOutputStream();
         try (var creator = TarLz4ArchiveCreator.builder(bytes).build()) {
-            creator.writeFileEntry(
-                    name, new ByteArrayInputStream(content), content.length, FileTime.from(Instant.now()), 0644);
+            creator.writeFile(
+                    name,
+                    new ByteArrayInputStream(content),
+                    OptionalLong.of(content.length),
+                    0644,
+                    FileTime.from(Instant.now()));
         }
         return bytes.toByteArray();
     }

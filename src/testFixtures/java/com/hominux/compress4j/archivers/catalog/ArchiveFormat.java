@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.catalog;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.ArchiveCreator.ArchiveCreatorBuilder;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,7 +40,7 @@ public record ArchiveFormat(
         Optional<Class<?>> creator,
         String streamFactory,
         Optional<String> writer,
-        Optional<IOFunction<Path, ArchiveCreator<?>>> createAt,
+        Optional<IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>>> builderAt,
         Optional<IOFunction<SeekableByteChannel, ArchiveCreator<?>>> createOnChannel,
         Optional<IOFunction<OutputStream, ArchiveCreator<?>>> createOnStream,
         IOFunction<Path, ArchiveExtractor<?>> readAt,
@@ -51,7 +52,11 @@ public record ArchiveFormat(
     }
 
     public boolean writable() {
-        return createAt.isPresent();
+        return builderAt.isPresent();
+    }
+
+    public Optional<IOFunction<Path, ArchiveCreator<?>>> createAt() {
+        return builderAt.map(builder -> path -> builder.apply(path).build());
     }
 
     @Override

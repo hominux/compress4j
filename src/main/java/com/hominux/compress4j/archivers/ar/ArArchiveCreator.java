@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.ar.ArArchiveEntry;
 import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream;
 import org.apache.commons.io.IOUtils;
@@ -103,36 +104,31 @@ public class ArArchiveCreator extends ArchiveCreator<ArArchiveOutputStream> {
         return new ArArchiveCreatorBuilder(outputStream);
     }
 
-    /**
-     * AR format doesn't support directories - skip them
-     *
-     * <p>{@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
-    protected void writeDirectoryEntry(String name, FileTime modTime) {
-        /* no-op */
+    protected boolean requiresSize() {
+        return true;
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void writeFileEntry(String name, InputStream source, long length, FileTime modTime, int mode)
+    protected void writeDirectory(String name, int mode, FileTime lastModified) {
+        // AR has no directory entries.
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
             throws IOException {
-        if (length < 0) {
-            byte[] content = IOUtils.toByteArray(source);
-            writeEntry(name, new ByteArrayInputStream(content), content.length, modTime, mode);
-        } else {
-            writeEntry(name, source, length, modTime, mode);
-        }
+        writeEntry(name, content, size.orElseThrow(), lastModified, mode);
     }
 
     /** {@inheritDoc} */
     @Override
     @SuppressWarnings("OctalInteger")
-    protected void writeFileEntry(
-            String name, InputStream source, long length, FileTime modTime, int mode, Path symlinkTarget)
-            throws IOException {
-        byte[] target = symlinkTarget.toString().getBytes(StandardCharsets.UTF_8);
-        writeEntry(name, new ByteArrayInputStream(target), target.length, modTime, S_IFLNK | (mode & 0777));
+    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
+        byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
+        writeEntry(name, new ByteArrayInputStream(bytes), bytes.length, lastModified, S_IFLNK | (mode & 0777));
     }
 
     private void writeEntry(String name, InputStream data, long length, FileTime modTime, int mode) throws IOException {

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.junit.jupiter.api.Test;
@@ -35,12 +36,12 @@ class TarLz4ArchiveCreatorTest {
         var bytes = new ByteArrayOutputStream();
 
         try (var creator = TarLz4ArchiveCreator.builder(bytes).build()) {
-            creator.writeFileEntry(
+            creator.writeFile(
                     "file.txt",
                     new ByteArrayInputStream("hello lz4".getBytes()),
-                    -1,
-                    FileTime.from(Instant.now()),
-                    0644);
+                    OptionalLong.of("hello lz4".length()),
+                    0644,
+                    FileTime.from(Instant.now()));
         }
 
         try (var tar = new TarArchiveInputStream(

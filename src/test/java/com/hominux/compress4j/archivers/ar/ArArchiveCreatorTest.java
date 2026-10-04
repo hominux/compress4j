@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -124,11 +123,10 @@ class ArArchiveCreatorTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         var content = "Stream input test";
-        var contentStream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("stream.txt", contentStream);
+            creator.addFile("stream.txt", content.getBytes(StandardCharsets.UTF_8));
         }
 
         // then
@@ -311,7 +309,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.writeFileEntry("link", InputStream.nullInputStream(), 0, modTime, 0, Path.of("target.txt"));
+            creator.writeSymlink("link", "target.txt", 0, modTime);
         }
 
         // then

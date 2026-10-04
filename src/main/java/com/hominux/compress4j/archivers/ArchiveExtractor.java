@@ -55,6 +55,8 @@ import org.slf4j.LoggerFactory;
  * This abstract class is the superclass of all classes providing archive extraction functionality. This class provides
  * the core functionality to extract files and directories from archives.
  *
+ * <p>An extractor is not thread-safe.
+ *
  * @param <A> The type of {@link ArchiveInputStream} to read entries from.
  * @since 2.2
  */

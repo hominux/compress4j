@@ -21,10 +21,8 @@ import static java.nio.file.attribute.PosixFilePermission.OTHERS_READ;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static java.time.Instant.now;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.spy;
@@ -34,9 +32,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.OptionalLong;
 import java.util.Set;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.file.attribute.FileTimes;
@@ -54,16 +52,14 @@ class TarBZip2ArchiveCreatorTest {
 
         // when
         var aOut = spy(TarBZip2ArchiveCreator.builder(outputStream).buildArchiveOutputStream());
-        try (MockedStatic<IOUtils> mockIOUtils = mockStatic(IOUtils.class, CALLS_REAL_METHODS);
-                TarBZip2ArchiveCreator tarCompressor = new TarBZip2ArchiveCreator(aOut)) {
+        try (TarBZip2ArchiveCreator tarCompressor = new TarBZip2ArchiveCreator(aOut)) {
 
             FileTime modTime = FileTime.from(now());
             @SuppressWarnings("OctalInteger")
             int mod = 0400;
-            tarCompressor.writeFileEntry("test", inputStream, -1, modTime, mod);
+            tarCompressor.writeFile("test", inputStream, OptionalLong.of(4), mod, modTime);
 
             // then
-            mockIOUtils.verify(() -> IOUtils.toByteArray(any(InputStream.class)));
             then(aOut).should().putArchiveEntry(assertArgs(e -> Compress4JAssertions.assertThat(e)
                     .hasName("test")
                     .hasLinkName("")
@@ -91,7 +87,7 @@ class TarBZip2ArchiveCreatorTest {
 
             Instant now = now();
             FileTime modTime = FileTime.from(now);
-            tarCompressor.writeFileEntry("test", inputStream, 0, modTime, 0, Path.of("target"));
+            tarCompressor.writeSymlink("test", "target", 0, modTime);
 
             // then
             mockIOUtils.verifyNoInteractions();

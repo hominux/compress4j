@@ -59,7 +59,7 @@ public class TarExamples {
                 .addPaxHeadersForNonAsciiNames(true)
                 .bigNumberMode(BIGNUMBER_ERROR)
                 .longFileMode(LONGFILE_GNU)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarCreator.addDirectoryRecursively(Path.of("exampleDir"));
             tarCreator.addFile(Path.of("path/to/file.txt"));
@@ -97,7 +97,7 @@ public class TarExamples {
                 .blockSize(1024)
                 .encoding(UTF_8.name())
                 .addPaxHeadersForNonAsciiNames(true)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarGzCreator.addDirectoryRecursively(Path.of("exampleDir"));
             tarGzCreator.addFile(Path.of("path/to/file.txt"));
@@ -131,7 +131,7 @@ public class TarExamples {
                 .addPaxHeadersForNonAsciiNames(true)
                 .bigNumberMode(BIGNUMBER_ERROR)
                 .longFileMode(LONGFILE_GNU)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarBzip2Creator.addDirectoryRecursively(Path.of("exampleDir"));
             tarBzip2Creator.addFile(Path.of("path/to/file.txt"));
@@ -165,7 +165,7 @@ public class TarExamples {
                 .addPaxHeadersForNonAsciiNames(true)
                 .bigNumberMode(BIGNUMBER_ERROR)
                 .longFileMode(LONGFILE_GNU)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarXzCreator.addDirectoryRecursively(Path.of("exampleDir"));
             tarXzCreator.addFile(Path.of("path/to/file.txt"));
@@ -199,7 +199,7 @@ public class TarExamples {
                 .addPaxHeadersForNonAsciiNames(true)
                 .bigNumberMode(BIGNUMBER_ERROR)
                 .longFileMode(LONGFILE_GNU)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarZstdCreator.addDirectoryRecursively(Path.of("exampleDir"));
             tarZstdCreator.addFile(Path.of("path/to/file.txt"));
@@ -230,7 +230,7 @@ public class TarExamples {
                 .addPaxHeadersForNonAsciiNames(true)
                 .bigNumberMode(BIGNUMBER_ERROR)
                 .longFileMode(LONGFILE_GNU)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarLzmaCreator.addDirectoryRecursively(Path.of("exampleDir"));
             tarLzmaCreator.addFile(Path.of("path/to/file.txt"));
@@ -261,7 +261,7 @@ public class TarExamples {
                 .addPaxHeadersForNonAsciiNames(true)
                 .bigNumberMode(BIGNUMBER_ERROR)
                 .longFileMode(LONGFILE_GNU)
-                .filter((name, p) -> !name.endsWith("some_file.txt"))
+                .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarLz4Creator.addDirectoryRecursively(Path.of("exampleDir"));
             tarLz4Creator.addFile(Path.of("path/to/file.txt"));
