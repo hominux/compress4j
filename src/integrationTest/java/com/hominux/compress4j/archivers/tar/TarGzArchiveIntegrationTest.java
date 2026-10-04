@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.tar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,13 +32,15 @@ import org.junit.jupiter.api.Test;
 class TarGzArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Override
-    protected TarGzArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
-        return TarGzArchiveCreator.builder(Files.newOutputStream(archivePath)).build();
+    protected TarArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
+        return TarArchiveCreator.builder(Files.newOutputStream(archivePath))
+                .compression(Compression.gzip())
+                .build();
     }
 
     @Override
-    protected TarGzArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
-        return TarGzArchiveExtractor.builder(Files.newInputStream(archivePath)).build();
+    protected TarArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
+        return TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build();
     }
 
     @Override
@@ -55,15 +58,16 @@ class TarGzArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         var extractDir = tempDir.resolve("extracted");
         Files.createDirectories(extractDir);
 
-        try (var creator =
-                TarGzArchiveCreator.builder(Files.newOutputStream(archivePath)).build()) {
+        try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
+                .compression(Compression.gzip())
+                .build()) {
             creator.addFile("large.txt", sourceFile);
         }
 
         assertThat(Files.size(archivePath)).isLessThan(Files.size(sourceFile));
 
         try (var extractor =
-                TarGzArchiveExtractor.builder(Files.newInputStream(archivePath)).build()) {
+                TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build()) {
             extractor.extract(extractDir);
         }
 

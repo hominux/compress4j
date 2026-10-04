@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.tar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,15 +32,15 @@ import org.junit.jupiter.api.Test;
 class TarBZip2ArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Override
-    protected TarBZip2ArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
-        return TarBZip2ArchiveCreator.builder(Files.newOutputStream(archivePath))
+    protected TarArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
+        return TarArchiveCreator.builder(Files.newOutputStream(archivePath))
+                .compression(Compression.bzip2())
                 .build();
     }
 
     @Override
-    protected TarBZip2ArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
-        return TarBZip2ArchiveExtractor.builder(Files.newInputStream(archivePath))
-                .build();
+    protected TarArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
+        return TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build();
     }
 
     @Override
@@ -64,14 +65,15 @@ class TarBZip2ArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         var extractDir = tempDir.resolve("extracted");
         Files.createDirectories(extractDir);
 
-        try (var creator = TarBZip2ArchiveCreator.builder(Files.newOutputStream(archivePath))
+        try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
+                .compression(Compression.bzip2())
                 .build()) {
             creator.addFile("text.txt", textFile);
             creator.addFile("binary.dat", binaryFile);
         }
 
-        try (var extractor = TarBZip2ArchiveExtractor.builder(Files.newInputStream(archivePath))
-                .build()) {
+        try (var extractor =
+                TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build()) {
             extractor.extract(extractDir);
         }
 

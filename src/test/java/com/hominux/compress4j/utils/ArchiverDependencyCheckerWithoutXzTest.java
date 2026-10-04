@@ -119,18 +119,32 @@ class ArchiverDependencyCheckerWithoutXzTest {
                 new ByteArrayInputStream(new byte[0])));
     }
 
+    private static Throwable tarBuildFailure(String tarClass, Class<?> argType, Object arg) throws Exception {
+        try (var loader = new XzHidingClassLoader(classpathUrls())) {
+            Object builder =
+                    loader.loadClass(tarClass).getMethod("builder", argType).invoke(null, arg);
+            Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
+            Object codec = compression.getMethod("lzma").invoke(null);
+            builder.getClass().getMethod("compression", compression).invoke(builder, codec);
+            builder.getClass().getMethod("build").invoke(builder);
+            throw new AssertionError("Expected failure without the codec library");
+        } catch (InvocationTargetException e) {
+            return e.getCause();
+        }
+    }
+
     @Test
     void tarLzmaCreatorBuildRejectsMissingXz() throws Exception {
-        assertMissingLzma(buildFailureWithoutXz(
-                "com.hominux.compress4j.archivers.tar.TarLzmaArchiveCreator",
+        assertMissingLzma(tarBuildFailure(
+                "com.hominux.compress4j.archivers.tar.TarArchiveCreator",
                 OutputStream.class,
                 new ByteArrayOutputStream()));
     }
 
     @Test
     void tarLzmaExtractorBuildRejectsMissingXz() throws Exception {
-        assertMissingLzma(buildFailureWithoutXz(
-                "com.hominux.compress4j.archivers.tar.TarLzmaArchiveExtractor",
+        assertMissingLzma(tarBuildFailure(
+                "com.hominux.compress4j.archivers.tar.TarArchiveExtractor",
                 InputStream.class,
                 new ByteArrayInputStream(new byte[0])));
     }

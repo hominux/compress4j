@@ -25,14 +25,7 @@ import com.hominux.compress4j.archivers.cpio.CpioArchiveCreator;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarBZip2ArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarBZip2ArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarXzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarXzArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarZstdArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarZstdArchiveExtractor;
+import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.compressors.bzip2.BZip2Compressor;
 import com.hominux.compress4j.compressors.bzip2.BZip2Decompressor;
 import com.hominux.compress4j.compressors.deflate.DeflateCompressor;
@@ -104,33 +97,7 @@ class PathBuilderOwnershipTest {
                 new Case("XZDecompressor", XZDecompressor::builder, () -> XZDecompressor.builder(in())),
                 new Case("ZstdDecompressor", ZstdDecompressor::builder, () -> ZstdDecompressor.builder(in())),
                 new Case("TarArchiveCreator", TarArchiveCreator::builder, () -> TarArchiveCreator.builder(out())),
-                new Case("TarGzArchiveCreator", TarGzArchiveCreator::builder, () -> TarGzArchiveCreator.builder(out())),
-                new Case(
-                        "TarBZip2ArchiveCreator",
-                        TarBZip2ArchiveCreator::builder,
-                        () -> TarBZip2ArchiveCreator.builder(out())),
-                new Case("TarXzArchiveCreator", TarXzArchiveCreator::builder, () -> TarXzArchiveCreator.builder(out())),
-                new Case(
-                        "TarZstdArchiveCreator",
-                        TarZstdArchiveCreator::builder,
-                        () -> TarZstdArchiveCreator.builder(out())),
                 new Case("TarArchiveExtractor", TarArchiveExtractor::builder, () -> TarArchiveExtractor.builder(in())),
-                new Case(
-                        "TarGzArchiveExtractor",
-                        TarGzArchiveExtractor::builder,
-                        () -> TarGzArchiveExtractor.builder(in())),
-                new Case(
-                        "TarBZip2ArchiveExtractor",
-                        TarBZip2ArchiveExtractor::builder,
-                        () -> TarBZip2ArchiveExtractor.builder(in())),
-                new Case(
-                        "TarXzArchiveExtractor",
-                        TarXzArchiveExtractor::builder,
-                        () -> TarXzArchiveExtractor.builder(in())),
-                new Case(
-                        "TarZstdArchiveExtractor",
-                        TarZstdArchiveExtractor::builder,
-                        () -> TarZstdArchiveExtractor.builder(in())),
                 new Case("ArArchiveCreator", ArArchiveCreator::builder, () -> ArArchiveCreator.builder(out())),
                 new Case("ArArchiveExtractor", ArArchiveExtractor::builder, () -> ArArchiveExtractor.builder(in())),
                 new Case("CpioArchiveCreator", CpioArchiveCreator::builder, () -> CpioArchiveCreator.builder(out())),
@@ -175,7 +142,7 @@ class PathBuilderOwnershipTest {
     @Test
     void shouldCloseOpenedStreamWhenArchiveExtractorBuildFails() throws IOException {
         var path = Files.writeString(tempDir.resolve("garbage.tar.gz"), "not gzip");
-        var builder = TarGzArchiveExtractor.builder(path);
+        var builder = TarArchiveExtractor.builder(path).compression(Compression.gzip());
 
         assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
 

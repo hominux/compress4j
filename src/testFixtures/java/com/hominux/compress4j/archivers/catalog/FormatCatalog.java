@@ -35,20 +35,10 @@ import com.hominux.compress4j.archivers.sevenz.SevenZArchiveCreator;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarBZip2ArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarBZip2ArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarLz4ArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarLz4ArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarLzmaArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarLzmaArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarXzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarXzArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarZstdArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarZstdArchiveExtractor;
 import com.hominux.compress4j.archivers.zip.ZipArchiveCreator;
 import com.hominux.compress4j.archivers.zip.ZipArchiveExtractor;
+import com.hominux.compress4j.compressors.Compression;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.SeekableByteChannel;
@@ -70,83 +60,13 @@ public final class FormatCatalog {
 
     public static Stream<ArchiveFormat> all() {
         return Stream.of(
-                streamNative(
-                        "tar",
-                        TAR,
-                        TarArchiveExtractor.class,
-                        TarArchiveCreator.class,
-                        TarArchiveCreator::builder,
-                        o -> TarArchiveCreator.builder(o).build(),
-                        ch -> TarArchiveCreator.builder(ch).build(),
-                        p -> TarArchiveExtractor.builder(p).build(),
-                        ch -> TarArchiveExtractor.builder(ch).build(),
-                        i -> TarArchiveExtractor.builder(i).build()),
-                streamNative(
-                        "tar.gz",
-                        TAR,
-                        TarGzArchiveExtractor.class,
-                        TarGzArchiveCreator.class,
-                        TarGzArchiveCreator::builder,
-                        o -> TarGzArchiveCreator.builder(o).build(),
-                        ch -> TarGzArchiveCreator.builder(ch).build(),
-                        p -> TarGzArchiveExtractor.builder(p).build(),
-                        ch -> TarGzArchiveExtractor.builder(ch).build(),
-                        i -> TarGzArchiveExtractor.builder(i).build()),
-                streamNative(
-                        "tar.bz2",
-                        TAR,
-                        TarBZip2ArchiveExtractor.class,
-                        TarBZip2ArchiveCreator.class,
-                        TarBZip2ArchiveCreator::builder,
-                        o -> TarBZip2ArchiveCreator.builder(o).build(),
-                        ch -> TarBZip2ArchiveCreator.builder(ch).build(),
-                        p -> TarBZip2ArchiveExtractor.builder(p).build(),
-                        ch -> TarBZip2ArchiveExtractor.builder(ch).build(),
-                        i -> TarBZip2ArchiveExtractor.builder(i).build()),
-                streamNative(
-                        "tar.xz",
-                        TAR,
-                        TarXzArchiveExtractor.class,
-                        TarXzArchiveCreator.class,
-                        TarXzArchiveCreator::builder,
-                        o -> TarXzArchiveCreator.builder(o).build(),
-                        ch -> TarXzArchiveCreator.builder(ch).build(),
-                        p -> TarXzArchiveExtractor.builder(p).build(),
-                        ch -> TarXzArchiveExtractor.builder(ch).build(),
-                        i -> TarXzArchiveExtractor.builder(i).build()),
-                streamNative(
-                        "tar.lzma",
-                        TAR,
-                        TarLzmaArchiveExtractor.class,
-                        TarLzmaArchiveCreator.class,
-                        TarLzmaArchiveCreator::builder,
-                        o -> TarLzmaArchiveCreator.builder(o).build(),
-                        ch -> TarLzmaArchiveCreator.builder(ch).build(),
-                        p -> TarLzmaArchiveExtractor.builder(p).build(),
-                        ch -> TarLzmaArchiveExtractor.builder(ch).build(),
-                        i -> TarLzmaArchiveExtractor.builder(i).build()),
-                streamNative(
-                        "tar.lz4",
-                        TAR,
-                        TarLz4ArchiveExtractor.class,
-                        TarLz4ArchiveCreator.class,
-                        TarLz4ArchiveCreator::builder,
-                        o -> TarLz4ArchiveCreator.builder(o).build(),
-                        ch -> TarLz4ArchiveCreator.builder(ch).build(),
-                        p -> TarLz4ArchiveExtractor.builder(p).build(),
-                        ch -> TarLz4ArchiveExtractor.builder(ch).build(),
-                        i -> TarLz4ArchiveExtractor.builder(i).build()),
-                streamNative(
-                        "tar.zst",
-                        TAR,
-                        TarZstdArchiveExtractor.class,
-                        TarZstdArchiveCreator.class,
-                        TarZstdArchiveCreator::builder,
-                        o -> TarZstdArchiveCreator.builder(o).build(),
-                        ch -> TarZstdArchiveCreator.builder(ch).build(),
-                        p -> TarZstdArchiveExtractor.builder(p).build(),
-                        ch -> TarZstdArchiveExtractor.builder(ch).build(),
-                        i -> TarZstdArchiveExtractor.builder(i).build()),
+                tar("tar", Compression.none(), false),
+                tar("tar.gz", Compression.gzip(), false),
+                tar("tar.bz2", Compression.bzip2(), false),
+                tar("tar.xz", Compression.xz(), false),
+                tar("tar.lzma", Compression.lzma(), true),
+                tar("tar.lz4", Compression.lz4Framed(), false),
+                tar("tar.zst", Compression.zstd(), false),
                 streamNative(
                         "ar",
                         EnumSet.of(MODES, SYMLINKS, LAST_MODIFIED, REQUIRES_SIZE, STREAM_INPUT, STREAM_OUTPUT),
@@ -245,6 +165,25 @@ public final class FormatCatalog {
      */
     public static ArchiveFormat named(String name) {
         return all().filter(f -> f.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    private static ArchiveFormat tar(String name, Compression compression, boolean explicitOnRead) {
+        return streamNative(
+                name,
+                TAR,
+                TarArchiveExtractor.class,
+                TarArchiveCreator.class,
+                path -> TarArchiveCreator.builder(path).compression(compression),
+                o -> TarArchiveCreator.builder(o).compression(compression).build(),
+                ch -> TarArchiveCreator.builder(ch).compression(compression).build(),
+                p -> tarReader(TarArchiveExtractor.builder(p), compression, explicitOnRead),
+                ch -> tarReader(TarArchiveExtractor.builder(ch), compression, explicitOnRead),
+                i -> tarReader(TarArchiveExtractor.builder(i), compression, explicitOnRead));
+    }
+
+    private static TarArchiveExtractor tarReader(
+            TarArchiveExtractor.Builder builder, Compression compression, boolean explicitOnRead) throws IOException {
+        return (explicitOnRead ? builder.compression(compression) : builder).build();
     }
 
     private static ArchiveFormat streamNative(

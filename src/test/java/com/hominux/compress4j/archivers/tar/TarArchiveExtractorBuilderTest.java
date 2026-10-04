@@ -16,12 +16,10 @@
 package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
-import com.hominux.compress4j.archivers.tar.TarArchiveExtractor.TarArchiveExtractorBuilder;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.junit.jupiter.api.Test;
 
@@ -30,8 +28,8 @@ class TarArchiveExtractorBuilderTest {
     @Test
     void shouldBuildArchiveInputStream() throws IOException {
         // given
-        var inputStream = mock(InputStream.class);
-        TarArchiveExtractorBuilder builder = new TarArchiveExtractorBuilder(inputStream);
+        var inputStream = new ByteArrayInputStream(new byte[0]);
+        var builder = TarArchiveExtractor.builder(inputStream);
 
         // when
         try (TarArchiveInputStream out = spy(builder.buildArchiveInputStream())) {

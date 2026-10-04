@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.tar;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,14 +24,15 @@ import java.nio.file.Path;
 class TarZstdArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Override
-    protected TarZstdArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
-        return TarZstdArchiveCreator.builder(Files.newOutputStream(archivePath)).build();
+    protected TarArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
+        return TarArchiveCreator.builder(Files.newOutputStream(archivePath))
+                .compression(Compression.zstd())
+                .build();
     }
 
     @Override
-    protected TarZstdArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
-        return TarZstdArchiveExtractor.builder(Files.newInputStream(archivePath))
-                .build();
+    protected TarArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
+        return TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build();
     }
 
     @Override

@@ -32,6 +32,8 @@ public class ArchiverDependencyChecker {
     private static final String YOU_NEED_XZ_JAVA = youNeed("XZ for Java", "https://tukaani.org/xz/java.html");
     private static final String YOU_NEED_ZSTD_JNI = youNeed("Zstd JNI", "https://github.com/luben/zstd-jni");
 
+    private static final String YOU_NEED_ASM = youNeed("ASM", "https://asm.ow2.io/");
+
     private ArchiverDependencyChecker() {
         /* no-op */
     }
@@ -65,6 +67,15 @@ public class ArchiverDependencyChecker {
     public static void checkZstd() {
         if (!ZstdUtils.isZstdCompressionAvailable()) {
             throw new MissingArchiveDependencyException("Zstandard compression is not available." + YOU_NEED_ZSTD_JNI);
+        }
+    }
+
+    /** Checks if writing Pack200 is available. */
+    public static void checkAsm() {
+        try {
+            Class.forName("org.objectweb.asm.ClassReader", false, ArchiverDependencyChecker.class.getClassLoader());
+        } catch (ClassNotFoundException absent) {
+            throw new MissingArchiveDependencyException("Pack200 compression is not available." + YOU_NEED_ASM);
         }
     }
 

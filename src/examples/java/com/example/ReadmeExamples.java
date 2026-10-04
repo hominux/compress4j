@@ -15,8 +15,9 @@
  */
 package com.example;
 
-import com.hominux.compress4j.archivers.tar.TarGzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveExtractor;
+import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
+import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -29,8 +30,9 @@ public class ReadmeExamples {
 
     public static void create() throws IOException {
         // tag::readme-create[]
-        try (TarGzArchiveCreator creator =
-                TarGzArchiveCreator.builder(Path.of("example.tar.gz")).build()) {
+        try (TarArchiveCreator creator = TarArchiveCreator.builder(Path.of("example.tar.gz"))
+                .compression(Compression.gzip())
+                .build()) {
             creator.addDirectoryRecursively(Path.of("exampleDir"));
             creator.addFile(Path.of("path/to/file.txt"));
         }
@@ -39,8 +41,8 @@ public class ReadmeExamples {
 
     public static void extract() throws IOException {
         // tag::readme-extract[]
-        try (TarGzArchiveExtractor extractor =
-                TarGzArchiveExtractor.builder(Path.of("example.tar.gz")).build()) {
+        try (TarArchiveExtractor extractor =
+                TarArchiveExtractor.builder(Path.of("example.tar.gz")).build()) {
             extractor.extract(Path.of("outputDir"));
         }
         // end::readme-extract[]
@@ -48,7 +50,7 @@ public class ReadmeExamples {
 
     public static void extractUntrusted() throws IOException {
         // tag::readme-extract-untrusted[]
-        try (TarGzArchiveExtractor extractor = TarGzArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
+        try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
                 .maxEntries(10_000)
                 .maxEntrySize(100L * 1024 * 1024)
                 .maxTotalSize(1024L * 1024 * 1024)

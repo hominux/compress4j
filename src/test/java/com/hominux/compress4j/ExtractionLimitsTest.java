@@ -25,19 +25,48 @@ class ExtractionLimitsTest {
 
     @Test
     void defaultsAreEnforcedButGenerous() {
-        assertThat(ExtractionLimits.defaults()).isEqualTo(new ExtractionLimits(1_000_000, UNLIMITED, UNLIMITED, 100));
+        var limits = ExtractionLimits.defaults();
+        assertThat(limits.maxEntries()).isEqualTo(1_000_000);
+        assertThat(limits.maxEntrySize()).isEqualTo(UNLIMITED);
+        assertThat(limits.maxTotalSize()).isEqualTo(UNLIMITED);
+        assertThat(limits.maxRatio()).isEqualTo(100);
     }
 
     @Test
     void unlimitedDisablesEverything() {
-        assertThat(ExtractionLimits.noLimits())
-                .isEqualTo(new ExtractionLimits(UNLIMITED, UNLIMITED, UNLIMITED, UNLIMITED));
+        var limits = ExtractionLimits.noLimits();
+        assertThat(limits.maxEntries()).isEqualTo(UNLIMITED);
+        assertThat(limits.maxEntrySize()).isEqualTo(UNLIMITED);
+        assertThat(limits.maxTotalSize()).isEqualTo(UNLIMITED);
+        assertThat(limits.maxRatio()).isEqualTo(UNLIMITED);
     }
 
     @Test
     void withersChangeOneComponent() {
         var limits = ExtractionLimits.defaults().withMaxTotalSize(10).withMaxRatio(5);
-        assertThat(limits).isEqualTo(new ExtractionLimits(1_000_000, UNLIMITED, 10, 5));
+        assertThat(limits.maxEntries()).isEqualTo(1_000_000);
+        assertThat(limits.maxEntrySize()).isEqualTo(UNLIMITED);
+        assertThat(limits.maxTotalSize()).isEqualTo(10);
+        assertThat(limits.maxRatio()).isEqualTo(5);
+        assertThat(ExtractionLimits.defaults().withMaxEntries(7).withMaxEntrySize(8))
+                .satisfies(l -> assertThat(l.maxEntries()).isEqualTo(7))
+                .satisfies(l -> assertThat(l.maxEntrySize()).isEqualTo(8));
+    }
+
+    @Test
+    void equalsHashCodeAndToStringFollowTheComponents() {
+        var limits = ExtractionLimits.defaults().withMaxTotalSize(10);
+        assertThat(limits)
+                .isEqualTo(ExtractionLimits.defaults().withMaxTotalSize(10))
+                .hasSameHashCodeAs(ExtractionLimits.defaults().withMaxTotalSize(10))
+                .isNotEqualTo(ExtractionLimits.defaults())
+                .isNotEqualTo(ExtractionLimits.defaults().withMaxTotalSize(11))
+                .isNotEqualTo(ExtractionLimits.defaults().withMaxEntries(2).withMaxTotalSize(10))
+                .isNotEqualTo(ExtractionLimits.defaults().withMaxEntrySize(2).withMaxTotalSize(10))
+                .isNotEqualTo(ExtractionLimits.defaults().withMaxRatio(2).withMaxTotalSize(10))
+                .isNotEqualTo("limits");
+        assertThat(limits)
+                .hasToString("ExtractionLimits[maxEntries=1000000, maxEntrySize=-1, maxTotalSize=10, maxRatio=100]");
     }
 
     @Test

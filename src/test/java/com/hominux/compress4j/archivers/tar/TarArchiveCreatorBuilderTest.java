@@ -18,12 +18,14 @@ package com.hominux.compress4j.archivers.tar;
 import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.BIGNUMBER_POSIX;
 import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.LONGFILE_POSIX;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
-import com.hominux.compress4j.archivers.tar.TarArchiveCreator.TarArchiveCreatorBuilder;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.junit.jupiter.api.Test;
 
@@ -33,11 +35,11 @@ class TarArchiveCreatorBuilderTest {
     void shouldBuildArchiveOutputStream() throws IOException {
         // given
         var outputStream = mock(OutputStream.class);
-        TarArchiveCreatorBuilder builder = new TarArchiveCreatorBuilder(outputStream)
-                .longFileMode(LONGFILE_POSIX)
-                .bigNumberMode(BIGNUMBER_POSIX)
+        var builder = TarArchiveCreator.builder(outputStream)
+                .longFileMode(TarLongFileMode.POSIX)
+                .bigNumberMode(TarBigNumberMode.POSIX)
                 .blockSize(1024)
-                .encoding("UTF-8");
+                .encoding(StandardCharsets.UTF_8);
 
         // when
         try (TarArchiveOutputStream out = spy(builder.buildArchiveOutputStream())) {
@@ -48,5 +50,18 @@ class TarArchiveCreatorBuilderTest {
                     .extracting("longFileMode", "bigNumberMode", "recordsPerBlock", "charsetName")
                     .containsExactly(LONGFILE_POSIX, BIGNUMBER_POSIX, 2, "UTF-8");
         }
+    }
+
+    @Test
+    void shouldRejectInvalidBlockSizesBeforeWritingAnything() {
+        var sink = new ByteArrayOutputStream();
+        var builder = TarArchiveCreator.builder(sink);
+
+        for (int invalid : new int[] {0, -1, 100, 513, -512}) {
+            assertThatThrownBy(() -> builder.blockSize(invalid)).isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThat(sink.size()).isZero();
+        assertThat(builder.blockSize(-511)).isSameAs(builder);
+        assertThat(builder.blockSize(512)).isSameAs(builder);
     }
 }

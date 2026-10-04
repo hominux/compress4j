@@ -19,31 +19,16 @@ import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoi
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.zip.Deflater.BEST_COMPRESSION;
-import static java.util.zip.Deflater.HUFFMAN_ONLY;
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.BIGNUMBER_ERROR;
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.BIGNUMBER_POSIX;
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.LONGFILE_GNU;
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.LONGFILE_POSIX;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarBZip2ArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarBZip2ArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarLz4ArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarLz4ArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarLzmaArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarLzmaArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarXzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarXzArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarZArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarZstdArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarZstdArchiveExtractor;
+import com.hominux.compress4j.archivers.tar.TarBigNumberMode;
+import com.hominux.compress4j.archivers.tar.TarLongFileMode;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.DeflateStrategy;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.tukaani.xz.LZMA2Options;
 
 @SuppressWarnings({"java:S1192", "unused"})
 public class TarExamples {
@@ -56,10 +41,10 @@ public class TarExamples {
         // tag::tar-creator[]
         try (TarArchiveCreator tarCreator = TarArchiveCreator.builder(Path.of("example.tar"))
                 .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
-                .bigNumberMode(BIGNUMBER_ERROR)
-                .longFileMode(LONGFILE_GNU)
+                .bigNumberMode(TarBigNumberMode.ERROR)
+                .longFileMode(TarLongFileMode.GNU)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarCreator.addDirectoryRecursively(Path.of("exampleDir"));
@@ -85,18 +70,17 @@ public class TarExamples {
 
     public static void tarGzCreator() throws IOException {
         // tag::tar-gz-creator[]
-        try (TarGzArchiveCreator tarGzCreator = TarGzArchiveCreator.builder(Path.of("example.tar.gz"))
-                .compressorOutputStreamBuilder()
-                .bufferSize(1024)
-                .compressionLevel(BEST_COMPRESSION)
-                .comment("comment")
-                .deflateStrategy(HUFFMAN_ONLY)
-                .operatingSystem(0)
-                .parentBuilder()
-                .longFileMode(LONGFILE_POSIX)
-                .bigNumberMode(BIGNUMBER_POSIX)
+        try (TarArchiveCreator tarGzCreator = TarArchiveCreator.builder(Path.of("example.tar.gz"))
+                .compression(Compression.gzip()
+                        .bufferSize(1024)
+                        .level(BEST_COMPRESSION)
+                        .comment("comment")
+                        .deflateStrategy(DeflateStrategy.HUFFMAN_ONLY)
+                        .operatingSystem(0))
+                .longFileMode(TarLongFileMode.POSIX)
+                .bigNumberMode(TarBigNumberMode.POSIX)
                 .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
@@ -108,7 +92,7 @@ public class TarExamples {
 
     public static void tarGzExtractor() throws IOException {
         // tag::tar-gz-extractor[]
-        try (TarGzArchiveExtractor tarGzExtractor = TarGzArchiveExtractor.builder(Path.of("example.tar.gz"))
+        try (TarArchiveExtractor tarGzExtractor = TarArchiveExtractor.builder(Path.of("example.tar.gz"))
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
@@ -123,15 +107,13 @@ public class TarExamples {
 
     public static void tarBzip2Creator() throws IOException {
         // tag::tar-bzip2-creator[]
-        try (TarBZip2ArchiveCreator tarBzip2Creator = TarBZip2ArchiveCreator.builder(Path.of("example.tar.bz2"))
-                .compressorOutputStreamBuilder()
+        try (TarArchiveCreator tarBzip2Creator = TarArchiveCreator.builder(Path.of("example.tar.bz2"))
+                .compression(Compression.bzip2().blockSize(9))
                 .blockSize(1024)
-                .parentBuilder()
-                .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
-                .bigNumberMode(BIGNUMBER_ERROR)
-                .longFileMode(LONGFILE_GNU)
+                .bigNumberMode(TarBigNumberMode.ERROR)
+                .longFileMode(TarLongFileMode.GNU)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarBzip2Creator.addDirectoryRecursively(Path.of("exampleDir"));
@@ -142,7 +124,7 @@ public class TarExamples {
 
     public static void tarBzip2Extractor() throws IOException {
         // tag::tar-bzip2-extractor[]
-        try (TarBZip2ArchiveExtractor tarBzip2Extractor = TarBZip2ArchiveExtractor.builder(Path.of("example.tar.bz2"))
+        try (TarArchiveExtractor tarBzip2Extractor = TarArchiveExtractor.builder(Path.of("example.tar.bz2"))
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
@@ -157,15 +139,13 @@ public class TarExamples {
 
     public static void tarXzCreator() throws IOException {
         // tag::tar-xz-creator[]
-        try (TarXzArchiveCreator tarXzCreator = TarXzArchiveCreator.builder(Path.of("example.tar.xz"))
-                .compressorOutputStreamBuilder()
-                .lzma2Options(new LZMA2Options())
-                .parentBuilder()
+        try (TarArchiveCreator tarXzCreator = TarArchiveCreator.builder(Path.of("example.tar.xz"))
+                .compression(Compression.xz().preset(6))
                 .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
-                .bigNumberMode(BIGNUMBER_ERROR)
-                .longFileMode(LONGFILE_GNU)
+                .bigNumberMode(TarBigNumberMode.ERROR)
+                .longFileMode(TarLongFileMode.GNU)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarXzCreator.addDirectoryRecursively(Path.of("exampleDir"));
@@ -176,7 +156,7 @@ public class TarExamples {
 
     public static void tarXzExtractor() throws IOException {
         // tag::tar-xz-extractor[]
-        try (TarXzArchiveExtractor tarXzExtractor = TarXzArchiveExtractor.builder(Path.of("example.tar.xz"))
+        try (TarArchiveExtractor tarXzExtractor = TarArchiveExtractor.builder(Path.of("example.tar.xz"))
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
@@ -191,15 +171,13 @@ public class TarExamples {
 
     public static void tarZstdCreator() throws IOException {
         // tag::tar-zstd-creator[]
-        try (TarZstdArchiveCreator tarZstdCreator = TarZstdArchiveCreator.builder(Path.of("example.tar.zst"))
-                .compressorOutputStreamBuilder()
-                .level(6)
-                .parentBuilder()
+        try (TarArchiveCreator tarZstdCreator = TarArchiveCreator.builder(Path.of("example.tar.zst"))
+                .compression(Compression.zstd().level(6))
                 .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
-                .bigNumberMode(BIGNUMBER_ERROR)
-                .longFileMode(LONGFILE_GNU)
+                .bigNumberMode(TarBigNumberMode.ERROR)
+                .longFileMode(TarLongFileMode.GNU)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarZstdCreator.addDirectoryRecursively(Path.of("exampleDir"));
@@ -210,7 +188,7 @@ public class TarExamples {
 
     public static void tarZstdExtractor() throws IOException {
         // tag::tar-zstd-extractor[]
-        try (TarZstdArchiveExtractor tarZstdExtractor = TarZstdArchiveExtractor.builder(Path.of("example.tar.zst"))
+        try (TarArchiveExtractor tarZstdExtractor = TarArchiveExtractor.builder(Path.of("example.tar.zst"))
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
@@ -225,12 +203,13 @@ public class TarExamples {
 
     public static void tarLzmaCreator() throws IOException {
         // tag::tar-lzma-creator[]
-        try (TarLzmaArchiveCreator tarLzmaCreator = TarLzmaArchiveCreator.builder(Path.of("example.tar.lzma"))
+        try (TarArchiveCreator tarLzmaCreator = TarArchiveCreator.builder(Path.of("example.tar.lzma"))
+                .compression(Compression.lzma())
                 .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
-                .bigNumberMode(BIGNUMBER_ERROR)
-                .longFileMode(LONGFILE_GNU)
+                .bigNumberMode(TarBigNumberMode.ERROR)
+                .longFileMode(TarLongFileMode.GNU)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarLzmaCreator.addDirectoryRecursively(Path.of("exampleDir"));
@@ -241,7 +220,8 @@ public class TarExamples {
 
     public static void tarLzmaExtractor() throws IOException {
         // tag::tar-lzma-extractor[]
-        try (TarLzmaArchiveExtractor tarLzmaExtractor = TarLzmaArchiveExtractor.builder(Path.of("example.tar.lzma"))
+        try (TarArchiveExtractor tarLzmaExtractor = TarArchiveExtractor.builder(Path.of("example.tar.lzma"))
+                .compression(Compression.lzma())
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
@@ -256,12 +236,13 @@ public class TarExamples {
 
     public static void tarLz4Creator() throws IOException {
         // tag::tar-lz4-creator[]
-        try (TarLz4ArchiveCreator tarLz4Creator = TarLz4ArchiveCreator.builder(Path.of("example.tar.lz4"))
+        try (TarArchiveCreator tarLz4Creator = TarArchiveCreator.builder(Path.of("example.tar.lz4"))
+                .compression(Compression.lz4Framed())
                 .blockSize(1024)
-                .encoding(UTF_8.name())
+                .encoding(UTF_8)
                 .addPaxHeadersForNonAsciiNames(true)
-                .bigNumberMode(BIGNUMBER_ERROR)
-                .longFileMode(LONGFILE_GNU)
+                .bigNumberMode(TarBigNumberMode.ERROR)
+                .longFileMode(TarLongFileMode.GNU)
                 .filter(s -> !s.name().endsWith("some_file.txt"))
                 .build()) {
             tarLz4Creator.addDirectoryRecursively(Path.of("exampleDir"));
@@ -272,7 +253,7 @@ public class TarExamples {
 
     public static void tarLz4Extractor() throws IOException {
         // tag::tar-lz4-extractor[]
-        try (TarLz4ArchiveExtractor tarLz4Extractor = TarLz4ArchiveExtractor.builder(Path.of("example.tar.lz4"))
+        try (TarArchiveExtractor tarLz4Extractor = TarArchiveExtractor.builder(Path.of("example.tar.lz4"))
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
@@ -287,7 +268,7 @@ public class TarExamples {
 
     public static void tarZExtractor() throws IOException {
         // tag::tar-z-extractor[]
-        try (TarZArchiveExtractor tarZExtractor = TarZArchiveExtractor.builder(Path.of("example.tar.Z"))
+        try (TarArchiveExtractor tarZExtractor = TarArchiveExtractor.builder(Path.of("example.tar.Z"))
                 .filter(entry -> !entry.name().startsWith("bad"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)

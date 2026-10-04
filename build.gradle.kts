@@ -77,8 +77,6 @@ dependencies {
     testFixturesImplementation(libs.jackson.databind)
     testFixturesImplementation(libs.mockito.core)
 
-    examplesImplementation(libs.org.tukaani.xz)
-
     mockitoAgent(libs.mockito.core) { isTransitive = false }
 }
 
@@ -111,6 +109,7 @@ val integrationTest by testing.suites.registering(JvmTestSuite::class) {
         implementation(project())
         implementation(testFixtures(project()))
         implementation(libs.junit.jupiter.api)
+        implementation(libs.junit.jupiter.params)
 
         runtimeOnly(libs.asm)
         runtimeOnly(libs.org.tukaani.xz)

@@ -26,7 +26,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.spy;
 
-import com.hominux.compress4j.archivers.tar.TarArchiveCreator.TarArchiveCreatorBuilder;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -51,7 +50,7 @@ class TarArchiveCreatorTest {
         var inputStream = new ByteArrayInputStream("test".getBytes());
 
         // when
-        var aOut = spy(new TarArchiveCreatorBuilder(outputStream).buildArchiveOutputStream());
+        var aOut = spy(TarArchiveCreator.builder(outputStream).buildArchiveOutputStream());
         try (TarArchiveCreator tarCompressor = new TarArchiveCreator(aOut)) {
 
             FileTime modTime = FileTime.from(now());
@@ -79,7 +78,7 @@ class TarArchiveCreatorTest {
         var inputStream = mock(InputStream.class);
 
         // when
-        var aOut = spy(new TarArchiveCreatorBuilder(outputStream).buildArchiveOutputStream());
+        var aOut = spy(TarArchiveCreator.builder(outputStream).buildArchiveOutputStream());
         try (MockedStatic<IOUtils> mockIOUtils = mockStatic(IOUtils.class);
                 TarArchiveCreator tarCompressor = new TarArchiveCreator(aOut)) {
 

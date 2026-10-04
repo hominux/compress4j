@@ -15,7 +15,6 @@
  */
 package com.hominux.compress4j.archivers.tar;
 
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.LONGFILE_GNU;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
@@ -56,7 +55,7 @@ class TarArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         Files.createDirectories(extractDir);
 
         try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
-                .longFileMode(LONGFILE_GNU)
+                .longFileMode(TarLongFileMode.GNU)
                 .build()) {
             creator.addFile("executable.sh", sourceFile);
         }

@@ -16,19 +16,24 @@
 package com.hominux.compress4j.archivers.tar;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Path;
 
 class TarLzmaArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Override
-    protected TarLzmaArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
-        return TarLzmaArchiveCreator.builder(archivePath).build();
+    protected TarArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
+        return TarArchiveCreator.builder(archivePath)
+                .compression(Compression.lzma())
+                .build();
     }
 
     @Override
-    protected TarLzmaArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
-        return TarLzmaArchiveExtractor.builder(archivePath).build();
+    protected TarArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
+        return TarArchiveExtractor.builder(archivePath)
+                .compression(Compression.lzma())
+                .build();
     }
 
     @Override

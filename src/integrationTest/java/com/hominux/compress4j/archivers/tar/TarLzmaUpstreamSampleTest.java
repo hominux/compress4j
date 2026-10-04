@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +37,9 @@ class TarLzmaUpstreamSampleTest {
         }
         var out = Files.createDirectory(tempDir.resolve("out"));
 
-        try (var extractor = TarLzmaArchiveExtractor.builder(sample).build()) {
+        try (var extractor = TarArchiveExtractor.builder(sample)
+                .compression(Compression.lzma())
+                .build()) {
             extractor.extract(out);
         }
 
