@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -69,7 +69,7 @@ class CpioArchiveExtractorTest {
 
     @DisabledOnOs(OS.WINDOWS)
     @Test
-    void testSymlinkTargetLargerThanMaxEntrySize_throwsArchiveLimitExceededException() throws IOException {
+    void testSymlinkTargetLargerThanMaxEntrySize_throwsLimitExceededException() throws IOException {
         // given
         Path symlink = tempDir.resolve("huge-link");
         Files.createSymbolicLink(symlink, Path.of("a".repeat(200)));
@@ -88,8 +88,11 @@ class CpioArchiveExtractorTest {
                 .maxEntrySize(50)
                 .build()) {
             assertThatThrownBy(() -> extractor.extract(extractDir))
-                    .isInstanceOf(ArchiveLimitExceededException.class)
-                    .hasMessageContaining("huge-link");
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> {
+                        assertThat(e.entryName()).contains("huge-link");
+                        assertThat(e.limit()).isEqualTo(LimitExceededException.Limit.ENTRY_SIZE);
+                        assertThat(e.maximum()).isEqualTo(50);
+                    });
         }
     }
 

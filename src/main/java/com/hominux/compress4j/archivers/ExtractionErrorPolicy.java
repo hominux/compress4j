@@ -19,6 +19,7 @@ import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoi
 
 import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice;
+import com.hominux.compress4j.exceptions.UnsafeInputException;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -44,10 +45,14 @@ final class ExtractionErrorPolicy {
      * @param entry the entry that caused the exception
      * @return {@link EntryOutcome.IgnoreFurtherErrors} when {@code ignoreErrors} is set or the handler answers
      *     {@code SKIP_ALL}, {@link EntryOutcome.Continue} after {@code SKIP}
-     * @throws IOException {@code failure}, when the handler answers {@code ABORT}
+     * @throws IOException {@code failure}, when it is an {@link UnsafeInputException} or the handler answers
+     *     {@code ABORT}
      * @throws NullPointerException if the handler returns {@code null}
      */
     EntryOutcome handle(IOException failure, boolean ignoreErrors, Entry entry) throws IOException {
+        if (failure instanceof UnsafeInputException unsafe) {
+            throw unsafe;
+        }
         if (ignoreErrors) {
             LOGGER.debug("Skipped exception because {} was selected earlier", SKIP_ALL, failure);
             return new EntryOutcome.IgnoreFurtherErrors();

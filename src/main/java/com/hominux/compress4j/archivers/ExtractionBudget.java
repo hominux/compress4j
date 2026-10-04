@@ -15,10 +15,13 @@
  */
 package com.hominux.compress4j.archivers;
 
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 
 /**
  * Tracks what one {@link ArchiveExtractor#stream()} or {@link ArchiveExtractor#extract} run has consumed against its
@@ -34,15 +37,22 @@ final class ExtractionBudget {
         this.limits = limits;
     }
 
-    void countEntry() throws ArchiveLimitExceededException {
-        if (limits.maxEntries() >= 0 && ++entries > limits.maxEntries()) {
-            throw new ArchiveLimitExceededException(
-                    "Archive holds more than the maximum of " + limits.maxEntries() + " entries allowed");
+    static void checkDeclaredSize(ExtractionLimits limits, String entryName, long declaredSize)
+            throws LimitExceededException {
+        if (limits.maxEntrySize() != ExtractionLimits.UNLIMITED && declaredSize > limits.maxEntrySize()) {
+            throw new LimitExceededException(Limit.ENTRY_SIZE, limits.maxEntrySize(), Optional.of(entryName));
+        }
+    }
+
+    void countEntry() throws LimitExceededException {
+        if (limits.maxEntries() != ExtractionLimits.UNLIMITED && ++entries > limits.maxEntries()) {
+            throw new LimitExceededException(Limit.ENTRIES, limits.maxEntries(), Optional.empty());
         }
     }
 
     InputStream meter(String entryName, InputStream in) {
-        if (limits.maxEntrySize() < 0 && limits.maxTotalSize() < 0) {
+        if (limits.maxEntrySize() == ExtractionLimits.UNLIMITED
+                && limits.maxTotalSize() == ExtractionLimits.UNLIMITED) {
             return in;
         }
         return new MeteredInputStream(entryName, in);
@@ -82,16 +92,14 @@ final class ExtractionBudget {
             return skipped;
         }
 
-        private void count(long n) throws ArchiveLimitExceededException {
+        private void count(long n) throws LimitExceededException {
             entryBytes += n;
             extractedBytes += n;
-            if (limits.maxEntrySize() >= 0 && entryBytes > limits.maxEntrySize()) {
-                throw new ArchiveLimitExceededException("Entry '" + entryName + "' expands beyond the maximum entry "
-                        + "size of " + limits.maxEntrySize() + " bytes");
+            if (limits.maxEntrySize() != ExtractionLimits.UNLIMITED && entryBytes > limits.maxEntrySize()) {
+                throw new LimitExceededException(Limit.ENTRY_SIZE, limits.maxEntrySize(), Optional.of(entryName));
             }
-            if (limits.maxTotalSize() >= 0 && extractedBytes > limits.maxTotalSize()) {
-                throw new ArchiveLimitExceededException("Archive expands beyond the maximum total size of "
-                        + limits.maxTotalSize() + " bytes at entry '" + entryName + "'");
+            if (limits.maxTotalSize() != ExtractionLimits.UNLIMITED && extractedBytes > limits.maxTotalSize()) {
+                throw new LimitExceededException(Limit.TOTAL_SIZE, limits.maxTotalSize(), Optional.of(entryName));
             }
         }
     }

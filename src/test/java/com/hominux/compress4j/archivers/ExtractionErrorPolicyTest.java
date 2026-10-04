@@ -22,7 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.archivers.ExtractionErrorPolicy.EntryOutcome;
+import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
+import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -62,5 +66,14 @@ class ExtractionErrorPolicyTest {
         assertThatThrownBy(() -> policy.handle(FAILURE, false, ENTRY))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("errorHandler");
+    }
+
+    @Test
+    void unsafeInputIsNeverShownToTheHandler() {
+        ExtractionErrorPolicy policy = new ExtractionErrorPolicy((e, x) -> SKIP);
+        var limit = new LimitExceededException(Limit.ENTRIES, 1, Optional.empty());
+        var unsafe = new UnsafeEntryException("bad");
+        assertThatThrownBy(() -> policy.handle(limit, false, ENTRY)).isSameAs(limit);
+        assertThatThrownBy(() -> policy.handle(unsafe, true, ENTRY)).isSameAs(unsafe);
     }
 }

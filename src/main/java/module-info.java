@@ -30,6 +30,7 @@ module com.hominux.compress4j {
     requires static transitive org.tukaani.xz;
     requires static transitive com.github.luben.zstd_jni;
 
+    exports com.hominux.compress4j;
     exports com.hominux.compress4j.archivers;
     exports com.hominux.compress4j.archivers.ar;
     exports com.hominux.compress4j.archivers.arj;

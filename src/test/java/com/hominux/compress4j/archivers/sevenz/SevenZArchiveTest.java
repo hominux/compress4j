@@ -27,7 +27,7 @@ import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.ArchiveItem;
 import com.hominux.compress4j.archivers.EntrySource;
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -190,8 +190,7 @@ class SevenZArchiveTest {
 
         try (var extractor =
                 SevenZArchiveExtractor.builder(archive).maxEntries(1).build()) {
-            assertThatThrownBy(() -> extractor.extract(tmp.resolve("out")))
-                    .isInstanceOf(ArchiveLimitExceededException.class);
+            assertThatThrownBy(() -> extractor.extract(tmp.resolve("out"))).isInstanceOf(LimitExceededException.class);
         }
     }
 
@@ -202,8 +201,7 @@ class SevenZArchiveTest {
 
         try (var extractor =
                 SevenZArchiveExtractor.builder(archive).maxEntrySize(4).build()) {
-            assertThatThrownBy(() -> extractor.extract(tmp.resolve("out")))
-                    .isInstanceOf(ArchiveLimitExceededException.class);
+            assertThatThrownBy(() -> extractor.extract(tmp.resolve("out"))).isInstanceOf(LimitExceededException.class);
         }
     }
 

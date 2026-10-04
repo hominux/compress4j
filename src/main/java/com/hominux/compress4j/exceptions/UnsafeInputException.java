@@ -18,20 +18,20 @@ package com.hominux.compress4j.exceptions;
 import java.io.IOException;
 
 /**
- * Signals that an archive was rejected for safety reasons rather than because it is corrupt or unreadable. Extraction
- * error handlers cannot suppress it.
+ * Signals input rejected for safety rather than because it is corrupt or unreadable: an entry that would escape the
+ * output directory, or input that exceeds a configured limit. Extraction error handlers never receive it.
  *
  * @since 5.0
  */
-public abstract sealed class ArchiveSecurityException extends IOException
-        permits ArchiveLimitExceededException, UnsafeEntryException {
+public abstract sealed class UnsafeInputException extends IOException
+        permits LimitExceededException, UnsafeEntryException {
 
     /**
      * Creates an exception with the given message.
      *
      * @param message the detail message
      */
-    protected ArchiveSecurityException(String message) {
+    protected UnsafeInputException(String message) {
         super(message);
     }
 
@@ -41,7 +41,7 @@ public abstract sealed class ArchiveSecurityException extends IOException
      * @param message the detail message
      * @param cause the underlying failure
      */
-    protected ArchiveSecurityException(String message, Throwable cause) {
+    protected UnsafeInputException(String message, Throwable cause) {
         super(message, cause);
     }
 }

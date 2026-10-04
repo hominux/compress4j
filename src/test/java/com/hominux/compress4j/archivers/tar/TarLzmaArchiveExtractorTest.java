@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -100,7 +100,7 @@ class TarLzmaArchiveExtractorTest {
         try (var extractor = TarLzmaArchiveExtractor.builder(new ByteArrayInputStream(archive))
                 .maxEntrySize(1024)
                 .build()) {
-            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(ArchiveLimitExceededException.class);
+            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(LimitExceededException.class);
         }
     }
 
@@ -111,7 +111,7 @@ class TarLzmaArchiveExtractorTest {
         try (var extractor = TarLzmaArchiveExtractor.builder(new ByteArrayInputStream(archive))
                 .maxEntries(0)
                 .build()) {
-            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(ArchiveLimitExceededException.class);
+            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(LimitExceededException.class);
         }
     }
 
@@ -122,7 +122,7 @@ class TarLzmaArchiveExtractorTest {
         try (var extractor = TarLzmaArchiveExtractor.builder(new ByteArrayInputStream(archive))
                 .maxTotalSize(1024)
                 .build()) {
-            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(ArchiveLimitExceededException.class);
+            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(LimitExceededException.class);
         }
     }
 

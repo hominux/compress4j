@@ -15,10 +15,11 @@
  */
 package com.hominux.compress4j.archivers;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.ExtractionErrorPolicy.EntryOutcome;
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
-import com.hominux.compress4j.exceptions.ArchiveSecurityException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
+import com.hominux.compress4j.exceptions.UnsafeInputException;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
 import jakarta.annotation.Nullable;
 import java.io.Closeable;
@@ -61,13 +62,6 @@ import org.slf4j.LoggerFactory;
 public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends ArchiveEntry>> implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveExtractor.class);
 
-    /**
-     * Value disabling an extraction limit.
-     *
-     * @since 3.1
-     */
-    public static final long UNLIMITED = -1L;
-
     private static final Predicate<Entry> ACCEPT_ALL = entry -> true;
 
     private static final DirectoryModeApplier DEFAULT_MODE_APPLIER =
@@ -94,7 +88,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     /** Whether to overwrite existing files. */
     private final boolean overwrite;
 
-    private final ExtractionLimits limits;
+    final ExtractionLimits limits;
 
     private final EntryPipeline pipeline;
 
@@ -117,7 +111,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         this.overwrite = builder.overwrite;
         this.escapingSymlinkPolicy = builder.escapingSymlinkPolicy;
         this.directoryModeApplier = builder.directoryModeApplier;
-        this.limits = new ExtractionLimits(builder.maxEntries, builder.maxEntrySize, builder.maxTotalSize);
+        this.limits = builder.limits;
         this.pipeline = new EntryPipeline(reader(), stripComponents, entryFilter, limits);
     }
 
@@ -136,7 +130,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         this.overwrite = false;
         this.escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
         this.directoryModeApplier = DEFAULT_MODE_APPLIER;
-        this.limits = ExtractionLimits.NONE;
+        this.limits = ExtractionLimits.defaults();
         this.pipeline = new EntryPipeline(reader(), stripComponents, entryFilter, limits);
     }
 
@@ -146,7 +140,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
      * @param outputDir the directory to extract the archive to
      * @throws IOException if an I/O error occurs
      * @throws IllegalStateException if this extractor was already streamed or extracted
-     * @throws ArchiveLimitExceededException if the archive breaches one of the configured extraction limits
+     * @throws LimitExceededException if the archive breaches one of the configured extraction limits
      * @throws UnsafeEntryException if an entry would be written, or a symlink would point, outside outputDir
      */
     public final void extract(Path outputDir) throws IOException {
@@ -161,7 +155,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
             Optional<UnsafeEntryException> escape = escapeOf(guard);
             if (escape.isPresent() && escape.orElseThrow() != failure) {
                 UnsafeEntryException unsafe = escape.orElseThrow();
-                if (failure instanceof ArchiveSecurityException) {
+                if (failure instanceof UnsafeInputException) {
                     failure.addSuppressed(unsafe);
                 } else {
                     unsafe.addSuppressed(failure);
@@ -224,7 +218,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         try {
             processItem(outputDir, item, guard, directoryModes);
             return new EntryOutcome.Continue();
-        } catch (ArchiveSecurityException unsuppressible) {
+        } catch (UnsafeInputException unsuppressible) {
             throw unsuppressible;
         } catch (IOException failure) {
             return new ExtractionErrorPolicy(errorHandler).handle(failure, ignoreErrors, item.entry());
@@ -366,10 +360,10 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
      * @param declaredSize the number of bytes to read, as declared by the archive entry
      * @return the bytes read
      * @throws IOException if an I/O error occurs
-     * @throws ArchiveLimitExceededException if declaredSize exceeds the configured maximum entry size
+     * @throws LimitExceededException if declaredSize exceeds the configured maximum entry size
      */
     protected byte[] readEntryContent(String entryName, InputStream in, long declaredSize) throws IOException {
-        limits.checkDeclaredSize(entryName, declaredSize);
+        ExtractionBudget.checkDeclaredSize(limits, entryName, declaredSize);
         return IOUtils.toByteArray(in, declaredSize);
     }
 
@@ -470,9 +464,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         Consumer<UnsupportedEntry> unsupportedEntryHandler = entry -> {};
         int stripComponents = 0;
         boolean overwrite = false;
-        long maxEntries = UNLIMITED;
-        long maxEntrySize = UNLIMITED;
-        long maxTotalSize = UNLIMITED;
+        ExtractionLimits limits = ExtractionLimits.defaults();
         DirectoryModeApplier directoryModeApplier = DEFAULT_MODE_APPLIER;
 
         final Optional<Closeable> ownedStream;
@@ -513,9 +505,8 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         /**
          * Sets the error handler, consulted for each non-security {@link IOException} while extracting an entry, until
          * it answers {@link ErrorHandlerChoice#SKIP_ALL}. Defaults to a handler that answers
-         * {@link ErrorHandlerChoice#ABORT}. An {@link ArchiveSecurityException} always propagates without consulting
-         * the handler. A handler that returns {@code null} makes the extraction fail with a
-         * {@link NullPointerException}.
+         * {@link ErrorHandlerChoice#ABORT}. An {@link UnsafeInputException} always propagates without consulting the
+         * handler. A handler that returns {@code null} makes the extraction fail with a {@link NullPointerException}.
          *
          * @param errorHandlerFunction the handler; it must not return {@code null}
          * @return this builder
@@ -589,45 +580,82 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         }
 
         /**
+         * Replaces every extraction limit; see {@link ExtractionLimits}. Builders start from
+         * {@link ExtractionLimits#defaults()}, and this call discards every component set before it.
+         *
+         * @param limits the limits
+         * @return this builder
+         * @throws NullPointerException if {@code limits} is {@code null}
+         * @since 5.0
+         */
+        public B limits(ExtractionLimits limits) {
+            this.limits = Objects.requireNonNull(limits, "limits");
+            return getThis();
+        }
+
+        /**
          * Sets the maximum number of entries the extractor will process before aborting. Counts entries that pass
          * strip-components and the filter; entries skipped as unsupported or filtered out are not counted, and the
          * unsupported-entry handler is called once per skipped entry without a bound. In {@link #stream()} a breach
-         * surfaces as {@link java.io.UncheckedIOException} wrapping {@link ArchiveLimitExceededException}.
+         * surfaces as {@link java.io.UncheckedIOException} wrapping {@link LimitExceededException}.
          *
-         * @param maxEntries the maximum number of entries, or {@link ArchiveExtractor#UNLIMITED} to disable the limit
+         * <p>Defaults to 1,000,000.
+         *
+         * @param maxEntries the maximum number of entries, or {@link ExtractionLimits#UNLIMITED} to disable the limit
          * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
+         * @throws IllegalArgumentException if {@code maxEntries} is neither {@link ExtractionLimits#UNLIMITED} nor at
+         *     least 0
          * @since 3.1
          */
         public B maxEntries(long maxEntries) {
-            this.maxEntries = maxEntries;
+            this.limits = limits.withMaxEntries(maxEntries);
             return getThis();
         }
 
         /**
          * Sets the maximum number of bytes a single entry may expand to before the extractor aborts. Counts bytes
-         * actually read from the entry's {@code content()}.
+         * actually read from the entry's {@code content()}. Defaults to unlimited.
          *
-         * @param maxEntrySize the maximum size of a single entry in bytes, or {@link ArchiveExtractor#UNLIMITED} to
+         * @param maxEntrySize the maximum size of a single entry in bytes, or {@link ExtractionLimits#UNLIMITED} to
          *     disable the limit
          * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
+         * @throws IllegalArgumentException if {@code maxEntrySize} is neither {@link ExtractionLimits#UNLIMITED} nor at
+         *     least 0
          * @since 3.1
          */
         public B maxEntrySize(long maxEntrySize) {
-            this.maxEntrySize = maxEntrySize;
+            this.limits = limits.withMaxEntrySize(maxEntrySize);
             return getThis();
         }
 
         /**
          * Sets the maximum number of bytes the whole archive may expand to before the extractor aborts. Counts bytes
-         * actually read from entries' {@code content()}.
+         * actually read from entries' {@code content()}. Defaults to unlimited.
          *
-         * @param maxTotalSize the maximum total extracted size in bytes, or {@link ArchiveExtractor#UNLIMITED} to
+         * @param maxTotalSize the maximum total extracted size in bytes, or {@link ExtractionLimits#UNLIMITED} to
          *     disable the limit
          * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
+         * @throws IllegalArgumentException if {@code maxTotalSize} is neither {@link ExtractionLimits#UNLIMITED} nor at
+         *     least 0
          * @since 3.1
          */
         public B maxTotalSize(long maxTotalSize) {
-            this.maxTotalSize = maxTotalSize;
+            this.limits = limits.withMaxTotalSize(maxTotalSize);
+            return getThis();
+        }
+
+        /**
+         * Sets the maximum expansion ratio (uncompressed bytes per compressed byte read). Defaults to 100. Readers in
+         * this version validate it but do not enforce it.
+         *
+         * @param maxRatio the maximum, at least 1, or {@link ExtractionLimits#UNLIMITED}
+         * @return this builder
+         * @throws IllegalArgumentException if {@code maxRatio} is neither {@link ExtractionLimits#UNLIMITED} nor at
+         *     least 1
+         * @since 5.0
+         */
+        public B maxRatio(long maxRatio) {
+            this.limits = limits.withMaxRatio(maxRatio);
             return getThis();
         }
 

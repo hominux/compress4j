@@ -37,18 +37,21 @@ import static org.mockito.Mockito.mockStatic;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveInputStream;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.test.util.log.InMemoryLogAppender;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
@@ -99,6 +102,45 @@ class ArchiveExtractorTest {
     void cleanUp() {
         inMemoryLogAppender.reset();
         inMemoryLogAppender.stop();
+    }
+
+    @Test
+    void streamConstructorUsesDefaultLimits() throws IOException {
+        try (var extractor =
+                new InMemoryArchiveExtractor(new InMemoryArchiveInputStream(List.<InMemoryArchiveEntry>of()))) {
+            ArchiveExtractor<?> base = extractor;
+            assertThat(base.limits).isEqualTo(ExtractionLimits.defaults());
+        }
+    }
+
+    @Test
+    void limitsValueReplacesTheDefaults() throws IOException {
+        var entries = List.of(
+                InMemoryArchiveEntry.builder().name("a").content("").build(),
+                InMemoryArchiveEntry.builder().name("b").content("").build());
+        try (var extractor = InMemoryArchiveExtractor.builder(entries)
+                .limits(ExtractionLimits.noLimits().withMaxEntries(1))
+                .build()) {
+            var stream = extractor.stream();
+            assertThatThrownBy(() -> stream.forEach(item -> {}))
+                    .isInstanceOf(UncheckedIOException.class)
+                    .cause()
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> {
+                        assertThat(e.limit()).isEqualTo(Limit.ENTRIES);
+                        assertThat(e.maximum()).isEqualTo(1);
+                    });
+        }
+    }
+
+    @Test
+    void builderRejectsOutOfRangeLimits() {
+        var builder = InMemoryArchiveExtractor.builder(new ByteArrayInputStream(new byte[0]));
+        assertThatThrownBy(() -> builder.maxRatio(0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("maxRatio");
+        assertThatThrownBy(() -> builder.maxEntries(-2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("maxEntries");
     }
 
     @Test
@@ -1400,8 +1442,8 @@ class ArchiveExtractorTest {
 
                 // when
                 assertThatThrownBy(() -> extractor.extract(tempDir))
-                        .isInstanceOf(ArchiveLimitExceededException.class)
-                        .hasMessageContaining("maximum of 2 entries");
+                        .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                                .isEqualTo(Limit.ENTRIES));
 
                 // then
                 assertThat(tempDir.resolve("a")).hasContent("a");
@@ -1423,9 +1465,11 @@ class ArchiveExtractorTest {
 
                 // when / then
                 assertThatThrownBy(() -> extractor.extract(tempDir))
-                        .isInstanceOf(ArchiveLimitExceededException.class)
-                        .hasMessageContaining("big.txt")
-                        .hasMessageContaining("maximum entry size of 4 bytes");
+                        .isInstanceOfSatisfying(LimitExceededException.class, e -> {
+                            assertThat(e.limit()).isEqualTo(Limit.ENTRY_SIZE);
+                            assertThat(e.maximum()).isEqualTo(4);
+                            assertThat(e.entryName()).contains("big.txt");
+                        });
             }
         }
 
@@ -1468,7 +1512,7 @@ class ArchiveExtractorTest {
                     }) {
 
                 // when
-                assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(ArchiveLimitExceededException.class);
+                assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(LimitExceededException.class);
 
                 // then
                 assertThat(released).hasValue(1);
@@ -1495,7 +1539,7 @@ class ArchiveExtractorTest {
 
                 // when / then
                 assertThatThrownBy(() -> extractor.extract(tempDir))
-                        .isInstanceOf(ArchiveLimitExceededException.class)
+                        .isInstanceOf(LimitExceededException.class)
                         .hasSuppressedException(releaseFailure);
             }
         }
@@ -1518,8 +1562,10 @@ class ArchiveExtractorTest {
 
                 // when
                 assertThatThrownBy(() -> extractor.extract(tempDir))
-                        .isInstanceOf(ArchiveLimitExceededException.class)
-                        .hasMessageContaining("maximum total size of 8 bytes");
+                        .isInstanceOfSatisfying(LimitExceededException.class, e -> {
+                            assertThat(e.limit()).isEqualTo(Limit.TOTAL_SIZE);
+                            assertThat(e.maximum()).isEqualTo(8);
+                        });
 
                 // then
                 assertThat(tempDir.resolve("one.txt")).hasContent("12345");
@@ -1539,7 +1585,7 @@ class ArchiveExtractorTest {
                     .build()) {
 
                 // when / then
-                assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(ArchiveLimitExceededException.class);
+                assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(LimitExceededException.class);
             }
         }
 
@@ -1551,9 +1597,9 @@ class ArchiveExtractorTest {
                     InMemoryArchiveEntry.builder().name("b").content("b").build());
 
             try (var extractor = InMemoryArchiveExtractor.builder(entries)
-                    .maxEntries(ArchiveExtractor.UNLIMITED)
-                    .maxEntrySize(ArchiveExtractor.UNLIMITED)
-                    .maxTotalSize(ArchiveExtractor.UNLIMITED)
+                    .maxEntries(ExtractionLimits.UNLIMITED)
+                    .maxEntrySize(ExtractionLimits.UNLIMITED)
+                    .maxTotalSize(ExtractionLimits.UNLIMITED)
                     .build()) {
                 // when
                 extractor.extract(tempDir);

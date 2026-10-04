@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator.InMemoryArchiveCreatorBuilder;
 import java.io.ByteArrayOutputStream;
@@ -53,7 +54,7 @@ class RepackOpenFailureTest {
     @Test
     void addAllSurfacesEntryOpenFailureAsIOException() throws IOException {
         // Given
-        var pipeline = new EntryPipeline(readerFailingToOpen(), 0, entry -> true, ExtractionLimits.NONE);
+        var pipeline = new EntryPipeline(readerFailingToOpen(), 0, entry -> true, ExtractionLimits.noLimits());
 
         try (var creator = new InMemoryArchiveCreatorBuilder(new ByteArrayOutputStream()).build()) {
             // When

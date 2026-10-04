@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.UpstreamSamples;
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -78,7 +78,7 @@ class ArjArchiveIntegrationTest {
     void shouldEnforceMaxEntries() throws IOException {
         try (var extractor = ArjArchiveExtractor.builder(sample()).maxEntries(1).build()) {
             assertThatThrownBy(() -> extractor.extract(tempDir.resolve("limit1")))
-                    .isInstanceOf(ArchiveLimitExceededException.class);
+                    .isInstanceOf(LimitExceededException.class);
         }
     }
 
@@ -87,7 +87,7 @@ class ArjArchiveIntegrationTest {
         try (var extractor =
                 ArjArchiveExtractor.builder(sample()).maxEntrySize(1).build()) {
             assertThatThrownBy(() -> extractor.extract(tempDir.resolve("limit2")))
-                    .isInstanceOf(ArchiveLimitExceededException.class);
+                    .isInstanceOf(LimitExceededException.class);
         }
     }
 
@@ -96,7 +96,7 @@ class ArjArchiveIntegrationTest {
         try (var extractor =
                 ArjArchiveExtractor.builder(sample()).maxTotalSize(1).build()) {
             assertThatThrownBy(() -> extractor.extract(tempDir.resolve("limit3")))
-                    .isInstanceOf(ArchiveLimitExceededException.class);
+                    .isInstanceOf(LimitExceededException.class);
         }
     }
 
