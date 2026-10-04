@@ -18,7 +18,6 @@ package com.hominux.compress4j.archivers.sevenz;
 import static com.hominux.compress4j.utils.FileUtils.NO_MODE;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,6 +25,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
 import org.apache.commons.io.IOUtils;
@@ -86,40 +86,48 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
 
     /** {@inheritDoc} */
     @Override
-    protected void writeDirectoryEntry(String name, FileTime modTime) throws IOException {
-        SevenZArchiveEntry entry = newEntry(name, modTime);
+    protected boolean requiresSize() {
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
+        SevenZArchiveEntry entry = newEntry(name, lastModified);
         entry.setDirectory(true);
-        withWindowsAttributes(entry, DOS_DIRECTORY);
+        withWindowsAttributes(
+                entry, DOS_DIRECTORY | (mode != NO_MODE ? SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16) : 0));
         archiveOutputStream.putArchiveEntry(entry);
         archiveOutputStream.closeArchiveEntry();
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void writeFileEntry(String name, InputStream inputStream, long size, FileTime modTime, int mode)
+    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
             throws IOException {
-        SevenZArchiveEntry entry = newEntry(name, modTime);
-        entry.setSize(size);
+        SevenZArchiveEntry entry = newEntry(name, lastModified);
+        size.ifPresent(entry::setSize);
         if (mode != NO_MODE) {
             withWindowsAttributes(entry, SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16));
         }
         archiveOutputStream.putArchiveEntry(entry);
-        IOUtils.copy(inputStream, archiveOutputStream);
+        IOUtils.copy(content, archiveOutputStream);
         archiveOutputStream.closeArchiveEntry();
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void writeFileEntry(
-            String name, InputStream inputStream, long size, FileTime modTime, int mode, Path symlinkTarget)
-            throws IOException {
-        byte[] target = symlinkTarget.toString().getBytes(StandardCharsets.UTF_8);
-        writeFileEntry(
-                name,
-                new ByteArrayInputStream(target),
-                target.length,
-                modTime,
-                (mode == NO_MODE ? 0 : mode) | SevenZArchiveExtractor.S_IFLNK);
+    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
+        byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
+        SevenZArchiveEntry entry = newEntry(name, lastModified);
+        entry.setSize(bytes.length);
+        withWindowsAttributes(
+                entry,
+                SevenZArchiveExtractor.UNIX_EXTENSION
+                        | ((SevenZArchiveExtractor.S_IFLNK | (mode != NO_MODE ? mode : 0777)) << 16));
+        archiveOutputStream.putArchiveEntry(entry);
+        archiveOutputStream.write(bytes);
+        archiveOutputStream.closeArchiveEntry();
     }
 
     private static void withWindowsAttributes(SevenZArchiveEntry entry, int attributes) {

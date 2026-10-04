@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
 import java.io.File;
 import java.io.IOException;
@@ -109,6 +110,23 @@ class SevenZArchiveTest {
 
         assertThat(out.resolve("a.txt")).exists();
         assertThat(out.resolve("sub/b.txt")).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("Stores a directory's mode in the Unix extension attribute bits")
+    void directoryMode() throws IOException {
+        Path archive = tmp.resolve("out.7z");
+        try (var creator = SevenZArchiveCreator.builder(archive).build()) {
+            creator.add(new EntrySource.Directory("d", 0750, FileTime.fromMillis(0)));
+        }
+
+        try (SevenZFile file = SevenZFile.builder().setPath(archive).get()) {
+            SevenZArchiveEntry entry = file.getNextEntry();
+            assertThat(entry.isDirectory()).isTrue();
+            assertThat(entry.getWindowsAttributes() >>> 16).isEqualTo(0750);
+            assertThat(entry.getWindowsAttributes() & SevenZArchiveExtractor.UNIX_EXTENSION)
+                    .isNotZero();
+        }
     }
 
     @Test
@@ -274,8 +292,8 @@ class SevenZArchiveTest {
     void creatorSymlinkEntry() throws IOException {
         Path archive = tmp.resolve("links.7z");
         try (var creator = SevenZArchiveCreator.builder(archive).build()) {
-            creator.writeFileEntry("a", InputStream.nullInputStream(), 0, FileTime.fromMillis(0), 0, Path.of("t1"));
-            creator.writeFileEntry("b", InputStream.nullInputStream(), 0, FileTime.fromMillis(0), 0644, Path.of("t2"));
+            creator.writeSymlink("a", "t1", 0, FileTime.fromMillis(0));
+            creator.writeSymlink("b", "t2", 0644, FileTime.fromMillis(0));
         }
 
         try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {

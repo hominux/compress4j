@@ -23,11 +23,12 @@ import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.archivers.tar.TarConstants;
+import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.apache.commons.io.IOUtils;
 
 /**
@@ -60,47 +61,49 @@ public abstract class BaseTarArchiveCreator extends ArchiveCreator<TarArchiveOut
 
     /** {@inheritDoc} */
     @Override
-    protected void writeDirectoryEntry(String name, FileTime modTime) throws IOException {
+    protected boolean requiresSize() {
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
         TarArchiveEntry e = new TarArchiveEntry(name + '/');
-        e.setModTime(modTime);
-        archiveOutputStream.putArchiveEntry(e);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected void writeFileEntry(String name, InputStream source, long length, FileTime modTime, int mode)
-            throws IOException {
-        byte[] content = length < 0 ? IOUtils.toByteArray(source) : null;
-        long entryLength = content != null ? content.length : length;
-        TarArchiveEntry e = newEntry(new TarArchiveEntry(name), entryLength, modTime, mode);
-        archiveOutputStream.putArchiveEntry(e);
-        if (content != null) {
-            archiveOutputStream.write(content);
-        } else if (entryLength > 0) {
-            IOUtils.copy(source, archiveOutputStream);
+        e.setModTime(lastModified);
+        if (mode != 0) {
+            e.setMode(UnixStat.DIR_FLAG | mode);
         }
+        archiveOutputStream.putArchiveEntry(e);
         archiveOutputStream.closeArchiveEntry();
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void writeFileEntry(
-            String name, InputStream source, long length, FileTime modTime, int mode, Path symlinkTarget)
+    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
             throws IOException {
-        var e = new TarArchiveEntry(name, TarConstants.LF_SYMLINK);
-        e.setLinkName(symlinkTarget.toString());
-        archiveOutputStream.putArchiveEntry(newEntry(e, 0, modTime, mode));
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    private static TarArchiveEntry newEntry(TarArchiveEntry e, long size, FileTime modTime, int mode) {
-        e.setSize(size);
-        e.setModTime(modTime);
+        TarArchiveEntry e = new TarArchiveEntry(name);
+        e.setSize(size.orElseThrow());
+        e.setModTime(lastModified);
         if (mode != 0) {
             e.setMode(mode);
         }
-        return e;
+        archiveOutputStream.putArchiveEntry(e);
+        IOUtils.copy(content, archiveOutputStream);
+        archiveOutputStream.closeArchiveEntry();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
+        TarArchiveEntry e = new TarArchiveEntry(name, TarConstants.LF_SYMLINK);
+        e.setLinkName(target);
+        e.setSize(0);
+        e.setModTime(lastModified);
+        if (mode != 0) {
+            e.setMode(mode);
+        }
+        archiveOutputStream.putArchiveEntry(e);
+        archiveOutputStream.closeArchiveEntry();
     }
 
     /**

@@ -31,6 +31,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream;
@@ -81,8 +82,12 @@ class TarZstdArchiveCreatorBuilderTest {
                 .collect(joining())
                 .getBytes(UTF_8);
         try (var creator = configure.apply(TarZstdArchiveCreator.builder(bytes)).build()) {
-            creator.writeFileEntry(
-                    "data.txt", new ByteArrayInputStream(payload), payload.length, FileTime.fromMillis(0), 0644);
+            creator.writeFile(
+                    "data.txt",
+                    new ByteArrayInputStream(payload),
+                    OptionalLong.of(payload.length),
+                    0644,
+                    FileTime.fromMillis(0));
         }
         return bytes.toByteArray();
     }

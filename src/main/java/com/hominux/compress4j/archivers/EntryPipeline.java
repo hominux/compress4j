@@ -37,6 +37,7 @@ final class EntryPipeline {
     private final ExtractionBudget budget;
 
     private boolean started;
+    private boolean exhausted;
     private long position;
     private Optional<InputStream> rawContent = Optional.empty();
     private Optional<InputStream> guardedContent = Optional.empty();
@@ -62,6 +63,9 @@ final class EntryPipeline {
 
     Optional<ArchiveItem> advance() throws IOException {
         releaseContent();
+        if (exhausted) {
+            return Optional.empty();
+        }
         position++;
         Optional<Entry> raw;
         while ((raw = reader.next()).isPresent()) {
@@ -71,6 +75,7 @@ final class EntryPipeline {
                 return Optional.of(new ArchiveItem(visible.orElseThrow(), this, position));
             }
         }
+        exhausted = true;
         return Optional.empty();
     }
 

@@ -26,6 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
@@ -102,7 +103,7 @@ class ZipArchiveCreatorTest {
         @DisplayName("writeDirectoryEntry should write a correct directory entry")
         void testWriteDirectoryEntry() throws IOException {
             // When
-            creator.writeDirectoryEntry("testDir", testTime);
+            creator.writeDirectory("testDir", 0, testTime);
 
             // Then
             var inOrder = inOrder(mockZipStream);
@@ -125,7 +126,7 @@ class ZipArchiveCreatorTest {
             var mode = 0644;
 
             // When
-            creator.writeFileEntry("testFile.txt", dataStream, size, testTime, mode);
+            creator.writeFile("testFile.txt", dataStream, OptionalLong.of(size), mode, testTime);
 
             // Then
             var inOrder = inOrder(mockZipStream);
@@ -140,7 +141,7 @@ class ZipArchiveCreatorTest {
             assertThat(entry.isDirectory()).isFalse();
             assertThat(entry.getSize()).isEqualTo(size);
             assertThat(entry.getTime()).isEqualTo(testTime.toMillis());
-            assertThat(entry.getUnixMode()).isEqualTo(mode);
+            assertThat(entry.getUnixMode()).isEqualTo(UnixStat.FILE_FLAG | mode);
 
             byte[] writtenBytes = bytesCaptor.getValue();
             var offset = intCaptor.getAllValues().get(0);
@@ -161,7 +162,7 @@ class ZipArchiveCreatorTest {
             var size = data.length;
 
             // When
-            creator.writeFileEntry("testFile.txt", dataStream, size, testTime, NO_MODE);
+            creator.writeFile("testFile.txt", dataStream, OptionalLong.of(size), NO_MODE, testTime);
 
             // Then
             verify(mockZipStream).putArchiveEntry(entryCaptor.capture());
@@ -183,7 +184,7 @@ class ZipArchiveCreatorTest {
             var dataStream = new ByteArrayInputStream(new byte[0]);
 
             // When
-            creator.writeFileEntry("testLink.lnk", dataStream, size, testTime, mode, targetPath);
+            creator.writeSymlink("testLink.lnk", targetPath.toString(), mode, testTime);
 
             // Then
             var inOrder = inOrder(mockZipStream);
@@ -205,8 +206,7 @@ class ZipArchiveCreatorTest {
         @DisplayName("writeFileEntry should give a symlink without a mode full permissions")
         void testWriteFileEntry_SymlinkNoMode() throws IOException {
             // When
-            creator.writeFileEntry(
-                    "link", new ByteArrayInputStream(new byte[0]), 0, testTime, FileUtils.NO_MODE, Paths.get("target"));
+            creator.writeSymlink("link", "target", FileUtils.NO_MODE, testTime);
 
             // Then
             verify(mockZipStream).putArchiveEntry(entryCaptor.capture());
@@ -217,13 +217,7 @@ class ZipArchiveCreatorTest {
         @DisplayName("writeFileEntry should drop symlink mode bits above the permission bits")
         void testWriteFileEntry_SymlinkMasksStrayBits() throws IOException {
             // When
-            creator.writeFileEntry(
-                    "link",
-                    new ByteArrayInputStream(new byte[0]),
-                    0,
-                    testTime,
-                    UnixStat.FILE_FLAG | 0755,
-                    Paths.get("target"));
+            creator.writeSymlink("link", "target", UnixStat.FILE_FLAG | 0755, testTime);
 
             // Then
             verify(mockZipStream).putArchiveEntry(entryCaptor.capture());

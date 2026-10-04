@@ -15,6 +15,7 @@
  */
 package com.hominux.compress4j.archivers.memory;
 
+import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.DIR;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.FILE;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.SYMLINK;
 
@@ -22,8 +23,9 @@ import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 
 public class InMemoryArchiveCreator extends ArchiveCreator<InMemoryArchiveOutputStream> {
 
@@ -37,33 +39,40 @@ public class InMemoryArchiveCreator extends ArchiveCreator<InMemoryArchiveOutput
     }
 
     @Override
-    public void writeDirectoryEntry(String name, FileTime modTime) throws IOException {
+    protected boolean requiresSize() {
+        return false;
+    }
+
+    @Override
+    public void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
         archiveOutputStream.putArchiveEntry(InMemoryArchiveEntry.builder()
                 .name(name)
-                .lastModifiedDate(modTime)
+                .type(DIR)
+                .mode(mode)
+                .lastModifiedDate(lastModified)
                 .build());
     }
 
     @Override
-    public void writeFileEntry(String name, InputStream source, long length, FileTime modTime, int mode)
+    public void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
             throws IOException {
         archiveOutputStream.putArchiveEntry(InMemoryArchiveEntry.builder()
                 .name(name)
-                .lastModifiedDate(modTime)
                 .type(FILE)
-                .content(new String(source.readAllBytes()))
+                .mode(mode)
+                .lastModifiedDate(lastModified)
+                .content(new String(content.readAllBytes(), StandardCharsets.UTF_8))
                 .build());
     }
 
     @Override
-    public void writeFileEntry(
-            String name, InputStream source, long length, FileTime modTime, int mode, Path symlinkTarget)
-            throws IOException {
+    public void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
         archiveOutputStream.putArchiveEntry(InMemoryArchiveEntry.builder()
                 .name(name)
-                .lastModifiedDate(modTime)
                 .type(SYMLINK)
-                .linkName(symlinkTarget.toString())
+                .mode(mode)
+                .linkName(target)
+                .lastModifiedDate(lastModified)
                 .build());
     }
 

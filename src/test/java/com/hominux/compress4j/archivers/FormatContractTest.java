@@ -42,6 +42,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -141,6 +142,39 @@ class FormatContractTest {
         assertThat(file.lastModified()).isPresent();
         long deltaMillis = Math.abs(file.lastModified().orElseThrow().toMillis() - MODIFIED.toMillis());
         assertThat(deltaMillis).isLessThanOrEqualTo(2000);
+    }
+
+    static Stream<ArchiveFormat> writable() {
+        return FormatCatalog.writable();
+    }
+
+    private ArchiveCreator<?> filtered(ArchiveFormat format, Path archive, Predicate<? super EntrySource> filter)
+            throws IOException {
+        return format.builderAt().orElseThrow().apply(archive).filter(filter).build();
+    }
+
+    @ParameterizedTest
+    @MethodSource("writable")
+    void filterDropsAnEntry(ArchiveFormat format) throws IOException {
+        Path archive = tmp.resolve("filtered." + format.name());
+        try (var creator = filtered(format, archive, s -> !s.name().equals("drop.txt"))) {
+            creator.addFile("keep.txt", "k".getBytes(StandardCharsets.UTF_8));
+            creator.addFile("drop.txt", "d".getBytes(StandardCharsets.UTF_8));
+        }
+        assertThat(entries(format, archive)).containsOnlyKeys("keep.txt");
+    }
+
+    @ParameterizedTest
+    @MethodSource("writable")
+    void filterSkipsAWalkedSubtree(ArchiveFormat format) throws IOException {
+        Path src = Files.createDirectories(tmp.resolve("tree"));
+        Files.writeString(Files.createDirectories(src.resolve("skip")).resolve("inner.txt"), "s");
+        Files.writeString(src.resolve("kept.txt"), "k");
+        Path archive = tmp.resolve("walked." + format.name());
+        try (var creator = filtered(format, archive, s -> !s.name().equals("skip"))) {
+            creator.addDirectoryRecursively(src);
+        }
+        assertThat(entries(format, archive)).containsOnlyKeys("kept.txt");
     }
 
     static Stream<ArchiveFormat> channelCapable() {

@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.ar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -82,7 +83,8 @@ class ArArchiveCreatorBuilderTest {
 
         var outputStream = new ByteArrayOutputStream();
 
-        var builder = ArArchiveCreator.builder(outputStream).filter((name, path) -> name.startsWith("inc"));
+        var builder =
+                ArArchiveCreator.builder(outputStream).filter(s -> s.name().startsWith("inc"));
 
         // when
         try (ArArchiveCreator creator = builder.build()) {
@@ -97,19 +99,12 @@ class ArArchiveCreatorBuilderTest {
     }
 
     @Test
-    void testBuilderWithNullFilter() throws IOException {
-        // given
-        var outputStream = new ByteArrayOutputStream();
+    void testBuilderRejectsNullFilter() {
+        var builder = ArArchiveCreator.builder(new ByteArrayOutputStream());
 
-        var builder = ArArchiveCreator.builder(outputStream).filter(null);
-
-        // when
-        try (ArArchiveCreator creator = builder.build()) {
-            creator.addFile("test.txt", "Test content".getBytes(StandardCharsets.UTF_8));
-        }
-
-        // then
-        verifyArchiveContains(outputStream.toByteArray(), "test.txt", "Test content");
+        assertThatThrownBy(() -> builder.filter(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("predicate");
     }
 
     @Test
@@ -124,7 +119,8 @@ class ArArchiveCreatorBuilderTest {
         var outputStream = new ByteArrayOutputStream();
 
         // when
-        var builder = ArArchiveCreator.builder(outputStream).filter((name, path) -> name.contains("chain"));
+        var builder =
+                ArArchiveCreator.builder(outputStream).filter(s -> s.name().contains("chain"));
         try (ArArchiveCreator creator = builder.build()) {
             creator.addDirectoryRecursively(sourceDir);
         }
@@ -157,7 +153,7 @@ class ArArchiveCreatorBuilderTest {
         var builder = ArArchiveCreator.builder(outputStream);
 
         // when
-        var result1 = builder.filter((name, path) -> true);
+        var result1 = builder.filter(s -> true);
 
         // then
         assertThat(result1).isSameAs(builder);
@@ -251,7 +247,7 @@ class ArArchiveCreatorBuilderTest {
         var outputStream = new ByteArrayOutputStream();
 
         var builder = ArArchiveCreator.builder(outputStream)
-                .filter((name, path) -> name.endsWith(".txt") && !name.contains("backup"));
+                .filter(s -> s.name().endsWith(".txt") && !s.name().contains("backup"));
 
         // when
         try (ArArchiveCreator creator = builder.build()) {
@@ -271,7 +267,7 @@ class ArArchiveCreatorBuilderTest {
     }
 
     @Test
-    void testBuilderWithFilterUsingPathParameter(@TempDir Path tempDir) throws IOException {
+    void testBuilderWithFilterUsingEntrySize(@TempDir Path tempDir) throws IOException {
         // given
         var sourceDir = tempDir.resolve("source");
         Files.createDirectories(sourceDir);
@@ -282,16 +278,8 @@ class ArArchiveCreatorBuilderTest {
 
         var outputStream = new ByteArrayOutputStream();
 
-        var builder = ArArchiveCreator.builder(outputStream).filter((name, path) -> {
-            if (path != null) {
-                try {
-                    return Files.size(path) < 20;
-                } catch (IOException e) {
-                    return false;
-                }
-            }
-            return true;
-        });
+        var builder = ArArchiveCreator.builder(outputStream)
+                .filter(s -> !(s instanceof EntrySource.File f) || f.size().orElse(0) < 20);
 
         // when
         try (ArArchiveCreator creator = builder.build()) {

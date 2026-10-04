@@ -79,27 +79,25 @@ final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveE
     @Override
     @Nonnull
     public FileVisitResult preVisitDirectory(@Nonnull Path dir, @Nonnull BasicFileAttributes attrs) throws IOException {
-        String name = dir == root ? prefix : entryName(dir);
+        String name = dir.equals(root) ? prefix : entryName(dir);
         if (name.isEmpty()) {
             return FileVisitResult.CONTINUE;
-        } else if (archiveCreator.accept(name, dir)) {
-            LOGGER.atTrace().log("  {} -> {}/", dir, name);
-            archiveCreator.addDirectory(name, modTime.apply(attrs));
-            return FileVisitResult.CONTINUE;
-        } else {
+        }
+        EntrySource source = PathSources.of(name, dir, attrs, modTime.apply(attrs));
+        if (!archiveCreator.accepts(source)) {
             return FileVisitResult.SKIP_SUBTREE;
         }
+        LOGGER.atTrace().log("  {} -> {}/", dir, name);
+        archiveCreator.add(source);
+        return FileVisitResult.CONTINUE;
     }
 
     @Override
     @Nonnull
     public FileVisitResult visitFile(@Nonnull Path file, @Nonnull BasicFileAttributes attrs) throws IOException {
         String name = entryName(file);
-        if (archiveCreator.accept(name, file)) {
-            LOGGER.atTrace()
-                    .log("  {} -> {}{}", file, name, attrs.isSymbolicLink() ? " symlink" : " size=" + attrs.size());
-            archiveCreator.addFile(name, file, attrs, modTime.apply(attrs));
-        }
+        LOGGER.atTrace().log("  {} -> {}{}", file, name, attrs.isSymbolicLink() ? " symlink" : " size=" + attrs.size());
+        archiveCreator.add(PathSources.of(name, file, attrs, modTime.apply(attrs)));
         return FileVisitResult.CONTINUE;
     }
 

@@ -15,41 +15,50 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.utils.FileUtils.NO_MODE;
 import static com.hominux.compress4j.utils.StringUtil.trimLeading;
 import static com.hominux.compress4j.utils.StringUtil.trimTrailing;
 import static org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
 
+import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
-import jakarta.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.Iterator;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.function.BiPredicate;
+import java.util.OptionalLong;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
+import org.apache.commons.io.input.CloseShieldInputStream;
 import org.apache.commons.lang3.StringUtils;
 
 /**
  * This abstract class is the superclass of all classes providing archiving. This class provides functionality to add
  * files and directories to an archive.
  *
+ * <p>A creator is not thread-safe.
+ *
  * @param <A> The type of {@link ArchiveOutputStream} to write entries to.
  * @since 2.2
  */
 public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends ArchiveEntry>> implements Closeable {
 
-    private BiPredicate<? super String, ? super Path> entryFilter = (name, path) -> true;
+    private final Predicate<? super EntrySource> filter;
+
+    private boolean failed;
 
     /** Archive output stream to be used for archiving. */
     protected final A archiveOutputStream;
@@ -64,8 +73,7 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      */
     protected <B extends ArchiveCreatorBuilder<A, B, C>, C extends ArchiveCreator<A>> ArchiveCreator(B builder)
             throws IOException {
-        this(BuildFailureCleanup.build(builder.ownedStream, builder::buildArchiveOutputStream));
-        this.entryFilter = builder.entryFilter;
+        this(BuildFailureCleanup.build(builder.ownedStream, builder::buildArchiveOutputStream), builder.filter);
     }
 
     /**
@@ -74,73 +82,174 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * @param archiveOutputStream the archive output stream
      */
     protected ArchiveCreator(A archiveOutputStream) {
+        this(archiveOutputStream, source -> true);
+    }
+
+    private ArchiveCreator(A archiveOutputStream, Predicate<? super EntrySource> filter) {
         this.archiveOutputStream = archiveOutputStream;
+        this.filter = filter;
     }
 
     /**
      * Write a directory entry to the archive.
      *
      * @param name name of the entry
-     * @param modTime last modification time of the directory
+     * @param mode Unix permission bits, or {@code 0} when unknown
+     * @param lastModified last modification time of the directory
      * @throws IOException if an I/O error occurred
      */
-    protected abstract void writeDirectoryEntry(String name, FileTime modTime) throws IOException;
+    protected abstract void writeDirectory(String name, int mode, FileTime lastModified) throws IOException;
 
     /**
      * Write a file entry to the archive.
      *
      * @param name name of the entry
-     * @param source input stream to read the file from
-     * @param length length of the file
-     * @param modTime last modification time of the file
-     * @param mode file mode
+     * @param content content of the file
+     * @param size content length in bytes, or empty when unknown
+     * @param mode Unix permission bits, or {@code 0} when unknown
+     * @param lastModified last modification time of the file
      * @throws IOException if an I/O error occurred
      */
-    protected abstract void writeFileEntry(String name, InputStream source, long length, FileTime modTime, int mode)
-            throws IOException;
+    protected abstract void writeFile(
+            String name, InputStream content, OptionalLong size, int mode, FileTime lastModified) throws IOException;
 
     /**
      * Write a symbolic link entry to the archive.
      *
      * @param name name of the entry
-     * @param source ignored; a symbolic link has no content besides its target
-     * @param length ignored; the size of the entry derives from the target
-     * @param modTime last modification time of the file
-     * @param mode file mode
-     * @param symlinkTarget target of the symbolic link
+     * @param target target of the symbolic link
+     * @param mode Unix permission bits, or {@code 0} when unknown
+     * @param lastModified last modification time of the link
      * @throws IOException if an I/O error occurred
      */
-    protected abstract void writeFileEntry(
-            String name, InputStream source, long length, FileTime modTime, int mode, Path symlinkTarget)
+    protected abstract void writeSymlink(String name, String target, int mode, FileTime lastModified)
             throws IOException;
 
     /**
-     * Add a directory to the archive. The last modification time of the directory will be used as the last modification
-     * time of the entry. This method creates a directory entry without any content.
+     * Whether the format needs a file's size before its content.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @throws IOException if an I/O error occurred
+     * @return {@code true} if {@link #writeFile} requires a known size
      */
-    public final void addDirectory(String entryName) throws IOException {
-        addDirectory(entryName, FileTime.from(Instant.now()));
+    protected abstract boolean requiresSize();
+
+    /**
+     * Writes one entry. The name is sanitised (backslashes become slashes, leading and trailing slashes are removed)
+     * and checked for safety before the filter sees it; an entry the filter rejects is skipped. Once a write fails,
+     * every later call throws {@link IllegalStateException}.
+     *
+     * @param source the entry to write
+     * @throws UnsafeEntryException if the name starts with a drive letter, contains a NUL character or has a {@code ..}
+     *     segment
+     * @throws IllegalArgumentException if the sanitised name is blank, or a kept file's size is unknown and this format
+     *     records sizes before content
+     * @throws IllegalStateException if an earlier write failed
+     * @throws IOException if writing fails or a file's content does not match its declared size; the archive is then
+     *     incomplete
+     */
+    public final void add(EntrySource source) throws IOException {
+        if (failed) {
+            throw new IllegalStateException("An earlier write failed; the archive is incomplete");
+        }
+        EntrySource named = renamed(source, EntryNames.checked(source.name()));
+        if (!filter.test(named)) {
+            return;
+        }
+        requireSizeIfNeeded(named);
+        try {
+            write(named);
+        } catch (IOException | RuntimeException e) {
+            failed = true;
+            throw e;
+        }
     }
 
     /**
-     * Add a directory to the archive. This method creates a directory entry without any content.
+     * Writes every entry in order through {@link #add}, stopping at the first failure. The stream is consumed but not
+     * closed.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
+     * @param sources the entries to write
+     * @throws UnsafeEntryException if an entry name is unsafe, as for {@link #add}
+     * @throws IllegalArgumentException if an entry is rejected, as for {@link #add}
+     * @throws IllegalStateException if an earlier write failed
+     * @throws IOException if the stream fails with an {@link UncheckedIOException}, whose cause is thrown, or writing
+     *     fails
+     */
+    public final void addAll(Stream<? extends EntrySource> sources) throws IOException {
+        Iterator<? extends EntrySource> it = sources.iterator();
+        while (true) {
+            EntrySource next;
+            try {
+                if (!it.hasNext()) {
+                    return;
+                }
+                next = it.next();
+            } catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
+            add(next);
+        }
+    }
+
+    boolean accepts(EntrySource source) {
+        return filter.test(source);
+    }
+
+    private void write(EntrySource source) throws IOException {
+        switch (source) {
+            case EntrySource.Directory(var name, var mode, var lastModified) ->
+                writeDirectory(name, mode, lastModified);
+            case EntrySource.Symlink(var name, var target, var mode, var lastModified) ->
+                writeSymlink(name, target, mode, lastModified);
+            case EntrySource.File f -> writeFile(f);
+        }
+    }
+
+    private void writeFile(EntrySource.File f) throws IOException {
+        try (InputStream in = f.content().get()) {
+            if (f.size().isEmpty()) {
+                writeFile(f.name(), in, f.size(), f.mode(), f.lastModified());
+                return;
+            }
+            var sized = new DeclaredSizeInputStream(in, f.name(), f.size().getAsLong());
+            writeFile(f.name(), sized, f.size(), f.mode(), f.lastModified());
+            sized.requireExhausted();
+        }
+    }
+
+    private void requireSizeIfNeeded(EntrySource source) {
+        if (source instanceof EntrySource.File f && f.size().isEmpty() && requiresSize()) {
+            throw new IllegalArgumentException("Entry '" + f.name() + "' has no size, which this format"
+                    + " records before the content; wrap it with EntrySource.buffered");
+        }
+    }
+
+    private static EntrySource renamed(EntrySource source, String name) {
+        return switch (source) {
+            case EntrySource.File f -> new EntrySource.File(name, f.mode(), f.lastModified(), f.size(), f.content());
+            case EntrySource.Directory d -> new EntrySource.Directory(name, d.mode(), d.lastModified());
+            case EntrySource.Symlink s -> new EntrySource.Symlink(name, s.target(), s.mode(), s.lastModified());
+        };
+    }
+
+    /**
+     * Add a directory entry, modified now, through {@link #add}.
      *
-     * @param entryName name of the entry
-     * @param modTime last modification time to be used for the entry
+     * @param name name of the entry
      * @throws IOException if an I/O error occurred
      */
-    public final void addDirectory(String entryName, FileTime modTime) throws IOException {
-        entryName = sanitiseName(entryName);
-        if (accept(entryName, null)) {
-            writeDirectoryEntry(entryName, modTime);
-        }
+    public final void addDirectory(String name) throws IOException {
+        addDirectory(name, FileTime.from(Instant.now()));
+    }
+
+    /**
+     * Add a directory entry through {@link #add}.
+     *
+     * @param name name of the entry
+     * @param lastModified last modification time to be used for the entry
+     * @throws IOException if an I/O error occurred
+     */
+    public final void addDirectory(String name, FileTime lastModified) throws IOException {
+        add(new EntrySource.Directory(name, 0, lastModified));
     }
 
     /** {@inheritDoc} */
@@ -153,7 +262,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * Add a directory recursively to the archive. The last modification time of the directory will be used as the last
      * modification time of the entry.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
+     * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
+     * tree fails the walk with {@link IllegalArgumentException}.
      *
      * @param directory directory to add
      * @throws IOException if an I/O error occurred
@@ -166,7 +276,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * Add a directory recursively to the archive. The last modification time of the directory will be used as the last
      * modification time of the entry.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
+     * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
+     * tree fails the walk with {@link IllegalArgumentException}.
      *
      * @param topLevelDir topLevelDir to add to the directory name
      * @param directory directory to add
@@ -179,7 +290,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
     /**
      * Add a directory recursively to the archive.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
+     * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
+     * tree fails the walk with {@link IllegalArgumentException}.
      *
      * @param directory directory to add
      * @param modTime last modification time of the directory
@@ -192,7 +304,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
     /**
      * Add a directory recursively to the archive.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
+     * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
+     * tree fails the walk with {@link IllegalArgumentException}.
      *
      * @param topLevelDir topLevelDir to add to the directory name
      * @param directory directory to add
@@ -203,24 +316,13 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
         addDirectoryRecursively(topLevelDir, directory, attrs -> modTime);
     }
 
-    /**
-     * Add a directory recursively to the archive using a {@code SimpleFileVisitor}.
-     *
-     * @param topLevelDir when a non-empty value specified, create a directory entry with this name and add all entries
-     * @param directory directory to add
-     * @param modTime resolves each entry's modification time from the attributes of the visited path
-     * @throws IOException if an I/O error occurred
-     */
     private void addDirectoryRecursively(
             String topLevelDir, Path directory, Function<BasicFileAttributes, FileTime> modTime) throws IOException {
         DirectoryTreeWalker.walk(this, topLevelDir, directory, modTime);
     }
 
     /**
-     * Add {@code Path} to archive. The last modification time of the file will be used as the last modification time of
-     * the entry.
-     *
-     * <p>Predicate {@link #entryFilter} will be applied.
+     * Add {@code path}, named by its file name, through {@link #add}. The file's last modification time is used.
      *
      * @param path path to add
      * @throws IOException if an I/O error occurred
@@ -230,32 +332,27 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
     }
 
     /**
-     * Add {@code Path} to archive. The last modification time of the file will be used as the last modification time of
-     * the entry.
+     * Add {@code path} through {@link #add}. The file's last modification time is used.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
+     * @param name name of the entry
      * @param path path to add
      * @throws IOException if an I/O error occurred
      */
-    public final void addFile(String entryName, Path path) throws IOException {
+    public final void addFile(String name, Path path) throws IOException {
         BasicFileAttributes attrs = readAttributes(path);
-        addFile(entryName, path, attrs, attrs.lastModifiedTime());
+        add(PathSources.of(name, path, attrs, attrs.lastModifiedTime()));
     }
 
     /**
-     * Add {@code Path} to archive.
+     * Add {@code path} through {@link #add}.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @param path {@code Path} to add
-     * @param modTime last modification time to be used for the entry
+     * @param name name of the entry
+     * @param path path to add
+     * @param lastModified last modification time to be used for the entry
      * @throws IOException if an I/O error occurred
      */
-    public final void addFile(String entryName, Path path, FileTime modTime) throws IOException {
-        addFile(entryName, path, readAttributes(path), modTime);
+    public final void addFile(String name, Path path, FileTime lastModified) throws IOException {
+        add(PathSources.of(name, path, readAttributes(path), lastModified));
     }
 
     private static BasicFileAttributes readAttributes(Path path) throws IOException {
@@ -263,118 +360,56 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
     }
 
     /**
-     * Add {@code byte[]} to the archive. The last modification time of the file will be used as the last modification
-     * time of the entry.
+     * Add {@code content}, modified now, through {@link #add}.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @param content {@code byte[]} to add
+     * @param name name of the entry
+     * @param content bytes to add
      * @throws IOException if an I/O error occurred
      */
-    public final void addFile(String entryName, byte[] content) throws IOException {
-        addFile(entryName, content, FileTime.from(Instant.now()));
+    public final void addFile(String name, byte[] content) throws IOException {
+        add(EntrySource.file(name, content));
     }
 
     /**
-     * Add {@code byte[]} to the archive.
+     * Add {@code content} through {@link #add}.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @param content {@code byte[]} to add
-     * @param modTime last modification time to be used for the entry
+     * @param name name of the entry
+     * @param content bytes to add
+     * @param lastModified last modification time to be used for the entry
      * @throws IOException if an I/O error occurred
      */
-    public final void addFile(String entryName, byte[] content, FileTime modTime) throws IOException {
-        entryName = sanitiseName(entryName);
-        if (accept(entryName, null)) {
-            writeFileEntry(entryName, new ByteArrayInputStream(content), content.length, modTime, NO_MODE);
-        }
+    public final void addFile(String name, byte[] content, FileTime lastModified) throws IOException {
+        byte[] copy = content.clone();
+        add(new EntrySource.File(
+                name, 0, lastModified, OptionalLong.of(copy.length), () -> new ByteArrayInputStream(copy)));
     }
 
     /**
-     * Add {@code InputStream} to the archive. The last modification time of the file will be used as the last
-     * modification time of the entry.
+     * Add {@code size} bytes of {@code content}, modified now, through {@link #add}. The caller keeps ownership of the
+     * stream; the creator does not close it.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @param content {@code InputStream} to add
+     * @param name name of the entry
+     * @param content stream to read the entry from
+     * @param size number of bytes the stream holds
      * @throws IOException if an I/O error occurred
      */
-    public final void addFile(String entryName, InputStream content) throws IOException {
-        addFile(entryName, content, FileTime.from(Instant.now()));
+    public final void addFile(String name, InputStream content, long size) throws IOException {
+        addFile(name, content, size, FileTime.from(Instant.now()));
     }
 
     /**
-     * Add {@code InputStream} to the archive.
+     * Add {@code size} bytes of {@code content} through {@link #add}. The caller keeps ownership of the stream; the
+     * creator does not close it.
      *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @param content {@code InputStream} to add
-     * @param modTime last modification time to be used for the entry
+     * @param name name of the entry
+     * @param content stream to read the entry from
+     * @param size number of bytes the stream holds
+     * @param lastModified last modification time to be used for the entry
      * @throws IOException if an I/O error occurred
      */
-    public final void addFile(String entryName, InputStream content, FileTime modTime) throws IOException {
-        entryName = sanitiseName(entryName);
-        if (accept(entryName, null)) {
-            writeFileEntry(entryName, content, -1, modTime, NO_MODE);
-        }
-    }
-
-    /**
-     * Add a {@code Path} to the archive.
-     *
-     * @param path {@code Path} to add
-     * @param attrs attributes of the {@code Path}
-     * @param entryName entryName of the entry
-     * @param modTime last modification time of the {@code Path}
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String entryName, Path path, BasicFileAttributes attrs, FileTime modTime)
-            throws IOException {
-        entryName = sanitiseName(entryName);
-        if (accept(entryName, path)) {
-            if (attrs.isSymbolicLink()) {
-                writeFileEntry(
-                        entryName,
-                        InputStream.nullInputStream(),
-                        attrs.size(),
-                        modTime,
-                        mode(path),
-                        Files.readSymbolicLink(path));
-            } else {
-                try (InputStream source = Files.newInputStream(path)) {
-                    writeFileEntry(entryName, source, attrs.size(), modTime, mode(path));
-                }
-            }
-        }
-    }
-
-    /**
-     * Filtering entries being added to the archive.
-     *
-     * @param filter the BiPredicate to filter entries to be added to the archive. The first parameter is the entry name
-     *     and the second is the {@code Path} to the file on disk, which might be {@code null} when it is applied to an
-     *     entry not present on a disk, i.e. via {@link #addFile(String, byte[])}.
-     */
-    public void withFilter(@Nullable BiPredicate<? super String, ? super Path> filter) {
-        entryFilter = filter != null ? filter : (name, path) -> true;
-    }
-
-    /**
-     * Add a directory recursively to the archive.
-     *
-     * <p>Predicate {@link #entryFilter} will be applied.
-     *
-     * @param entryName name of the entry
-     * @param path {@code Path} to add
-     * @return boolean {@code true} if the entry is accepted, {@code false} otherwise
-     */
-    protected boolean accept(String entryName, @Nullable Path path) {
-        return entryFilter.test(entryName, path);
+    public final void addFile(String name, InputStream content, long size, FileTime lastModified) throws IOException {
+        add(new EntrySource.File(
+                name, 0, lastModified, OptionalLong.of(size), () -> CloseShieldInputStream.wrap(content)));
     }
 
     /**
@@ -428,7 +463,7 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
 
         final Optional<Closeable> ownedStream;
 
-        BiPredicate<? super String, ? super Path> entryFilter = (name, path) -> true;
+        Predicate<? super EntrySource> filter = source -> true;
 
         /**
          * Create a new {@link ArchiveCreatorBuilder} with the given output stream.
@@ -451,15 +486,15 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
         }
 
         /**
-         * Filtering entries being added to the archive.
+         * Sets which entries are written; the predicate sees each entry after its name is sanitised. A rejected
+         * directory added by {@code addDirectoryRecursively} skips its whole subtree. The predicate may run more than
+         * once for the same entry, so it should have no side effects.
          *
-         * @param predicate the BiPredicate to filter entries to be added to the archive. The first parameter is the
-         *     entry name and the second is the {@code Path} to the file on disk, which might be {@code null} when it is
-         *     applied to an entry not present on a disk, i.e. via {@link #addFile(String, byte[])}.
-         * @return the instance of the {@link ArchiveCreatorBuilder}
+         * @param predicate the entries to keep
+         * @return this builder
          */
-        public B filter(@Nullable BiPredicate<? super String, ? super Path> predicate) {
-            this.entryFilter = predicate != null ? predicate : (name, path) -> true;
+        public B filter(Predicate<? super EntrySource> predicate) {
+            this.filter = Objects.requireNonNull(predicate, "predicate");
             return getThis();
         }
 

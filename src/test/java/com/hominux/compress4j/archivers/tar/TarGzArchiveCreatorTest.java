@@ -21,9 +21,7 @@ import static java.nio.file.attribute.PosixFilePermission.OTHERS_READ;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static java.time.Instant.now;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.assertArg;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -34,8 +32,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import java.util.Set;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.file.attribute.FileTimes;
@@ -53,16 +51,14 @@ class TarGzArchiveCreatorTest {
 
         // when
         var aOut = spy(TarGzArchiveCreator.builder(outputStream).buildArchiveOutputStream());
-        try (MockedStatic<IOUtils> mockIOUtils = mockStatic(IOUtils.class, CALLS_REAL_METHODS);
-                var tarCompressor = new TarGzArchiveCreator(aOut)) {
+        try (var tarCompressor = new TarGzArchiveCreator(aOut)) {
 
             var modTime = FileTime.from(now());
             @SuppressWarnings("OctalInteger")
             var mod = 0400;
-            tarCompressor.writeFileEntry("test", inputStream, -1, modTime, mod);
+            tarCompressor.writeFile("test", inputStream, OptionalLong.of(4), mod, modTime);
 
             // then
-            mockIOUtils.verify(() -> IOUtils.toByteArray(any(InputStream.class)));
             then(aOut).should().putArchiveEntry(assertArgs(e -> Compress4JAssertions.assertThat(e)
                     .hasName("test")
                     .hasLinkName("")
@@ -90,7 +86,7 @@ class TarGzArchiveCreatorTest {
 
             var now = now();
             var modTime = FileTime.from(now);
-            tarCompressor.writeFileEntry("test", inputStream, 0, modTime, 0, Path.of("target"));
+            tarCompressor.writeSymlink("test", "target", 0, modTime);
 
             // then
             mockIOUtils.verifyNoInteractions();

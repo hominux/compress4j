@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveEntry;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveOutputStream;
 import org.apache.commons.compress.archivers.cpio.CpioConstants;
@@ -62,9 +63,13 @@ public class CpioArchiveCreator extends ArchiveCreator<CpioArchiveOutputStream> 
     }
 
     @Override
-    protected void writeDirectoryEntry(String name, FileTime modTime) throws IOException {
-        String directoryName = name.endsWith("/") ? name : name + "/";
+    protected boolean requiresSize() {
+        return true;
+    }
 
+    @Override
+    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
+        String directoryName = name.endsWith("/") ? name : name + "/";
         CpioArchiveEntry entry;
         if (format != CpioConstants.FORMAT_NEW) {
             entry = new CpioArchiveEntry(format, directoryName, 0);
@@ -72,35 +77,32 @@ public class CpioArchiveCreator extends ArchiveCreator<CpioArchiveOutputStream> 
             entry = new CpioArchiveEntry(directoryName);
             entry.setSize(0);
         }
-
-        entry.setTime(modTime.toMillis() / 1000L);
-        entry.setMode(CpioConstants.C_ISDIR | 0755);
+        entry.setTime(lastModified.toMillis() / 1000L);
+        entry.setMode(CpioConstants.C_ISDIR | (mode != 0 ? mode : 0755));
         archiveOutputStream.putArchiveEntry(entry);
         archiveOutputStream.closeArchiveEntry();
     }
 
     @Override
-    protected void writeFileEntry(String name, InputStream source, long length, FileTime modTime, int mode)
+    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
             throws IOException {
-        long entryLength = length < 0 ? source.available() : length;
-        CpioArchiveEntry entry = newEntry(name, entryLength, modTime);
+        long length = size.orElseThrow();
+        CpioArchiveEntry entry = newEntry(name, length, lastModified);
         setRegularMode(entry, mode);
         archiveOutputStream.putArchiveEntry(entry);
-        if (entryLength > 0) {
-            IOUtils.copy(source, archiveOutputStream);
+        if (length > 0) {
+            IOUtils.copy(content, archiveOutputStream);
         }
         archiveOutputStream.closeArchiveEntry();
     }
 
     @Override
-    protected void writeFileEntry(
-            String name, InputStream source, long length, FileTime modTime, int mode, Path symlinkTarget)
-            throws IOException {
-        byte[] target = symlinkTarget.toString().getBytes(StandardCharsets.UTF_8);
-        CpioArchiveEntry entry = newEntry(name, target.length, modTime);
-        entry.setMode(CpioConstants.C_ISLNK | 0644);
+    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
+        byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
+        CpioArchiveEntry entry = newEntry(name, bytes.length, lastModified);
+        entry.setMode(CpioConstants.C_ISLNK | (mode != 0 ? mode : 0777));
         archiveOutputStream.putArchiveEntry(entry);
-        archiveOutputStream.write(target);
+        archiveOutputStream.write(bytes);
         archiveOutputStream.closeArchiveEntry();
     }
 
