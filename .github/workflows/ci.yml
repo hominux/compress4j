@@ -113,6 +113,8 @@ jobs:
           path: |
             build/reports/
             build/test-results/
+            gradle/build-logic/build/reports/
+            gradle/build-logic/build/test-results/
             build/jacoco/*.exec
           retention-days: 14
           if-no-files-found: warn
@@ -160,6 +162,8 @@ jobs:
           path: |
             build/reports/
             build/test-results/
+            gradle/build-logic/build/reports/
+            gradle/build-logic/build/test-results/
             build/jacoco/*.exec
           retention-days: 14
           if-no-files-found: warn
@@ -209,6 +213,8 @@ jobs:
           path: |
             build/reports/
             build/test-results/
+            gradle/build-logic/build/reports/
+            gradle/build-logic/build/test-results/
             build/jacoco/*.exec
           retention-days: 14
           if-no-files-found: warn
