@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers.zip;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.utils.BuildGatedChannel;
+import com.hominux.compress4j.utils.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
@@ -92,25 +93,33 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ArchiveInputStream<Zip
     /** {@inheritDoc} */
     @Override
     protected Optional<Entry> nextEntry() throws IOException {
-        ZipArchiveEntry ze = archiveInputStream.getNextEntry();
-        if (ze == null) {
-            return Optional.empty();
+        ZipArchiveEntry ze;
+        while ((ze = archiveInputStream.getNextEntry()) != null) {
+            Optional<Entry.Type> type = type(ze);
+            if (type.isEmpty()) {
+                reportUnsupported(
+                        ze.getName(), UnixFileType.of(ze.getUnixMode()).kind());
+                continue;
+            }
+            Entry.Type t = type.orElseThrow();
+            return Optional.of(new Entry(ze.getName(), t, ze.getUnixMode())
+                    .withLinkTarget(symlinkTarget.apply(ze))
+                    .withMetadata(ze.getLastModifiedDate(), t == Entry.Type.FILE ? ze.getSize() : 0));
         }
-        Entry.Type type = type(ze);
-        Entry entry = new Entry(ze.getName(), type, ze.getUnixMode())
-                .withLinkTarget(symlinkTarget.apply(ze))
-                .withMetadata(ze.getLastModifiedDate(), type == Entry.Type.FILE ? ze.getSize() : 0);
-        return Optional.of(entry);
+        return Optional.empty();
     }
 
-    private static Entry.Type type(ZipArchiveEntry ze) {
+    private static Optional<Entry.Type> type(ZipArchiveEntry ze) {
         if (ze.isUnixSymlink()) {
-            return Entry.Type.SYMLINK;
+            return Optional.of(Entry.Type.SYMLINK);
         } else if (ze.isDirectory()) {
-            return Entry.Type.DIR;
-        } else {
-            return Entry.Type.FILE;
+            return Optional.of(Entry.Type.DIR);
         }
+        return switch (UnixFileType.of(ze.getUnixMode())) {
+            case FILE -> Optional.of(Entry.Type.FILE);
+            case DIRECTORY -> Optional.of(Entry.Type.DIR);
+            default -> Optional.empty();
+        };
     }
 
     /** {@inheritDoc} */

@@ -250,8 +250,8 @@ class TarArchiveExtractorTest {
         var tarArchiveInputStream =
                 spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
         TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
-        given(mockTarEntry.isFile()).willReturn(true);
         given(mockTarEntry.isLink()).willReturn(true);
+        given(mockTarEntry.getName()).willReturn("link");
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
         try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
@@ -261,7 +261,6 @@ class TarArchiveExtractorTest {
             // then
             //noinspection resource
             then(tarArchiveInputStream).should(times(3)).getNextEntry();
-            then(mockTarEntry).should().isFile();
             then(mockTarEntry).should().isLink();
             assertThat(result).isEmpty();
         }

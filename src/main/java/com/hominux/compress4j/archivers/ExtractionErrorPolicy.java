@@ -15,14 +15,12 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP_ALL;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,50 +37,38 @@ final class ExtractionErrorPolicy {
     }
 
     /**
-     * Handles an {@link IOException} that occurred during extraction.
+     * Decides how to proceed after {@code failure}.
      *
-     * @param ioException the exception that occurred
+     * @param failure the exception that occurred
      * @param ignoreErrors whether {@link ErrorHandlerChoice#SKIP_ALL} was selected for an earlier entry
      * @param entry the entry that caused the exception
-     * @return ErrorHandlerChoice - the decision on how to handle the exception
-     * @throws IOException if an I/O error occurs
+     * @return {@link EntryOutcome.IgnoreFurtherErrors} when {@code ignoreErrors} is set or the handler answers
+     *     {@code SKIP_ALL}, {@link EntryOutcome.Continue} after {@code SKIP}
+     * @throws IOException {@code failure}, when the handler answers {@code ABORT}
+     * @throws NullPointerException if the handler returns {@code null}
      */
-    ErrorHandlerChoice handle(IOException ioException, boolean ignoreErrors, Entry entry) throws IOException {
+    EntryOutcome handle(IOException failure, boolean ignoreErrors, Entry entry) throws IOException {
         if (ignoreErrors) {
-            LOGGER.debug("Skipped exception because {} was selected earlier", SKIP_ALL, ioException);
-            return SKIP_ALL;
-        } else {
-            return switch (errorHandler.apply(entry, ioException)) {
-                case ABORT -> ABORT;
-                case BAIL_OUT -> throw ioException;
-                case RETRY -> {
-                    LOGGER.debug("Retying because of exception", ioException);
-                    yield RETRY;
-                }
-                case SKIP -> {
-                    LOGGER.debug("Skipped exception", ioException);
-                    yield SKIP;
-                }
-                case SKIP_ALL -> {
-                    LOGGER.debug("SKIP_ALL is selected", ioException);
-                    yield SKIP_ALL;
-                }
-            };
+            LOGGER.debug("Skipped exception because {} was selected earlier", SKIP_ALL, failure);
+            return new EntryOutcome.IgnoreFurtherErrors();
         }
-    }
-
-    static EntryOutcome outcomeOf(ErrorHandlerChoice choice) {
+        ErrorHandlerChoice choice =
+                Objects.requireNonNull(errorHandler.apply(entry, failure), "errorHandler returned null");
         return switch (choice) {
-            case ABORT -> new EntryOutcome.Abort();
-            case SKIP_ALL -> new EntryOutcome.IgnoreFurtherErrors();
-            case SKIP, RETRY, BAIL_OUT -> new EntryOutcome.Continue();
+            case ABORT -> throw failure;
+            case SKIP -> {
+                LOGGER.debug("Skipped exception", failure);
+                yield new EntryOutcome.Continue();
+            }
+            case SKIP_ALL -> {
+                LOGGER.debug("SKIP_ALL is selected", failure);
+                yield new EntryOutcome.IgnoreFurtherErrors();
+            }
         };
     }
 
     sealed interface EntryOutcome {
         record Continue() implements EntryOutcome {}
-
-        record Abort() implements EntryOutcome {}
 
         record IgnoreFurtherErrors() implements EntryOutcome {}
     }

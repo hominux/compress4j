@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.ar;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.utils.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;
@@ -89,15 +90,26 @@ public class ArArchiveExtractor extends ArchiveExtractor<ArArchiveInputStream> {
     /** {@inheritDoc} */
     @Override
     protected Optional<Entry> nextEntry() throws IOException {
-        ArArchiveEntry ae = archiveInputStream.getNextEntry();
-        if (ae == null) return Optional.empty();
-
-        int mode = ae.getMode();
-        Entry entry = (mode & ArArchiveCreator.S_IFMT) == ArArchiveCreator.S_IFLNK
-                ? new Entry(ae.getName(), Entry.Type.SYMLINK, mode).withLinkTarget(readSymlinkTargetStoredAsContent(ae))
-                : new Entry(ae.getName(), Entry.Type.FILE, mode);
-        return Optional.of(
-                entry.withMetadata(ae.getLastModifiedDate(), entry.type() == Entry.Type.FILE ? ae.getSize() : 0));
+        ArArchiveEntry ae;
+        while ((ae = archiveInputStream.getNextEntry()) != null) {
+            int mode = ae.getMode();
+            UnixFileType fileType = UnixFileType.of(mode);
+            Entry entry;
+            switch (fileType) {
+                case SYMLINK ->
+                    entry = new Entry(ae.getName(), Entry.Type.SYMLINK, mode)
+                            .withLinkTarget(readSymlinkTargetStoredAsContent(ae));
+                case DIRECTORY -> entry = new Entry(ae.getName(), Entry.Type.DIR, mode);
+                case FILE -> entry = new Entry(ae.getName(), Entry.Type.FILE, mode);
+                default -> {
+                    reportUnsupported(ae.getName(), fileType.kind());
+                    continue;
+                }
+            }
+            return Optional.of(
+                    entry.withMetadata(ae.getLastModifiedDate(), entry.type() == Entry.Type.FILE ? ae.getSize() : 0));
+        }
+        return Optional.empty();
     }
 
     private String readSymlinkTargetStoredAsContent(ArArchiveEntry entry) throws IOException {

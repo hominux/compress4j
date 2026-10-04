@@ -15,7 +15,6 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
 import static com.hominux.compress4j.utils.FileUtils.DOS_HIDDEN;
 import static com.hominux.compress4j.utils.FileUtils.DOS_READ_ONLY;
 import static com.hominux.compress4j.utils.PosixFilePermissionsMapper.fromUnixMode;
@@ -43,6 +42,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
@@ -83,6 +83,8 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     /** Post processor for the extractor. */
     private final BiConsumer<Entry, ? super Path> postProcessor;
 
+    private final Consumer<UnsupportedEntry> unsupportedEntryHandler;
+
     /** Number of leading path components to strip from the extracted entries. */
     private final int stripComponents;
 
@@ -106,6 +108,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         this.archiveInputStream = BuildFailureCleanup.build(builder.ownedStream, builder::buildArchiveInputStream);
         this.entryFilter = builder.entryFilter;
         this.errorHandler = builder.errorHandlerFunction;
+        this.unsupportedEntryHandler = builder.unsupportedEntryHandler;
         this.postProcessor = builder.postProcessor;
         this.stripComponents = builder.stripComponents;
         this.overwrite = builder.overwrite;
@@ -122,7 +125,8 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     protected ArchiveExtractor(A archiveInputStream) {
         this.archiveInputStream = archiveInputStream;
         this.entryFilter = ACCEPT_ALL;
-        this.errorHandler = (x, y) -> ErrorHandlerChoice.BAIL_OUT;
+        this.errorHandler = (x, y) -> ErrorHandlerChoice.ABORT;
+        this.unsupportedEntryHandler = entry -> {};
         this.postProcessor = null;
         this.stripComponents = 0;
         this.overwrite = false;
@@ -212,33 +216,22 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         boolean ignoreErrors = false;
         Optional<ArchiveItem> next;
         while ((next = pipeline.advance()).isPresent()) {
-            switch (extractItem(outputDir, next.orElseThrow(), ignoreErrors, guard)) {
-                case EntryOutcome.Abort() -> {
-                    return;
-                }
-                case EntryOutcome.IgnoreFurtherErrors() -> ignoreErrors = true;
-                case EntryOutcome.Continue() -> {
-                    /* no-op */
-                }
+            if (extractItem(outputDir, next.orElseThrow(), ignoreErrors, guard)
+                    instanceof EntryOutcome.IgnoreFurtherErrors) {
+                ignoreErrors = true;
             }
         }
     }
 
     private EntryOutcome extractItem(Path outputDir, ArchiveItem item, boolean ignoreErrors, SymlinkGuard guard)
             throws IOException {
-        while (true) {
-            try {
-                processItem(outputDir, item, guard);
-                return new EntryOutcome.Continue();
-            } catch (ArchiveSecurityException unsuppressible) {
-                throw unsuppressible;
-            } catch (IOException ioException) {
-                ErrorHandlerChoice choice =
-                        new ExtractionErrorPolicy(errorHandler).handle(ioException, ignoreErrors, item.entry());
-                if (choice != RETRY) {
-                    return ExtractionErrorPolicy.outcomeOf(choice);
-                }
-            }
+        try {
+            processItem(outputDir, item, guard);
+            return new EntryOutcome.Continue();
+        } catch (ArchiveSecurityException unsuppressible) {
+            throw unsuppressible;
+        } catch (IOException failure) {
+            return new ExtractionErrorPolicy(errorHandler).handle(failure, ignoreErrors, item.entry());
         }
     }
 
@@ -268,6 +261,17 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
      * @since 3.0
      */
     protected abstract Optional<Entry> nextEntry() throws IOException;
+
+    /**
+     * Reports an entry this reader skips because its type cannot be extracted.
+     *
+     * @param name the entry name as stored in the archive
+     * @param kind a readable description of the entry type
+     * @since 5.0
+     */
+    protected final void reportUnsupported(String name, String kind) {
+        unsupportedEntryHandler.accept(new UnsupportedEntry(name, kind));
+    }
 
     /**
      * Open the stream for the current entry. This method is called before the entry is processed and should open the
@@ -413,27 +417,19 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         RELATIVIZE_ABSOLUTE
     }
 
-    /** Specifies the action to be taken by the error handler. */
+    /** What the extractor does after a non-security failure while extracting an entry. */
     public enum ErrorHandlerChoice {
         /**
-         * Stop the extraction and return normally. Entries extracted before the failure are left in place, except
-         * symlinks that resolve outside the output directory, which are deleted.
+         * Stop and rethrow the failure. Entries extracted before it stay in place, except symlinks that resolve outside
+         * the output directory, which are deleted. When the final guard check finds an escaping symlink, from any
+         * entry, it throws that failure as the primary exception and attaches the aborting failure as suppressed.
          */
         ABORT,
 
-        /** Do not handle error, just rethrow the exception */
-        BAIL_OUT,
-
-        /** Retry failed entry extraction */
-        RETRY,
-
-        /** Skip this entry from extraction */
+        /** Skip this entry and continue with the next one. */
         SKIP,
 
-        /**
-         * Skip this entry and keep extracting the remaining ones, ignoring any further {@link IOException} without
-         * consulting the error handler again.
-         */
+        /** Skip this entry and every later failing entry without consulting the handler again. */
         SKIP_ALL
     }
 
@@ -454,8 +450,9 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         Predicate<Entry> entryFilter = ACCEPT_ALL;
 
         BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction =
-                (x, y) -> ErrorHandlerChoice.BAIL_OUT;
+                (x, y) -> ErrorHandlerChoice.ABORT;
         BiConsumer<Entry, ? super Path> postProcessor;
+        Consumer<UnsupportedEntry> unsupportedEntryHandler = entry -> {};
         int stripComponents = 0;
         boolean overwrite = false;
         long maxEntries = UNLIMITED;
@@ -498,15 +495,18 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         }
 
         /**
-         * Sets the error handler for the extractor.
+         * Sets the error handler, consulted for each non-security {@link IOException} while extracting an entry, until
+         * it answers {@link ErrorHandlerChoice#SKIP_ALL}. Defaults to a handler that answers
+         * {@link ErrorHandlerChoice#ABORT}. An {@link ArchiveSecurityException} always propagates without consulting
+         * the handler. A handler that returns {@code null} makes the extraction fail with a
+         * {@link NullPointerException}.
          *
-         * <p>An {@link ArchiveSecurityException} always propagates; the handler is not consulted for it.
-         *
-         * @param errorHandlerFunction the error handler to set
-         * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
+         * @param errorHandlerFunction the handler; it must not return {@code null}
+         * @return this builder
+         * @throws NullPointerException if {@code errorHandlerFunction} is {@code null}
          */
         public B errorHandler(BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction) {
-            this.errorHandlerFunction = errorHandlerFunction;
+            this.errorHandlerFunction = Objects.requireNonNull(errorHandlerFunction, "errorHandler");
             return getThis();
         }
 
@@ -518,6 +518,21 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
          */
         public B escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy policy) {
             this.escapingSymlinkPolicy = policy;
+            return getThis();
+        }
+
+        /**
+         * Sets the handler told about every entry the reader skips because its type cannot be extracted (for example
+         * hard link, character device, fifo, socket, whiteout, unknown type). Called from both {@link #stream()} and
+         * {@link #extract(Path)}; an exception it throws propagates to the caller. Defaults to doing nothing.
+         *
+         * @param handler the handler
+         * @return this builder
+         * @throws NullPointerException if {@code handler} is {@code null}
+         * @since 5.0
+         */
+        public B unsupportedEntryHandler(Consumer<UnsupportedEntry> handler) {
+            this.unsupportedEntryHandler = Objects.requireNonNull(handler, "unsupportedEntryHandler");
             return getThis();
         }
 
@@ -557,8 +572,9 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
 
         /**
          * Sets the maximum number of entries the extractor will process before aborting. Counts entries that pass
-         * strip-components and the filter. In {@link #stream()} a breach surfaces as
-         * {@link java.io.UncheckedIOException} wrapping {@link ArchiveLimitExceededException}.
+         * strip-components and the filter; entries skipped as unsupported or filtered out are not counted, and the
+         * unsupported-entry handler is called once per skipped entry without a bound. In {@link #stream()} a breach
+         * surfaces as {@link java.io.UncheckedIOException} wrapping {@link ArchiveLimitExceededException}.
          *
          * @param maxEntries the maximum number of entries, or {@link ArchiveExtractor#UNLIMITED} to disable the limit
          * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}

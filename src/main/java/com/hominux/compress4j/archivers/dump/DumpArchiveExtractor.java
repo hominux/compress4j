@@ -32,14 +32,11 @@ import org.apache.commons.compress.archivers.dump.DumpArchiveInputStream;
  * Read-only: Compress4J provides no creator for this format.
  *
  * <p>Extracts UNIX dump archives. The unnamed root directory entry is skipped. Directory and regular file entries are
- * extracted; every other entry type fails with an {@link IOException} that the error handler receives. Such entries are
- * listed as regular files; their real type is visible in the Unix file type bits of {@link Entry#mode()}.
+ * extracted; every other entry type is skipped and reported to the builder's {@code unsupportedEntryHandler}.
  *
  * @since 3.2
  */
 public class DumpArchiveExtractor extends ArchiveExtractor<DumpArchiveInputStream> {
-
-    private Optional<DumpArchiveEntry> current = Optional.empty();
 
     /**
      * Create a new {@link DumpArchiveExtractor} with the given input stream.
@@ -63,30 +60,53 @@ public class DumpArchiveExtractor extends ArchiveExtractor<DumpArchiveInputStrea
     /** {@inheritDoc} */
     @Override
     protected Optional<Entry> nextEntry() throws IOException {
-        do {
-            current = Optional.ofNullable(archiveInputStream.getNextEntry());
-        } while (current.filter(DumpArchiveExtractor::isUnnamedDirectory).isPresent());
-        return current.map(DumpArchiveExtractor::toEntry);
+        while (true) {
+            DumpArchiveEntry entry = archiveInputStream.getNextEntry();
+            if (entry == null) {
+                return Optional.empty();
+            }
+            if (isUnnamedDirectory(entry)) {
+                continue;
+            }
+            Optional<Entry.Type> type = typeOf(entry.getType());
+            if (type.isPresent()) {
+                return Optional.of(toEntry(entry, type.orElseThrow()));
+            }
+            reportUnsupported(entry.getName(), kindOf(entry.getType()));
+        }
+    }
+
+    static Optional<Entry.Type> typeOf(DumpArchiveEntry.TYPE type) {
+        return switch (type) {
+            case FILE -> Optional.of(Entry.Type.FILE);
+            case DIRECTORY -> Optional.of(Entry.Type.DIR);
+            default -> Optional.empty();
+        };
+    }
+
+    static String kindOf(DumpArchiveEntry.TYPE type) {
+        return switch (type) {
+            case LINK -> "symbolic link";
+            case CHRDEV -> "character device";
+            case BLKDEV -> "block device";
+            case FIFO -> "fifo";
+            case SOCKET -> "socket";
+            case WHITEOUT -> "whiteout";
+            default -> "unknown type";
+        };
     }
 
     /** {@inheritDoc} */
     @Override
-    protected InputStream openEntryStream(Entry entry) throws IOException {
-        var dumpEntry = current.orElseThrow(() -> new IOException("No current dump entry"));
-        return switch (dumpEntry.getType()) {
-            case FILE -> archiveInputStream;
-            default ->
-                throw new IOException(
-                        "Unsupported dump entry type: " + dumpEntry.getType() + ": " + dumpEntry.getName());
-        };
+    protected InputStream openEntryStream(Entry entry) {
+        return archiveInputStream;
     }
 
     private static boolean isUnnamedDirectory(DumpArchiveEntry entry) {
         return entry.getName().isEmpty() && entry.getType() == DumpArchiveEntry.TYPE.DIRECTORY;
     }
 
-    private static Entry toEntry(DumpArchiveEntry entry) {
-        var type = entry.getType() == DumpArchiveEntry.TYPE.DIRECTORY ? Entry.Type.DIR : Entry.Type.FILE;
+    private static Entry toEntry(DumpArchiveEntry entry, Entry.Type type) {
         return new Entry(entry.getName(), type, entry.getMode())
                 .withMetadata(entry.getLastModifiedDate(), type == Entry.Type.FILE ? entry.getSize() : 0);
     }

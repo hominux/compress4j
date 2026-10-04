@@ -21,8 +21,6 @@ import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.DIR;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.FILE;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.SYMLINK;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.BAIL_OUT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP_ALL;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.ALLOW;
@@ -56,6 +54,7 @@ import com.hominux.compress4j.assertion.Compress4JAssertions;
 import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.test.util.log.InMemoryLogAppender;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
@@ -66,12 +65,14 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.DosFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -271,7 +272,7 @@ class ArchiveExtractorTest {
     }
 
     @Test
-    void retryHandlerIsNotConsultedForTraversal() throws IOException {
+    void skipAllHandlerIsNotConsultedForTraversal() throws IOException {
         // given
         var entry1 = InMemoryArchiveEntry.builder()
                 .name("../test1")
@@ -285,7 +286,7 @@ class ArchiveExtractorTest {
         BiFunction<ArchiveExtractor.Entry, IOException, ArchiveExtractor.ErrorHandlerChoice> errorHandler =
                 (entry, exception) -> {
                     handlerCalls.incrementAndGet();
-                    return RETRY;
+                    return SKIP_ALL;
                 };
 
         try (var inMemoryDecompressor = InMemoryArchiveExtractor.builder(List.of(entry1, entry2))
@@ -348,57 +349,6 @@ class ArchiveExtractorTest {
         }
     }
 
-    @Test
-    void shouldFailExtractFilesWithInvalidPathsBails() throws IOException {
-        // given
-        var entry1 = InMemoryArchiveEntry.builder()
-                .name("../test1")
-                .content("content1")
-                .build();
-        var entry2 = InMemoryArchiveEntry.builder()
-                .name("subdir/test2")
-                .content("content2")
-                .build();
-        try (var inMemoryDecompressor = InMemoryArchiveExtractor.builder(List.of(entry1, entry2))
-                .errorHandler((entry, exception) -> BAIL_OUT)
-                .build()) {
-
-            // when
-            assertThatThrownBy(() -> inMemoryDecompressor.extract(tempDir))
-                    .isInstanceOf(IOException.class)
-                    .hasMessageStartingWith("Path traversal vulnerability detected!");
-
-            // then
-            assertThat(tempDir).isEmptyDirectory();
-        }
-    }
-
-    @Test
-    void shouldFailExtractFilesWithInvalidPathsBailsAfterSomeFilesExtractedAlready() throws IOException {
-        // given
-        var entry1 = InMemoryArchiveEntry.builder()
-                .name("subdir/test1")
-                .content("content1")
-                .build();
-        var entry2 = InMemoryArchiveEntry.builder()
-                .name("../test2")
-                .content("content2")
-                .build();
-        try (var inMemoryDecompressor = InMemoryArchiveExtractor.builder(List.of(entry1, entry2))
-                .errorHandler((entry, exception) -> BAIL_OUT)
-                .build()) {
-
-            // when
-            assertThatThrownBy(() -> inMemoryDecompressor.extract(tempDir))
-                    .isInstanceOf(IOException.class)
-                    .hasMessageStartingWith("Path traversal vulnerability detected!");
-
-            // then
-            assertThat(tempDir).isDirectory();
-            assertThat(tempDir.resolve("subdir/test1")).hasContent("content1");
-        }
-    }
-
     @DisabledOnOs(OS.WINDOWS)
     @Test
     void shouldFailExtractFilesWithInvalidPathsSkipsEntry() throws IOException {
@@ -449,7 +399,7 @@ class ArchiveExtractorTest {
                 .build();
         var calls = new AtomicInteger();
         try (var inMemoryDecompressor = InMemoryArchiveExtractor.builder(List.of(entry1, entry1a, entry2))
-                .errorHandler((entry, exception) -> calls.getAndIncrement() == 0 ? SKIP_ALL : BAIL_OUT)
+                .errorHandler((entry, exception) -> calls.getAndIncrement() == 0 ? SKIP_ALL : ABORT)
                 .build()) {
 
             // when
@@ -1168,7 +1118,7 @@ class ArchiveExtractorTest {
         };
 
         try (var extractor =
-                faultInjectingBuilder.errorHandler((entry, ex) -> BAIL_OUT).build()) {
+                faultInjectingBuilder.errorHandler((entry, ex) -> ABORT).build()) {
 
             // when & then
             assertThatThrownBy(() -> extractor.extract(tempDir))
@@ -1176,45 +1126,6 @@ class ArchiveExtractorTest {
                     .hasMessage("Simulated error reading next entry");
 
             assertThat(tempDir.resolve("file1.txt")).hasContent("abc");
-        }
-    }
-
-    @Test
-    void shouldHandleIOExceptionDuringFileWriteAndUseRetryErrorHandler() throws IOException {
-        // given
-        var entry1 = InMemoryArchiveEntry.builder()
-                .name("file_to_fail.txt")
-                .content("content")
-                .build();
-        var entry2 =
-                InMemoryArchiveEntry.builder().name("success.txt").content("ok").build();
-
-        var simulatedException = new IOException("Simulated disk full");
-
-        try (MockedStatic<Files> mockedFiles = mockStatic(Files.class, CALLS_REAL_METHODS);
-                var extractor = InMemoryArchiveExtractor.builder(List.of(entry1, entry2))
-                        .errorHandler((entry, ex) -> {
-                            if (entry.name().equals("file_to_fail.txt") && ex == simulatedException) {
-                                return RETRY;
-                            }
-                            return BAIL_OUT;
-                        })
-                        .overwrite(true)
-                        .build()) {
-
-            //noinspection resource
-            mockedFiles
-                    .when(() -> Files.newOutputStream(eq(tempDir.resolve("file_to_fail.txt"))))
-                    .thenThrow(simulatedException)
-                    .thenCallRealMethod();
-
-            // when
-            extractor.extract(tempDir);
-
-            // then
-            assertThat(tempDir.resolve("file_to_fail.txt")).exists().hasContent("content");
-            assertThat(tempDir.resolve("success.txt")).hasContent("ok");
-            Compress4JAssertions.assertThat(inMemoryLogAppender).contains("Retying because of exception", DEBUG);
         }
     }
 
@@ -1236,7 +1147,7 @@ class ArchiveExtractorTest {
                             if (entry.name().equals(entryToFail.getName()) && ex == simulatedException) {
                                 return SKIP;
                             }
-                            return BAIL_OUT;
+                            return ABORT;
                         })
                         .build()) {
 
@@ -1279,7 +1190,7 @@ class ArchiveExtractorTest {
                             if (entry.name().equals(entryToFail.getName()) && ex == simulatedException) {
                                 return SKIP_ALL;
                             }
-                            return BAIL_OUT;
+                            return ABORT;
                         })
                         .build()) {
 
@@ -1519,8 +1430,7 @@ class ArchiveExtractorTest {
 
             ArchiveExtractor.setAttributes(mode, mockPath);
 
-            Set<java.nio.file.attribute.PosixFilePermission> expectedPermissions =
-                    PosixFilePermissions.fromString("rwxr-xr-x");
+            Set<PosixFilePermission> expectedPermissions = PosixFilePermissions.fromString("rwxr-xr-x");
 
             verify(mockAttributeView).setPermissions(expectedPermissions);
         }
@@ -2075,5 +1985,74 @@ class ArchiveExtractorTest {
             assertThat(releases).hasValue(1);
             assertThat(out.resolve("a")).hasContent("1");
         }
+    }
+
+    @Test
+    void abortRethrowsTheWriteFailureAndStopsExtraction() throws IOException {
+        var blocked = InMemoryArchiveEntry.builder().name("a.txt").content("a").build();
+        var later = InMemoryArchiveEntry.builder().name("b.txt").content("b").build();
+        Files.createDirectory(tempDir.resolve("a.txt"));
+
+        var received = new AtomicReference<IOException>();
+        try (var extractor = InMemoryArchiveExtractor.builder(List.of(blocked, later))
+                .overwrite(true)
+                .errorHandler((entry, failure) -> {
+                    received.set(failure);
+                    return ABORT;
+                })
+                .build()) {
+            assertThatThrownBy(() -> extractor.extract(tempDir))
+                    .isInstanceOf(IOException.class)
+                    .isSameAs(received.get());
+        }
+        assertThat(tempDir.resolve("b.txt")).doesNotExist();
+    }
+
+    @Test
+    void defaultErrorHandlerAborts() throws IOException {
+        var blocked = InMemoryArchiveEntry.builder().name("a.txt").content("a").build();
+        Files.createDirectory(tempDir.resolve("a.txt"));
+
+        try (var extractor = InMemoryArchiveExtractor.builder(List.of(blocked))
+                .overwrite(true)
+                .build()) {
+            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(IOException.class);
+        }
+    }
+
+    @Test
+    void skipContinuesWithTheNextEntry() throws IOException {
+        var blocked = InMemoryArchiveEntry.builder().name("a.txt").content("a").build();
+        var later = InMemoryArchiveEntry.builder().name("b.txt").content("b").build();
+        Files.createDirectory(tempDir.resolve("a.txt"));
+
+        try (var extractor = InMemoryArchiveExtractor.builder(List.of(blocked, later))
+                .overwrite(true)
+                .errorHandler((entry, failure) -> SKIP)
+                .build()) {
+            extractor.extract(tempDir);
+        }
+        assertThat(tempDir.resolve("b.txt")).hasContent("b");
+    }
+
+    @Test
+    void skipAllStillPropagatesSecurityFailures() throws IOException {
+        var blocked = InMemoryArchiveEntry.builder().name("a.txt").content("a").build();
+        var escaping =
+                InMemoryArchiveEntry.builder().name("../evil").content("x").build();
+        Files.createDirectory(tempDir.resolve("a.txt"));
+
+        try (var extractor = InMemoryArchiveExtractor.builder(List.of(blocked, escaping))
+                .overwrite(true)
+                .errorHandler((entry, failure) -> SKIP_ALL)
+                .build()) {
+            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(UnsafeEntryException.class);
+        }
+    }
+
+    @Test
+    void errorHandlerMustNotBeNull() {
+        var builder = InMemoryArchiveExtractor.builder(new ByteArrayInputStream(new byte[0]));
+        assertThatThrownBy(() -> builder.errorHandler(null)).isInstanceOf(NullPointerException.class);
     }
 }

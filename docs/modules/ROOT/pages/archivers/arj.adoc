@@ -4,9 +4,9 @@ NOTE: Read-only: Compress4J can extract this format but cannot create it.
 
 ARJ support needs no extra dependency. The extractor writes directory and regular file entries and applies the same extraction guards as the other archive extractors: path traversal, symlink policy, and entry and size limits.
 
-Unix symbolic link entries and entries whose data cannot be read (encrypted or using an unsupported method) fail with an `IOException` that the error handler receives; nothing is written for them.
+Entries from a Unix host that are symbolic links, devices, FIFOs or sockets are skipped and reported to `unsupportedEntryHandler`; nothing is written for them. Entries whose data cannot be read (encrypted or using an unsupported method) fail with an `IOException` that the error handler receives.
 
-Such entries are listed as regular files; the Unix file type bits of the entry's `mode` show the real type, so a `filter` can detect them. If the target already exists and `overwrite(false)` is set, the entry is skipped before it is opened, so the error handler does not see it.
+If the target already exists and `overwrite(false)` is set, the entry is skipped before it is opened, so the error handler does not see it.
 
 == Example Usage
 

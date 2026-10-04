@@ -17,17 +17,17 @@ package com.hominux.compress4j.archivers.dump;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.UnsupportedEntry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.function.Consumer;
 import org.apache.commons.compress.archivers.dump.DumpArchiveEntry;
 import org.apache.commons.compress.archivers.dump.DumpArchiveInputStream;
 import org.junit.jupiter.api.Test;
@@ -95,17 +95,6 @@ class DumpArchiveExtractorTest {
     }
 
     @Test
-    void shouldLetFiltersDetectALinkThroughTheModeTypeBits() throws IOException {
-        var link = entry("link", DumpArchiveEntry.TYPE.LINK);
-        when(link.getMode()).thenReturn(0120777);
-
-        try (var extractor = new DumpArchiveExtractor(streamOf(link))) {
-            assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.mode() & 0170000).isEqualTo(0120000));
-        }
-    }
-
-    @Test
     void shouldOpenFileEntryThatReadsItsDataThenReachesEndOfStream() throws IOException {
         var in = streamOf(entry("file.txt", DumpArchiveEntry.TYPE.FILE));
         when(in.read()).thenReturn((int) 'h', (int) 'i', -1);
@@ -125,16 +114,28 @@ class DumpArchiveExtractorTest {
     @EnumSource(
             value = DumpArchiveEntry.TYPE.class,
             names = {"LINK", "SOCKET", "FIFO", "BLKDEV", "CHRDEV", "WHITEOUT", "UNKNOWN"})
-    void shouldRejectUnsupportedEntryTypesWithoutWritingAnything(DumpArchiveEntry.TYPE type) throws IOException {
-        var in = streamOf(entry("special", type));
+    void shouldSkipUnsupportedEntryTypesAndReportThem(DumpArchiveEntry.TYPE type) throws IOException {
+        var in = mock(DumpArchiveInputStream.class);
+        var special = entry("special", type);
+        when(in.getNextEntry()).thenReturn(special).thenReturn(null);
+        var reported = new ArrayList<UnsupportedEntry>();
 
-        try (var extractor = new DumpArchiveExtractor(in)) {
-            var mapped = extractor.nextEntry().orElseThrow();
-
-            assertThatThrownBy(() -> extractor.openEntryStream(mapped))
-                    .isInstanceOf(IOException.class)
-                    .hasMessage("Unsupported dump entry type: " + type + ": special");
+        try (var extractor = extractorOver(in, reported::add)) {
+            assertThat(extractor.nextEntry()).isEmpty();
         }
+
+        assertThat(reported).containsExactly(new UnsupportedEntry("special", DumpArchiveExtractor.kindOf(type)));
+    }
+
+    private static DumpArchiveExtractor extractorOver(DumpArchiveInputStream in, Consumer<UnsupportedEntry> handler)
+            throws IOException {
+        var builder = new DumpArchiveExtractor.DumpArchiveExtractorBuilder(InputStream.nullInputStream()) {
+            @Override
+            public DumpArchiveInputStream buildArchiveInputStream() {
+                return in;
+            }
+        };
+        return builder.unsupportedEntryHandler(handler).build();
     }
 
     @TempDir
@@ -151,28 +152,17 @@ class DumpArchiveExtractorTest {
     }
 
     @Test
-    void shouldReportUnsupportedEntryToTheErrorHandlerAndCreateNothing() throws IOException {
+    void shouldReportUnsupportedEntryToTheUnsupportedHandlerAndCreateNothing() throws IOException {
         var in = mock(DumpArchiveInputStream.class);
         var link = entry("link", DumpArchiveEntry.TYPE.LINK);
         when(in.getNextEntry()).thenReturn(link).thenReturn(null);
-        when(in.read(any(byte[].class), anyInt(), anyInt())).thenReturn(-1);
-        var seen = new ArrayList<String>();
+        var seen = new ArrayList<UnsupportedEntry>();
 
-        var builder = new DumpArchiveExtractor.DumpArchiveExtractorBuilder(InputStream.nullInputStream()) {
-            @Override
-            public DumpArchiveInputStream buildArchiveInputStream() {
-                return in;
-            }
-        };
-        try (var extractor = builder.errorHandler((e, failure) -> {
-                    seen.add(e.name());
-                    return ArchiveExtractor.ErrorHandlerChoice.SKIP;
-                })
-                .build()) {
+        try (var extractor = extractorOver(in, seen::add)) {
             extractor.extract(tempDir);
         }
 
-        assertThat(seen).containsExactly("link");
+        assertThat(seen).containsExactly(new UnsupportedEntry("link", "symbolic link"));
         assertThat(tempDir).isEmptyDirectory();
     }
 
