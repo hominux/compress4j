@@ -20,11 +20,14 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import com.hominux.compress4j.utils.PosixFilePermissionsMapper;
 import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.DosFileAttributes;
+import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -144,7 +147,9 @@ class HostFileSystemTest {
         Path target = Files.writeString(tmp.resolve("target.txt"), "content");
         Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rw-r--r--"));
         Path link = Files.createSymbolicLink(tmp.resolve("link.txt"), target.getFileName());
-        assertThat(HostFileSystem.POSIX.modeOf(link)).isNotEqualTo(0644);
+        var own = Files.readAttributes(link, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS)
+                .permissions();
+        assertThat(HostFileSystem.POSIX.modeOf(link)).isEqualTo(PosixFilePermissionsMapper.toUnixMode(own));
     }
 
     @Test
