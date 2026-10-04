@@ -28,20 +28,12 @@ import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkP
 import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
 import static com.hominux.compress4j.archivers.memory.InMemoryArchiveInputStream.toInputStream;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
-import static java.nio.file.attribute.PosixFilePermission.GROUP_READ;
-import static java.nio.file.attribute.PosixFilePermission.OTHERS_READ;
-import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
-import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
@@ -62,15 +54,12 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.DosFileAttributeView;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -79,7 +68,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -778,186 +766,6 @@ class ArchiveExtractorTest {
     }
 
     @Test
-    void shouldSetAttributesOnNixFileSystem() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 0644;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-            var mockAttributeView = mock(PosixFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, PosixFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            verify(mockAttributeView).setPermissions(Set.of(OWNER_READ, OWNER_WRITE, GROUP_READ, OTHERS_READ));
-        }
-    }
-
-    @Test
-    void shouldNotSetAttributesOnNixFileSystemWhenCouldNotReadExistingAttributes() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        given(mockPath.toString()).willReturn("some/path");
-        @SuppressWarnings("OctalInteger")
-        var mode = 0644;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, PosixFileAttributeView.class))
-                    .thenReturn(null);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            Compress4JAssertions.assertThat(inMemoryLogAppender)
-                    .contains("Cannot set POSIX attributes for file: some/path", TRACE);
-        }
-    }
-
-    @Test
-    void shouldSetAttributesOnWindowsFileSystem() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 0003;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, DosFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            verify(mockAttributeView).setReadOnly(true);
-            verify(mockAttributeView).setHidden(true);
-        }
-    }
-
-    @Test
-    void shouldSetAttributesOnWindowsFileSystemWhenReadOnly() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 0001;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, DosFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            verify(mockAttributeView).setReadOnly(true);
-            verifyNoMoreInteractions(mockAttributeView);
-        }
-    }
-
-    @Test
-    void shouldSetAttributesOnWindowsFileSystemWhenHidden() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 0002;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, DosFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            verify(mockAttributeView).setHidden(true);
-            verifyNoMoreInteractions(mockAttributeView);
-        }
-    }
-
-    @Test
-    void shouldNotSetAttributesOnWindowsFileSystemWhenModeZero() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 0000;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, DosFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            verifyNoInteractions(mockAttributeView);
-        }
-    }
-
-    @Test
-    void shouldNotSetAttributesOnWindowsFileSystemWithoutFileAttributes() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        given(mockPath.toString()).willReturn("some/path");
-        @SuppressWarnings("OctalInteger")
-        var mode = 0003;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, DosFileAttributeView.class))
-                    .thenReturn(null);
-
-            // when
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            // then
-            Compress4JAssertions.assertThat(inMemoryLogAppender)
-                    .contains("Cannot set DOS attributes for file: some/path", TRACE);
-        }
-    }
-
-    @Test
     void shouldExtractEmptyArchiveWithoutErrors() throws IOException {
         // given
         try (var extractor =
@@ -1152,7 +960,8 @@ class ArchiveExtractorTest {
                         .build()) {
 
             mockedFiles
-                    .when(() -> Files.newOutputStream(eq(tempDir.resolve(entryToFail.getName()))))
+                    .when(() ->
+                            Files.newOutputStream(eq(tempDir.resolve(entryToFail.getName())), any(OpenOption[].class)))
                     .thenThrow(simulatedException);
 
             // when
@@ -1195,7 +1004,8 @@ class ArchiveExtractorTest {
                         .build()) {
 
             mockedFiles
-                    .when(() -> Files.newOutputStream(eq(tempDir.resolve(entryToFail.getName()))))
+                    .when(() ->
+                            Files.newOutputStream(eq(tempDir.resolve(entryToFail.getName())), any(OpenOption[].class)))
                     .thenThrow(simulatedException);
 
             // when
@@ -1208,7 +1018,8 @@ class ArchiveExtractorTest {
 
             Compress4JAssertions.assertThat(inMemoryLogAppender)
                     .contains("SKIP_ALL is selected", DEBUG, simulatedException);
-            mockedFiles.verify(() -> Files.newOutputStream(eq(tempDir.resolve(entryToFail.getName()))));
+            mockedFiles.verify(
+                    () -> Files.newOutputStream(eq(tempDir.resolve(entryToFail.getName())), any(OpenOption[].class)));
         }
     }
 
@@ -1387,55 +1198,6 @@ class ArchiveExtractorTest {
         assertThat(new Entry("", FILE, 0).name()).isEmpty();
     }
 
-    @EnabledOnOs(OS.WINDOWS)
-    @Test
-    void setAttributesShouldSetAllRelevantDosAttributesOnWindows() throws IOException {
-        var mockPath = mock(Path.class);
-        var mode = com.hominux.compress4j.utils.FileUtils.DOS_READ_ONLY
-                | com.hominux.compress4j.utils.FileUtils.DOS_HIDDEN;
-
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveExtractor> mockedExtractor = mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-
-            mockedExtractor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, DosFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            verify(mockAttributeView).setReadOnly(true);
-            verify(mockAttributeView).setHidden(true);
-            verifyNoMoreInteractions(mockAttributeView);
-        }
-    }
-
-    @DisabledOnOs(OS.WINDOWS)
-    @Test
-    void setAttributesShouldSetComplexPosixPermissionsOnNix() throws IOException {
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 04755;
-
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveExtractor> mockedExtractor = mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedExtractor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-            var mockAttributeView = mock(PosixFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, PosixFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-
-            ArchiveExtractor.setAttributes(mode, mockPath);
-
-            Set<PosixFilePermission> expectedPermissions = PosixFilePermissions.fromString("rwxr-xr-x");
-
-            verify(mockAttributeView).setPermissions(expectedPermissions);
-        }
-    }
-
     @Test
     void builderShouldCorrectlySetNullEntryFilter() throws IOException {
         InMemoryArchiveExtractor.ArchiveExtractorBuilder<?, ?, ?> builder =
@@ -1539,7 +1301,7 @@ class ArchiveExtractorTest {
     }
 
     @Test
-    void shouldOverwriteSymlinkWithFileWhenOverwriteTrue() throws IOException {
+    void shouldNotWriteThroughAnExistingSymlinkWhenOverwriteTrue() throws IOException {
         var dirEntry = InMemoryArchiveEntry.builder().name("adir").type(DIR).build();
         var fileEntry = InMemoryArchiveEntry.builder()
                 .name("adir/file.txt")
@@ -1559,9 +1321,9 @@ class ArchiveExtractorTest {
         try (var extractor = InMemoryArchiveExtractor.builder(List.of(fileAtSymlink))
                 .overwrite(true)
                 .build()) {
-            extractor.extract(tempDir);
-            assertThat(tempDir.resolve("adir/link")).isRegularFile().hasContent("new");
+            assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(IOException.class);
         }
+        assertThat(tempDir.resolve("adir/file.txt")).hasContent("f");
     }
 
     @Test
@@ -1595,24 +1357,6 @@ class ArchiveExtractorTest {
             extractor.extract(tempDir);
 
             assertThat(tempDir.resolve("test1")).hasContent("c1");
-        }
-    }
-
-    @Test
-    void shouldSetAttributesWithEdgeCaseModes() throws IOException {
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        var mode = 07777;
-        try (var mockedExtractor = mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedExtractor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-            var mockAttributeView = mock(PosixFileAttributeView.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(mockPath, PosixFileAttributeView.class))
-                    .thenReturn(mockAttributeView);
-            ArchiveExtractor.setAttributes(mode, mockPath);
-            verify(mockAttributeView)
-                    .setPermissions(com.hominux.compress4j.utils.PosixFilePermissionsMapper.fromUnixMode(mode));
         }
     }
 

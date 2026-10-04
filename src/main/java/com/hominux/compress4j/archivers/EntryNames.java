@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import java.util.Arrays;
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.StringUtils;
 
 /** Normalises archive entry names and rejects names that would resolve outside an extraction directory. */
 final class EntryNames {
@@ -26,8 +27,16 @@ final class EntryNames {
 
     private EntryNames() {}
 
+    static String sanitised(String name) {
+        String entryName = StringUtils.strip(name.replaceAll("\\\\+", "/"), "/");
+        if (StringUtils.isBlank(entryName)) {
+            throw new IllegalArgumentException("Invalid entry name: " + name);
+        }
+        return entryName;
+    }
+
     static String checked(String rawName) throws UnsafeEntryException {
-        String name = ArchiveCreator.sanitiseName(rawName);
+        String name = sanitised(rawName);
         if (name.indexOf('\0') >= 0
                 || DRIVE.matcher(name).find()
                 || Arrays.asList(name.split("/")).contains("..")) {

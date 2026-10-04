@@ -34,15 +34,6 @@ public class FileUtils {
         /* no-op */
     }
 
-    /** DOS read-only attribute. */
-    public static final int DOS_READ_ONLY = 0b01;
-
-    /** DOS hidden attribute. */
-    public static final int DOS_HIDDEN = 0b010;
-
-    /** Signifies no mode set on file. */
-    public static final int NO_MODE = 0;
-
     /**
      * Reads the full content of a file into a single string, normalizing all line endings to a single newline character
      * ('\n').

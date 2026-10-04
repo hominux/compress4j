@@ -15,10 +15,6 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.utils.StringUtil.trimLeading;
-import static com.hominux.compress4j.utils.StringUtil.trimTrailing;
-import static org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
-
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
 import java.io.ByteArrayInputStream;
@@ -43,7 +39,6 @@ import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
 import org.apache.commons.io.input.CloseShieldInputStream;
-import org.apache.commons.lang3.StringUtils;
 
 /**
  * This abstract class is the superclass of all classes providing archiving. This class provides functionality to add
@@ -280,7 +275,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
      * tree fails the walk with {@link IllegalArgumentException}.
      *
-     * @param topLevelDir topLevelDir to add to the directory name
+     * @param topLevelDir prefix for every entry name; empty adds no prefix, a non-empty blank or all-slash value throws
+     *     {@link IllegalArgumentException}
      * @param directory directory to add
      * @throws IOException if an I/O error occurred
      */
@@ -308,7 +304,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
      * tree fails the walk with {@link IllegalArgumentException}.
      *
-     * @param topLevelDir topLevelDir to add to the directory name
+     * @param topLevelDir prefix for every entry name; empty adds no prefix, a non-empty blank or all-slash value throws
+     *     {@link IllegalArgumentException}
      * @param directory directory to add
      * @param modTime last modification time of the directory
      * @throws IOException if an I/O error occurred
@@ -411,41 +408,6 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
     public final void addFile(String name, InputStream content, long size, FileTime lastModified) throws IOException {
         add(new EntrySource.File(
                 name, 0, lastModified, OptionalLong.of(size), () -> CloseShieldInputStream.wrap(content)));
-    }
-
-    /**
-     * Get mode of the {@code Path}.
-     *
-     * @param path {@code Path} to get the mode of
-     * @return the {@code Path} mode
-     * @throws IOException thrown by the underlying output stream for I/O errors
-     */
-    protected static int mode(Path path) throws IOException {
-        return FileModes.of(path, isIsOsWindows());
-    }
-
-    /**
-     * Check if the OS is Windows.
-     *
-     * @return {@code true} if the OS is Windows, {@code false} otherwise
-     */
-    protected static boolean isIsOsWindows() {
-        return IS_OS_WINDOWS;
-    }
-
-    /**
-     * Sanitise the name.
-     *
-     * <p>Replace `\` with `/` and remove leading and trailing `/` characters.
-     *
-     * @param name name to be sanitised
-     * @return sanitised name
-     */
-    @SuppressWarnings("java:S5361")
-    public static String sanitiseName(String name) {
-        String entryName = trimLeading(trimTrailing(name.replaceAll("\\\\+", "/"), '/'), '/');
-        if (StringUtils.isBlank(entryName)) throw new IllegalArgumentException("Invalid entry name: " + name);
-        return entryName;
     }
 
     /**

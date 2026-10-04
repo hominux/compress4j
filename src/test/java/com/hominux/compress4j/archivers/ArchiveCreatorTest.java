@@ -16,25 +16,16 @@
 package com.hominux.compress4j.archivers;
 
 import static ch.qos.logback.classic.Level.TRACE;
-import static com.hominux.compress4j.archivers.ArchiveCreator.sanitiseName;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
-import static com.hominux.compress4j.utils.FileUtils.NO_MODE;
-import static java.nio.file.attribute.PosixFilePermission.GROUP_READ;
-import static java.nio.file.attribute.PosixFilePermission.OTHERS_READ;
-import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
-import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
-import static org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.assertArg;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -42,7 +33,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
@@ -60,19 +50,13 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.DosFileAttributeView;
-import java.nio.file.attribute.DosFileAttributes;
 import java.nio.file.attribute.FileTime;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
-import java.util.Set;
-import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
 import org.junit.jupiter.api.AfterEach;
@@ -83,8 +67,7 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -103,26 +86,6 @@ class ArchiveCreatorTest {
 
     @Mock
     private OutputStream out;
-
-    private static Stream<Arguments> namesWithLeadingAndTrailingSlashes() {
-        return Stream.of(
-                Arguments.of("/file.txt", "file.txt"),
-                Arguments.of("/../../../file.txt", "../../../file.txt"),
-                Arguments.of("path/", "path"),
-                Arguments.of("\\file.txt", "file.txt"),
-                Arguments.of("\\..\\..\\..\\file.txt", "../../../file.txt"),
-                Arguments.of("path\\", "path"));
-    }
-
-    private static Stream<Arguments> invalidNames() {
-        return Stream.of(
-                Arguments.of("/ "),
-                Arguments.of(" /"),
-                Arguments.of("\\ "),
-                Arguments.of(" \\"),
-                Arguments.of(" "),
-                Arguments.of(""));
-    }
 
     @BeforeEach
     void setup() {
@@ -145,13 +108,9 @@ class ArchiveCreatorTest {
         // given
         String fileName = "file_name.txt";
         var path = createFile(tempDir, fileName, "789");
-        @SuppressWarnings("OctalInteger")
-        int fileMode = IS_OS_WINDOWS ? 0 : 0644;
+        int fileMode = pinFileMode(path);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
             // when
             archive.addFile(path);
 
@@ -163,7 +122,6 @@ class ArchiveCreatorTest {
             inOrder.verify(archive).addFile(path);
             inOrder.verify(archive).addFile(fileName, path);
             inOrder.verify(archive).add(named(fileName));
-            mockArchive.verify(() -> sanitiseName(fileName));
             inOrder.verify(archive)
                     .writeFile(
                             eq(fileName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(fileMode), eq(modTime));
@@ -176,9 +134,7 @@ class ArchiveCreatorTest {
         String fileName = "file_name.txt";
         var path = createFile(tempDir, fileName, "789");
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive = rejectingAll()) {
+        try (InMemoryArchiveCreator archive = rejectingAll()) {
             // when
             archive.addFile(path);
 
@@ -187,7 +143,6 @@ class ArchiveCreatorTest {
             inOrder.verify(archive).addFile(path);
             inOrder.verify(archive).addFile(fileName, path);
             inOrder.verify(archive).add(named(fileName));
-            mockArchive.verify(() -> sanitiseName(fileName));
             inOrder.verifyNoMoreInteractions();
         }
     }
@@ -198,13 +153,9 @@ class ArchiveCreatorTest {
         String fileName = "file_name.txt";
         var path = createFile(tempDir, fileName, "789");
         String entryName = "additional_name.txt";
-        @SuppressWarnings("OctalInteger")
-        int fileMode = IS_OS_WINDOWS ? 0 : 0644;
+        int fileMode = pinFileMode(path);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
             // when
             archive.addFile(entryName, path);
 
@@ -214,7 +165,6 @@ class ArchiveCreatorTest {
 
             InOrder inOrder = inOrder(archive);
             inOrder.verify(archive).addFile(entryName, path);
-            mockArchive.verify(() -> sanitiseName(entryName));
             inOrder.verify(archive).add(named(entryName));
             inOrder.verify(archive)
                     .writeFile(
@@ -229,19 +179,14 @@ class ArchiveCreatorTest {
         var path = createFile(tempDir, fileName, "789");
         String entryName = "additional_name.txt";
         FileTime modTime = FileTime.from(Instant.now());
-        @SuppressWarnings("OctalInteger")
-        int fileMode = IS_OS_WINDOWS ? 0 : 0644;
+        int fileMode = pinFileMode(path);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
             // when
             archive.addFile(entryName, path, modTime);
 
             // then
             verify(archive).add(named(entryName));
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive)
                     .writeFile(
                             eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(fileMode), eq(modTime));
@@ -253,9 +198,7 @@ class ArchiveCreatorTest {
         // given
         String entryName = "additional_name.txt";
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
+        try (MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
                 InMemoryArchiveCreator archive =
                         spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
@@ -267,7 +210,6 @@ class ArchiveCreatorTest {
             archive.addFile(entryName, content);
 
             // then
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive).add(named(entryName));
             FileTime modTime = FileTime.from(mockedInstant);
             verify(archive)
@@ -280,16 +222,13 @@ class ArchiveCreatorTest {
         // given
         String entryName = "additional_name.txt";
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive = rejectingAll()) {
+        try (InMemoryArchiveCreator archive = rejectingAll()) {
             byte[] content = "789".getBytes();
 
             // when
             archive.addFile(entryName, content);
 
             // then
-            mockArchive.verify(() -> sanitiseName(entryName));
             InOrder inOrder = inOrder(archive);
             inOrder.verify(archive).add(named(entryName));
             inOrder.verifyNoMoreInteractions();
@@ -302,10 +241,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
         FileTime modTime = FileTime.from(Instant.now());
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
             byte[] content = "789".getBytes();
 
@@ -313,7 +249,6 @@ class ArchiveCreatorTest {
             archive.addFile(entryName, content, modTime);
 
             // then
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive).add(named(entryName));
             verify(archive)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
@@ -325,9 +260,7 @@ class ArchiveCreatorTest {
         // given
         String entryName = "additional_name.txt";
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
+        try (MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
                 InMemoryArchiveCreator archive =
                         spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
@@ -340,7 +273,6 @@ class ArchiveCreatorTest {
             archive.addFile(entryName, content, 3);
 
             // then
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive).add(named(entryName));
             verify(archive)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
@@ -352,16 +284,13 @@ class ArchiveCreatorTest {
         // given
         String entryName = "additional_name.txt";
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive = rejectingAll()) {
+        try (InMemoryArchiveCreator archive = rejectingAll()) {
             var content = new ByteArrayInputStream("789".getBytes());
 
             // when
             archive.addFile(entryName, content, 3);
 
             // then
-            mockArchive.verify(() -> sanitiseName(entryName));
             InOrder inOrder = inOrder(archive);
             inOrder.verify(archive).add(named(entryName));
             inOrder.verifyNoMoreInteractions();
@@ -374,10 +303,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
         FileTime modTime = FileTime.from(Instant.now());
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
             var content = new ByteArrayInputStream("789".getBytes());
 
@@ -385,7 +311,6 @@ class ArchiveCreatorTest {
             archive.addFile(entryName, content, 3, modTime);
 
             // then
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive).add(named(entryName));
             verify(archive)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
@@ -417,9 +342,7 @@ class ArchiveCreatorTest {
         // given
         String entryName = "dir_name";
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
+        try (MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
                 InMemoryArchiveCreator archive =
                         spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
             var mockedInstant = Instant.now();
@@ -431,7 +354,6 @@ class ArchiveCreatorTest {
 
             // then
             verify(archive).add(named(entryName));
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive).writeDirectory(entryName, 0, modTime);
         }
     }
@@ -441,16 +363,13 @@ class ArchiveCreatorTest {
         // given
         String entryName = "dir_name";
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive = rejectingAll()) {
+        try (InMemoryArchiveCreator archive = rejectingAll()) {
             // when
             archive.addDirectory(entryName);
 
             // then
             InOrder inOrder = inOrder(archive);
             inOrder.verify(archive).add(named(entryName));
-            mockArchive.verify(() -> sanitiseName(entryName));
             inOrder.verifyNoMoreInteractions();
         }
     }
@@ -461,17 +380,26 @@ class ArchiveCreatorTest {
         String entryName = "dir_name";
         FileTime modTime = FileTime.from(Instant.now());
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
             // when
             archive.addDirectory(entryName, modTime);
 
             // then
             verify(archive).add(named(entryName));
-            mockArchive.verify(() -> sanitiseName(entryName));
             verify(archive).writeDirectory(entryName, 0, modTime);
+        }
+    }
+
+    @Test
+    void shouldStoreTopLevelDirectoryNameWithForwardSlashes() throws IOException {
+        var base = tempDir.resolve("base");
+        createFile(base, "file1", "1");
+
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+
+            archive.addDirectoryRecursively("\\top\\inner\\", base);
+
+            verify(archive).add(named("top/inner/file1"));
         }
     }
 
@@ -483,23 +411,16 @@ class ArchiveCreatorTest {
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
         String file11RelativeName = base.relativize(file11).toString();
-        @SuppressWarnings("OctalInteger")
-        int file11Mode = IS_OS_WINDOWS ? 0 : 0644;
-        int subDir1Mode = FileModes.of(subDir1, IS_OS_WINDOWS);
+        int file11Mode = pinFileMode(file11);
+        int subDir1Mode = pinDirectoryMode(subDir1);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
             // when
             archive.addDirectoryRecursively(base);
 
             // then
             verify(archive).addDirectoryRecursively("", base);
-            mockArchive.verify(() -> sanitiseName("file1"), times(2));
-            mockArchive.verify(() -> sanitiseName("subDir1"), times(2));
-            mockArchive.verify(() -> sanitiseName(file11RelativeName), atLeastOnce());
             verify(archive).add(named("subDir1"));
             verify(archive, never()).addDirectory(anyString(), any(FileTime.class));
             FileTime subDir1ModTime = Files.getLastModifiedTime(subDir1);
@@ -536,18 +457,14 @@ class ArchiveCreatorTest {
         createFile(subDir1, "file11", "11");
         List<String> offered = new ArrayList<>();
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(
-                        new InMemoryArchiveCreatorBuilder(out).filter(s -> offered.add(s.name()) && false)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(
+                new InMemoryArchiveCreatorBuilder(out).filter(s -> offered.add(s.name()) && false)))) {
 
             // when
             archive.addDirectoryRecursively(base);
 
             // then
             verify(archive).addDirectoryRecursively("", base);
-            mockArchive.verify(() -> sanitiseName("file1"), times(2));
-            mockArchive.verify(() -> sanitiseName("subDir1"));
             verify(archive, never()).add(named("subDir1"));
             verify(archive, never()).add(named("subDir1/file11"));
             assertThat(offered).containsExactlyInAnyOrder("subDir1", "file1");
@@ -565,23 +482,16 @@ class ArchiveCreatorTest {
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
         String file11RelativeName = base.relativize(file11).toString();
-        @SuppressWarnings("OctalInteger")
-        int file11Mode = IS_OS_WINDOWS ? 0 : 0644;
-        int baseMode = FileModes.of(base, IS_OS_WINDOWS);
-        int subDir1Mode = FileModes.of(subDir1, IS_OS_WINDOWS);
+        int file11Mode = pinFileMode(file11);
+        int baseMode = pinDirectoryMode(base);
+        int subDir1Mode = pinDirectoryMode(subDir1);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
             // when
             archive.addDirectoryRecursively(top, base);
 
             // then
-            mockArchive.verify(() -> sanitiseName("file1"));
-            mockArchive.verify(() -> sanitiseName("subDir1"));
-            mockArchive.verify(() -> sanitiseName(file11RelativeName));
             verify(archive).add(named(top));
             FileTime baseModTime = Files.getLastModifiedTime(base);
             verify(archive).writeDirectory("top", baseMode, baseModTime);
@@ -620,23 +530,16 @@ class ArchiveCreatorTest {
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
         String file11RelativeName = base.relativize(file11).toString();
-        @SuppressWarnings("OctalInteger")
-        int file11Mode = IS_OS_WINDOWS ? 0 : 0644;
-        int subDir1Mode = FileModes.of(subDir1, IS_OS_WINDOWS);
+        int file11Mode = pinFileMode(file11);
+        int subDir1Mode = pinDirectoryMode(subDir1);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
             // when
             archive.addDirectoryRecursively(base, modTime);
 
             // then
             verify(archive).addDirectoryRecursively("", base, modTime);
-            mockArchive.verify(() -> sanitiseName("file1"), times(2));
-            mockArchive.verify(() -> sanitiseName("subDir1"), times(2));
-            mockArchive.verify(() -> sanitiseName(file11RelativeName), atLeastOnce());
             verify(archive).add(named("subDir1"));
             verify(archive).writeDirectory("subDir1", subDir1Mode, modTime);
             verify(archive).add(named("subDir1/file11"));
@@ -664,23 +567,16 @@ class ArchiveCreatorTest {
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
         String file11RelativeName = base.relativize(file11).toString();
-        @SuppressWarnings("OctalInteger")
-        int file11Mode = IS_OS_WINDOWS ? 0 : 0644;
-        int baseMode = FileModes.of(base, IS_OS_WINDOWS);
-        int subDir1Mode = FileModes.of(subDir1, IS_OS_WINDOWS);
+        int file11Mode = pinFileMode(file11);
+        int baseMode = pinDirectoryMode(base);
+        int subDir1Mode = pinDirectoryMode(subDir1);
 
-        //noinspection rawtypes
-        try (MockedStatic<ArchiveCreator> mockArchive = mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
 
             // when
             archive.addDirectoryRecursively(top, base, modTime);
 
             // then
-            mockArchive.verify(() -> sanitiseName("file1"));
-            mockArchive.verify(() -> sanitiseName("subDir1"));
-            mockArchive.verify(() -> sanitiseName(file11RelativeName));
             verify(archive).addDirectoryRecursively(top, base, modTime);
             verify(archive).add(named(top));
             verify(archive).writeDirectory("top", baseMode, modTime);
@@ -702,232 +598,6 @@ class ArchiveCreatorTest {
                             eq(OptionalLong.of(1L)),
                             eq(file11Mode),
                             eq(modTime));
-        }
-    }
-
-    @Test
-    void shouldReplaceBackslashesWithForwardSlashesFromName() {
-        // given
-        String name = "some_dir\\file_name.txt";
-
-        // when
-        String sanitisedName = sanitiseName(name);
-
-        // then
-        assertThat(sanitisedName).isEqualTo("some_dir/file_name.txt");
-    }
-
-    @ParameterizedTest
-    // given
-    @MethodSource("namesWithLeadingAndTrailingSlashes")
-    void shouldRemoveLeadingAndTrailingSlashesFromName(String entryName, String expected) {
-        // when
-        String actual = sanitiseName(entryName);
-
-        // then
-        assertThat(actual).isEqualTo(expected);
-    }
-
-    @ParameterizedTest
-    // given
-    @MethodSource("invalidNames")
-    void shouldEnsurePathIsNotEmpty(String entryName) {
-        // when & then
-        assertThatThrownBy(() -> sanitiseName(entryName))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Invalid entry name: " + entryName);
-    }
-
-    @Test
-    void shouldGetFileModeOnNixFileSystem() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        int expectedMode = 0644;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(false);
-            var mockAttributeView = mock(PosixFileAttributeView.class);
-            var mockedAttributes = mock(PosixFileAttributes.class);
-            mockedFiles
-                    .when(() -> Files.getFileAttributeView(
-                            mockPath, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS))
-                    .thenReturn(mockAttributeView);
-            when(mockAttributeView.readAttributes()).thenReturn(mockedAttributes);
-            when(mockedAttributes.permissions()).thenReturn(Set.of(OWNER_READ, OWNER_WRITE, GROUP_READ, OTHERS_READ));
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(expectedMode);
-        }
-    }
-
-    @Test
-    void shouldGetNoModeOnNixFileSystemWithoutFileAttributes() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        given(mockPath.toString()).willReturn("some/path");
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(false);
-            mockedFiles.when(() -> Files.getPosixFilePermissions(mockPath)).thenReturn(null);
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(NO_MODE);
-            Compress4JAssertions.assertThat(inMemoryLogAppender)
-                    .contains("Cannot get POSIX file attributes for: some/path", TRACE);
-        }
-    }
-
-    @Test
-    void shouldGetFileModeOnWindowsFileSystem() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        int expectedMode = 0003;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            var mockedAttributes = mock(DosFileAttributes.class);
-            mockedFiles
-                    .when(() ->
-                            Files.getFileAttributeView(mockPath, DosFileAttributeView.class, LinkOption.NOFOLLOW_LINKS))
-                    .thenReturn(mockAttributeView);
-            when(mockAttributeView.readAttributes()).thenReturn(mockedAttributes);
-            when(mockedAttributes.isReadOnly()).thenReturn(true);
-            when(mockedAttributes.isHidden()).thenReturn(true);
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(expectedMode);
-        }
-    }
-
-    @Test
-    void shouldGetFileModeOnWindowsFileSystemWithAttributesHiddenAsFalse() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        int expectedMode = 0001;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            var mockedAttributes = mock(DosFileAttributes.class);
-            mockedFiles
-                    .when(() ->
-                            Files.getFileAttributeView(mockPath, DosFileAttributeView.class, LinkOption.NOFOLLOW_LINKS))
-                    .thenReturn(mockAttributeView);
-            when(mockAttributeView.readAttributes()).thenReturn(mockedAttributes);
-            when(mockedAttributes.isReadOnly()).thenReturn(true);
-            when(mockedAttributes.isHidden()).thenReturn(false);
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(expectedMode);
-        }
-    }
-
-    @Test
-    void shouldGetFileModeOnWindowsFileSystemWithAttributesReadOnlyAsFalse() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        @SuppressWarnings("OctalInteger")
-        int expectedMode = 0002;
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            var mockedAttributes = mock(DosFileAttributes.class);
-            mockedFiles
-                    .when(() ->
-                            Files.getFileAttributeView(mockPath, DosFileAttributeView.class, LinkOption.NOFOLLOW_LINKS))
-                    .thenReturn(mockAttributeView);
-            when(mockAttributeView.readAttributes()).thenReturn(mockedAttributes);
-            when(mockedAttributes.isReadOnly()).thenReturn(false);
-            when(mockedAttributes.isHidden()).thenReturn(true);
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(expectedMode);
-        }
-    }
-
-    @Test
-    void shouldGetFileModeOnWindowsFileSystemWithAttributesAsFalse() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(true);
-            var mockAttributeView = mock(DosFileAttributeView.class);
-            var mockedAttributes = mock(DosFileAttributes.class);
-            mockedFiles
-                    .when(() ->
-                            Files.getFileAttributeView(mockPath, DosFileAttributeView.class, LinkOption.NOFOLLOW_LINKS))
-                    .thenReturn(mockAttributeView);
-            when(mockAttributeView.readAttributes()).thenReturn(mockedAttributes);
-            when(mockedAttributes.isReadOnly()).thenReturn(false);
-            when(mockedAttributes.isHidden()).thenReturn(false);
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(NO_MODE);
-        }
-    }
-
-    @Test
-    void shouldGetNoModeOnWindowsFileSystemWithoutFileAttributes() throws IOException {
-        // given
-        var mockPath = mock(Path.class);
-        given(mockPath.toString()).willReturn("some/path");
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveCreator> mockedArchive =
-                                mockStatic(ArchiveCreator.class, CALLS_REAL_METHODS);
-                MockedStatic<Files> mockedFiles = mockStatic(Files.class)) {
-            mockedArchive.when(ArchiveCreator::isIsOsWindows).thenReturn(true);
-            mockedFiles.when(() -> Files.getPosixFilePermissions(mockPath)).thenReturn(null);
-
-            // when
-            int actualMode = ArchiveCreator.mode(mockPath);
-
-            // then
-            assertThat(actualMode).isEqualTo(NO_MODE);
-            Compress4JAssertions.assertThat(inMemoryLogAppender)
-                    .contains("Cannot get DOS file attributes for: some/path", TRACE);
         }
     }
 
@@ -994,12 +664,6 @@ class ArchiveCreatorTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Path is not a directory: %s", filePath.toString());
         }
-    }
-
-    @Test
-    void sanitiseName_withConsecutiveSlashes_shouldNormalize() {
-        assertThat(sanitiseName("/a/b\\\\c/d/")).isEqualTo("a/b/c/d");
-        assertThat(sanitiseName("/a/b/")).isEqualTo("a/b");
     }
 
     @Test
@@ -1255,6 +919,7 @@ class ArchiveCreatorTest {
         createFile(base, "file.txt", "content");
         Path subDir = Files.createDirectory(base.resolve("subdir"));
         createFile(subDir, "file_in_sub.txt", "content2");
+        int subDirMode = pinDirectoryMode(subDir);
 
         FileTime overrideModTime = FileTime.from(Instant.now().minus(1, ChronoUnit.DAYS));
 
@@ -1274,7 +939,7 @@ class ArchiveCreatorTest {
                             any(OptionalLong.class),
                             anyInt(),
                             eq(overrideModTime));
-            verify(archive, times(1)).writeDirectory("subdir", FileModes.of(subDir, IS_OS_WINDOWS), overrideModTime);
+            verify(archive, times(1)).writeDirectory("subdir", subDirMode, overrideModTime);
         }
     }
 
@@ -1291,24 +956,17 @@ class ArchiveCreatorTest {
         }
     }
 
-    @DisabledOnOs(OS.WINDOWS)
-    @Test
-    void mode_whenPathIsSymlink_returnsModeOfLinkNotTarget_onNix() throws IOException {
-        // Given
-        Path targetFile = tempDir.resolve("target_for_mode_test.txt");
-        Files.writeString(targetFile, "content");
-        Files.setPosixFilePermissions(targetFile, PosixFilePermissions.fromString("rw-r--r--"));
-        Path symlinkPath = tempDir.resolve("link_for_mode_test.txt");
-        Files.createSymbolicLink(symlinkPath, targetFile.getFileName());
+    @ParameterizedTest
+    @ValueSource(strings = {" ", "/", "//", "\\"})
+    void addDirectoryRecursively_whenTopLevelDirIsBlankOrAllSlashes_shouldThrowIllegalArgumentException(
+            String topLevelDir) throws IOException {
+        Path base = tempDir.resolve("blank_top_level");
+        createFile(base, "file.txt", "test");
 
-        @SuppressWarnings("OctalInteger")
-        int expectedTargetMode = 0644;
-
-        // When
-        int actualMode = ArchiveCreator.mode(symlinkPath);
-
-        // Then - the link's own mode (typically rwxrwxrwx) is read, not the target's
-        assertThat(actualMode).isNotEqualTo(expectedTargetMode);
+        try (InMemoryArchiveCreator archive = new InMemoryArchiveCreatorBuilder(out).build()) {
+            assertThatThrownBy(() -> archive.addDirectoryRecursively(topLevelDir, base))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Test
@@ -1324,8 +982,7 @@ class ArchiveCreatorTest {
 
             // Then
             verify(archive)
-                    .writeFile(
-                            eq(entryName), any(InputStream.class), eq(OptionalLong.of(0L)), eq(NO_MODE), eq(modTime));
+                    .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(0L)), eq(0), eq(modTime));
         }
     }
 
@@ -1340,6 +997,22 @@ class ArchiveCreatorTest {
 
     private InMemoryArchiveCreator rejectingAll() throws IOException {
         return spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> false)));
+    }
+
+    private static int pinFileMode(Path path) throws IOException {
+        return pinMode(path, "rw-r--r--", 0644);
+    }
+
+    private static int pinDirectoryMode(Path path) throws IOException {
+        return pinMode(path, "rwxr-xr-x", 0755);
+    }
+
+    private static int pinMode(Path path, String permissions, int mode) throws IOException {
+        if (!path.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            return 0;
+        }
+        Files.setPosixFilePermissions(path, PosixFilePermissions.fromString(permissions));
+        return mode;
     }
 
     private static EntrySource named(String name) {
