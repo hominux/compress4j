@@ -15,8 +15,6 @@
  */
 package com.hominux.compress4j.archivers.sevenz;
 
-import static com.hominux.compress4j.utils.FileUtils.NO_MODE;
-
 import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
@@ -96,7 +94,7 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
         SevenZArchiveEntry entry = newEntry(name, lastModified);
         entry.setDirectory(true);
         withWindowsAttributes(
-                entry, DOS_DIRECTORY | (mode != NO_MODE ? SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16) : 0));
+                entry, DOS_DIRECTORY | (mode != 0 ? SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16) : 0));
         archiveOutputStream.putArchiveEntry(entry);
         archiveOutputStream.closeArchiveEntry();
     }
@@ -107,7 +105,7 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
             throws IOException {
         SevenZArchiveEntry entry = newEntry(name, lastModified);
         size.ifPresent(entry::setSize);
-        if (mode != NO_MODE) {
+        if (mode != 0) {
             withWindowsAttributes(entry, SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16));
         }
         archiveOutputStream.putArchiveEntry(entry);
@@ -124,7 +122,7 @@ public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutput
         withWindowsAttributes(
                 entry,
                 SevenZArchiveExtractor.UNIX_EXTENSION
-                        | ((SevenZArchiveExtractor.S_IFLNK | (mode != NO_MODE ? mode : 0777)) << 16));
+                        | ((SevenZArchiveExtractor.S_IFLNK | (mode != 0 ? mode : 0777)) << 16));
         archiveOutputStream.putArchiveEntry(entry);
         archiveOutputStream.write(bytes);
         archiveOutputStream.closeArchiveEntry();

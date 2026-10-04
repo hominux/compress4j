@@ -17,13 +17,13 @@ package com.hominux.compress4j.archivers;
 
 import static com.hominux.compress4j.utils.FileUtils.checkValidPath;
 
-import com.hominux.compress4j.utils.StringUtil;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 
 /** Output-path helpers for {@link ArchiveExtractor}. */
 final class EntryPaths {
@@ -40,7 +40,7 @@ final class EntryPaths {
      * @throws IOException if an I/O error occurs or a path traversal vulnerability is detected
      */
     static Path entryFile(Path outputDir, String entryName) throws IOException {
-        Path destinationFile = outputDir.resolve(StringUtil.trimLeading(entryName, '/'));
+        Path destinationFile = outputDir.resolve(StringUtils.stripStart(entryName, "/"));
         checkValidPath(destinationFile, outputDir);
         return destinationFile;
     }
@@ -65,6 +65,6 @@ final class EntryPaths {
     }
 
     private static List<String> splitPath(String canonicalPath) {
-        return Arrays.asList(StringUtil.trimLeading(canonicalPath, '/').split("/"));
+        return Arrays.asList(StringUtils.stripStart(canonicalPath, "/").split("/"));
     }
 }

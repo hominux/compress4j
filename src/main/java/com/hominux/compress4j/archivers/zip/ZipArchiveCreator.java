@@ -15,7 +15,6 @@
  */
 package com.hominux.compress4j.archivers.zip;
 
-import static com.hominux.compress4j.utils.FileUtils.NO_MODE;
 import static java.util.zip.ZipEntry.DEFLATED;
 import static java.util.zip.ZipEntry.STORED;
 import static org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream.DEFAULT_COMPRESSION;
@@ -110,7 +109,7 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
     protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
         ZipArchiveEntry entry = new ZipArchiveEntry(name + '/');
         entry.setTime(lastModified);
-        if (mode != NO_MODE) {
+        if (mode != 0) {
             entry.setUnixMode(UnixStat.DIR_FLAG | mode);
         }
         archiveOutputStream.putArchiveEntry(entry);
@@ -124,7 +123,7 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
         ZipArchiveEntry entry = new ZipArchiveEntry(name);
         entry.setTime(lastModified);
         size.ifPresent(entry::setSize);
-        if (mode != NO_MODE) {
+        if (mode != 0) {
             entry.setUnixMode(UnixStat.FILE_FLAG | mode);
         }
         archiveOutputStream.putArchiveEntry(entry);
@@ -136,7 +135,7 @@ public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
     @Override
     protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
         byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
-        int permissions = mode == NO_MODE ? DEFAULT_SYMLINK_PERMISSIONS : mode & UnixStat.PERM_MASK;
+        int permissions = mode == 0 ? DEFAULT_SYMLINK_PERMISSIONS : mode & UnixStat.PERM_MASK;
         ZipArchiveEntry entry = new ZipArchiveEntry(name);
         entry.setTime(lastModified);
         entry.setSize(bytes.length);

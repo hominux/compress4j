@@ -15,11 +15,6 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.utils.FileUtils.DOS_HIDDEN;
-import static com.hominux.compress4j.utils.FileUtils.DOS_READ_ONLY;
-import static com.hominux.compress4j.utils.PosixFilePermissionsMapper.fromUnixMode;
-import static org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
-
 import com.hominux.compress4j.archivers.ExtractionErrorPolicy.EntryOutcome;
 import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
 import com.hominux.compress4j.exceptions.ArchiveSecurityException;
@@ -32,11 +27,14 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.DosFileAttributeView;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
-import java.nio.file.attribute.PosixFileAttributeView;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -72,6 +70,9 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
 
     private static final Predicate<Entry> ACCEPT_ALL = entry -> true;
 
+    private static final DirectoryModeApplier DEFAULT_MODE_APPLIER =
+            (path, mode) -> HostFileSystem.of(path).applyMode(path, mode);
+
     /** Archive input stream to be used for extraction. */
     protected A archiveInputStream;
     /** Escaping symlink policy for the extractor. */
@@ -82,6 +83,8 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     private final BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandler;
     /** Post processor for the extractor. */
     private final BiConsumer<Entry, ? super Path> postProcessor;
+
+    private final DirectoryModeApplier directoryModeApplier;
 
     private final Consumer<UnsupportedEntry> unsupportedEntryHandler;
 
@@ -113,6 +116,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         this.stripComponents = builder.stripComponents;
         this.overwrite = builder.overwrite;
         this.escapingSymlinkPolicy = builder.escapingSymlinkPolicy;
+        this.directoryModeApplier = builder.directoryModeApplier;
         this.limits = new ExtractionLimits(builder.maxEntries, builder.maxEntrySize, builder.maxTotalSize);
         this.pipeline = new EntryPipeline(reader(), stripComponents, entryFilter, limits);
     }
@@ -131,43 +135,9 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         this.stripComponents = 0;
         this.overwrite = false;
         this.escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
+        this.directoryModeApplier = DEFAULT_MODE_APPLIER;
         this.limits = ExtractionLimits.NONE;
         this.pipeline = new EntryPipeline(reader(), stripComponents, entryFilter, limits);
-    }
-
-    /**
-     * Sets the attributes of the output file.
-     *
-     * @param mode the mode to set
-     * @param outputFile the file to set the attributes of
-     * @throws IOException if an I/O error occurs
-     */
-    protected static void setAttributes(int mode, Path outputFile) throws IOException {
-        if (isIsOsWindows()) {
-            DosFileAttributeView attrs = Files.getFileAttributeView(outputFile, DosFileAttributeView.class);
-            if (attrs != null) {
-                if ((mode & DOS_READ_ONLY) != 0) attrs.setReadOnly(true);
-                if ((mode & DOS_HIDDEN) != 0) attrs.setHidden(true);
-            } else {
-                LOGGER.trace("Cannot set DOS attributes for file: {}", outputFile);
-            }
-        } else {
-            PosixFileAttributeView attrs = Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
-            if (attrs != null) {
-                attrs.setPermissions(fromUnixMode(mode));
-            } else {
-                LOGGER.trace("Cannot set POSIX attributes for file: {}", outputFile);
-            }
-        }
-    }
-
-    /**
-     * Check if the OS is Windows.
-     *
-     * @return {@code true} if the OS is Windows, {@code false} otherwise
-     */
-    public static boolean isIsOsWindows() {
-        return IS_OS_WINDOWS;
     }
 
     /**
@@ -182,9 +152,11 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     public final void extract(Path outputDir) throws IOException {
         pipeline.start();
         SymlinkGuard guard = new SymlinkGuard(outputDir);
+        List<DirectoryMode> directoryModes = new ArrayList<>();
         try {
-            drain(outputDir, guard);
+            boolean ignoreErrors = drain(outputDir, guard, directoryModes);
             guard.verify();
+            applyDirectoryModes(directoryModes, ignoreErrors);
         } catch (IOException | RuntimeException failure) {
             Optional<UnsafeEntryException> escape = escapeOf(guard);
             if (escape.isPresent() && escape.orElseThrow() != failure) {
@@ -203,6 +175,24 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         pipeline.release(null);
     }
 
+    private void applyDirectoryModes(List<DirectoryMode> directoryModes, boolean ignoreErrors) throws IOException {
+        directoryModes.sort(Comparator.comparingInt(
+                        (DirectoryMode d) -> d.directory().normalize().getNameCount())
+                .reversed());
+        boolean ignoring = ignoreErrors;
+        for (DirectoryMode d : directoryModes) {
+            if (!Files.isDirectory(d.directory(), LinkOption.NOFOLLOW_LINKS)) {
+                continue;
+            }
+            try {
+                directoryModeApplier.apply(d.directory(), d.mode());
+            } catch (IOException failure) {
+                ignoring = new ExtractionErrorPolicy(errorHandler).handle(failure, ignoring, d.entry())
+                        instanceof EntryOutcome.IgnoreFurtherErrors;
+            }
+        }
+    }
+
     private static Optional<UnsafeEntryException> escapeOf(SymlinkGuard guard) {
         try {
             guard.verify();
@@ -212,21 +202,27 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         }
     }
 
-    private void drain(Path outputDir, SymlinkGuard guard) throws IOException {
+    private boolean drain(Path outputDir, SymlinkGuard guard, List<DirectoryMode> directoryModes) throws IOException {
         boolean ignoreErrors = false;
         Optional<ArchiveItem> next;
         while ((next = pipeline.advance()).isPresent()) {
-            if (extractItem(outputDir, next.orElseThrow(), ignoreErrors, guard)
+            if (extractItem(outputDir, next.orElseThrow(), ignoreErrors, guard, directoryModes)
                     instanceof EntryOutcome.IgnoreFurtherErrors) {
                 ignoreErrors = true;
             }
         }
+        return ignoreErrors;
     }
 
-    private EntryOutcome extractItem(Path outputDir, ArchiveItem item, boolean ignoreErrors, SymlinkGuard guard)
+    private EntryOutcome extractItem(
+            Path outputDir,
+            ArchiveItem item,
+            boolean ignoreErrors,
+            SymlinkGuard guard,
+            List<DirectoryMode> directoryModes)
             throws IOException {
         try {
-            processItem(outputDir, item, guard);
+            processItem(outputDir, item, guard, directoryModes);
             return new EntryOutcome.Continue();
         } catch (ArchiveSecurityException unsuppressible) {
             throw unsuppressible;
@@ -322,20 +318,34 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         return pipeline.stream();
     }
 
+    @FunctionalInterface
+    interface DirectoryModeApplier {
+        void apply(Path directory, int mode) throws IOException;
+    }
+
+    private record DirectoryMode(Path directory, int mode, Entry entry) {}
+
     private void writeFile(ArchiveItem item, Path outputFile) throws IOException {
         Entry entry = item.entry();
         if (overwrite || !Files.exists(outputFile)) {
             InputStream content = contentOf(item);
             EntryPaths.makeDirectory(outputFile.getParent());
-            try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
+            try (OutputStream outputStream = Files.newOutputStream(
+                    outputFile,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE,
+                    LinkOption.NOFOLLOW_LINKS)) {
                 content.transferTo(outputStream);
             }
-            if (entry.mode != 0) {
-                setAttributes(entry.mode, outputFile);
-            }
+            HostFileSystem.of(outputFile).applyMode(outputFile, entry.mode());
         } else {
             LOGGER.debug("Skipping file entry: {} (already exists)", entry.name);
         }
+    }
+
+    private static int interimDirectoryMode(int archiveMode) {
+        return (archiveMode & 0777) | 0700;
     }
 
     private static InputStream contentOf(ArchiveItem item) throws IOException {
@@ -363,14 +373,19 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         return IOUtils.toByteArray(in, declaredSize);
     }
 
-    private void processItem(Path outputDir, ArchiveItem item, SymlinkGuard guard) throws IOException {
+    private void processItem(Path outputDir, ArchiveItem item, SymlinkGuard guard, List<DirectoryMode> directoryModes)
+            throws IOException {
         Entry entry = item.entry();
         Path outputFile = EntryPaths.entryFile(outputDir, entry.name);
         switch (entry.type) {
             case DIR -> {
+                boolean existed = Files.exists(outputFile, LinkOption.NOFOLLOW_LINKS);
                 EntryPaths.makeDirectory(outputFile);
-                if (entry.mode != 0) {
-                    setAttributes(entry.mode, outputFile);
+                if (entry.mode() != 0) {
+                    if (!existed && Files.isDirectory(outputFile, LinkOption.NOFOLLOW_LINKS)) {
+                        HostFileSystem.of(outputFile).applyMode(outputFile, interimDirectoryMode(entry.mode()));
+                    }
+                    directoryModes.add(new DirectoryMode(outputFile, entry.mode(), entry));
                 }
             }
             case FILE -> writeFile(item, outputFile);
@@ -458,6 +473,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         long maxEntries = UNLIMITED;
         long maxEntrySize = UNLIMITED;
         long maxTotalSize = UNLIMITED;
+        DirectoryModeApplier directoryModeApplier = DEFAULT_MODE_APPLIER;
 
         final Optional<Closeable> ownedStream;
 
@@ -537,7 +553,9 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
         }
 
         /**
-         * Sets the post processor for the extractor.
+         * Sets the post processor for the extractor. For directory entries it runs before the archive mode is applied,
+         * which happens after all entries; a directory the extractor created then holds an interim owner-accessible
+         * mode, and permissions set here may be overwritten by the archive mode.
          *
          * @param entryBiConsumer the post processor to set
          * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
@@ -610,6 +628,11 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
          */
         public B maxTotalSize(long maxTotalSize) {
             this.maxTotalSize = maxTotalSize;
+            return getThis();
+        }
+
+        B directoryModeApplier(DirectoryModeApplier applier) {
+            this.directoryModeApplier = applier;
             return getThis();
         }
 

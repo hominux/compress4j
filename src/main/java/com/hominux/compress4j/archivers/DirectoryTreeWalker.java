@@ -68,7 +68,7 @@ final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveE
         if (!Files.isDirectory(directory)) {
             throw new IllegalArgumentException("Path is not a directory: " + directory);
         }
-        topLevelDir = topLevelDir.isEmpty() ? "" : ArchiveCreator.sanitiseName(topLevelDir);
+        topLevelDir = topLevelDir.isEmpty() ? "" : EntryNames.sanitised(topLevelDir);
         LOGGER.atTrace().log("dir={} topLevelDir={}", directory, topLevelDir);
 
         Files.walkFileTree(directory, new DirectoryTreeWalker<>(creator, directory, topLevelDir, modTime));
@@ -102,8 +102,7 @@ final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveE
     }
 
     private String entryName(Path fileOrDir) {
-        String relativeName =
-                ArchiveCreator.sanitiseName(root.relativize(fileOrDir).toString());
+        String relativeName = EntryNames.sanitised(root.relativize(fileOrDir).toString());
         return prefix.isEmpty() ? relativeName : prefix + '/' + relativeName;
     }
 }

@@ -22,9 +22,7 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 
@@ -32,11 +30,9 @@ import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 
 class TarArchiveExtractorTest {
 
@@ -54,12 +50,7 @@ class TarArchiveExtractorTest {
         given(mockTarEntry.getSize()).willReturn(10L);
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-
+        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
             // when
             var result = tarDecompressor.nextEntry();
 
@@ -87,12 +78,7 @@ class TarArchiveExtractorTest {
         given(mockTarEntry.getSize()).willReturn(10L);
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-
+        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
             // when
             var result = tarDecompressor.nextEntry();
 
@@ -121,12 +107,7 @@ class TarArchiveExtractorTest {
         given(mockTarEntry.getSize()).willReturn(10L);
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(false);
-
+        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
             // when
             var result = tarDecompressor.nextEntry();
 
@@ -134,96 +115,6 @@ class TarArchiveExtractorTest {
             Compress4JAssertions.assertThat(result.orElseThrow())
                     .hasName("file.txt")
                     .hasMode(Set.of(OWNER_READ))
-                    .hasType(ArchiveExtractor.Entry.Type.DIR);
-        }
-    }
-
-    @Test
-    void shouldReturnNextFileEntryOnWindows() throws IOException {
-        // given
-        var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
-        TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
-        given(mockTarEntry.getName()).willReturn("file.txt");
-        given(mockTarEntry.isFile()).willReturn(true);
-        given(mockTarEntry.getSize()).willReturn(10L);
-        given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-
-            // when
-            var result = tarDecompressor.nextEntry();
-
-            // then
-            Compress4JAssertions.assertThat(result.orElseThrow())
-                    .hasName("file.txt")
-                    .hasType(ArchiveExtractor.Entry.Type.FILE)
-                    .hasMode(0);
-        }
-    }
-
-    @Test
-    void shouldReturnNextSymlinkEntryOnWindows() throws IOException {
-        // given
-        var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
-        TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
-        given(mockTarEntry.getName()).willReturn("file.txt");
-        given(mockTarEntry.getLinkName()).willReturn("target.txt");
-        given(mockTarEntry.isSymbolicLink()).willReturn(true);
-        given(mockTarEntry.getSize()).willReturn(10L);
-        given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-
-            // when
-            var result = tarDecompressor.nextEntry();
-
-            // then
-            Compress4JAssertions.assertThat(result.orElseThrow())
-                    .hasName("file.txt")
-                    .hasMode(Collections.emptySet())
-                    .hasLinkName("target.txt")
-                    .hasType(ArchiveExtractor.Entry.Type.SYMLINK);
-        }
-    }
-
-    @Test
-    void shouldReturnNextDirectoryEntryOnWindows() throws IOException {
-        // given
-        var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
-        TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
-        given(mockTarEntry.getName()).willReturn("some-path");
-        given(mockTarEntry.getLinkName()).willReturn("target.txt");
-        given(mockTarEntry.isDirectory()).willReturn(true);
-        given(mockTarEntry.getSize()).willReturn(10L);
-        given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
-
-        try (@SuppressWarnings("rawtypes")
-                        MockedStatic<ArchiveExtractor> mockedCompressor =
-                                mockStatic(ArchiveExtractor.class, CALLS_REAL_METHODS);
-                TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
-            mockedCompressor.when(ArchiveExtractor::isIsOsWindows).thenReturn(true);
-
-            // when
-            var result = tarDecompressor.nextEntry();
-
-            // then
-            Compress4JAssertions.assertThat(result.orElseThrow())
-                    .hasName("some-path")
-                    .hasMode(Collections.emptySet())
                     .hasType(ArchiveExtractor.Entry.Type.DIR);
         }
     }

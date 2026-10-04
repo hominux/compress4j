@@ -21,7 +21,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hominux.compress4j.archivers.zip.ZipArchiveCreator.ZipArchiveCreatorBuilder;
-import com.hominux.compress4j.utils.FileUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -160,7 +159,7 @@ class ZipArchiveCreatorTest {
             var size = data.length;
 
             // When
-            creator.writeFile("testFile.txt", dataStream, OptionalLong.of(size), FileUtils.NO_MODE, testTime);
+            creator.writeFile("testFile.txt", dataStream, OptionalLong.of(size), 0, testTime);
 
             // Then
             verify(mockZipStream).putArchiveEntry(entryCaptor.capture());
@@ -204,7 +203,7 @@ class ZipArchiveCreatorTest {
         @DisplayName("writeFileEntry should give a symlink without a mode full permissions")
         void testWriteFileEntry_SymlinkNoMode() throws IOException {
             // When
-            creator.writeSymlink("link", "target", FileUtils.NO_MODE, testTime);
+            creator.writeSymlink("link", "target", 0, testTime);
 
             // Then
             verify(mockZipStream).putArchiveEntry(entryCaptor.capture());
