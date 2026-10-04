@@ -30,7 +30,7 @@ class ExtractionLimitsTest {
 
     @Test
     void unlimitedDisablesEverything() {
-        assertThat(ExtractionLimits.unlimited())
+        assertThat(ExtractionLimits.noLimits())
                 .isEqualTo(new ExtractionLimits(UNLIMITED, UNLIMITED, UNLIMITED, UNLIMITED));
     }
 
@@ -42,19 +42,21 @@ class ExtractionLimitsTest {
 
     @Test
     void negativeLimitsOtherThanUnlimitedAreRejected() {
-        assertThatThrownBy(() -> ExtractionLimits.defaults().withMaxEntries(-2))
+        var defaults = ExtractionLimits.defaults();
+        assertThatThrownBy(() -> defaults.withMaxEntries(-2))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("maxEntries");
-        assertThatThrownBy(() -> ExtractionLimits.defaults().withMaxTotalSize(-5))
+        assertThatThrownBy(() -> defaults.withMaxTotalSize(-5))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("maxTotalSize");
     }
 
     @Test
     void ratioMustBeAtLeastOne() {
-        assertThatThrownBy(() -> ExtractionLimits.defaults().withMaxRatio(0))
+        var defaults = ExtractionLimits.defaults();
+        assertThatThrownBy(() -> defaults.withMaxRatio(0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("maxRatio");
-        assertThat(ExtractionLimits.defaults().withMaxRatio(1).maxRatio()).isEqualTo(1);
+        assertThat(defaults.withMaxRatio(1).maxRatio()).isEqualTo(1);
     }
 }

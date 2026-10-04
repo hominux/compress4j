@@ -68,7 +68,7 @@ public record ExtractionLimits(long maxEntries, long maxEntrySize, long maxTotal
      *
      * @return limits with every component {@link #UNLIMITED}
      */
-    public static ExtractionLimits unlimited() {
+    public static ExtractionLimits noLimits() {
         return NONE;
     }
 

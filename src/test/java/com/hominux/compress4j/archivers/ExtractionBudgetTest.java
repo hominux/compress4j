@@ -32,7 +32,7 @@ class ExtractionBudgetTest {
     @Test
     void countEntry_throwsOnceMaxEntriesIsExceeded() throws IOException {
         ExtractionBudget budget =
-                new ExtractionBudget(ExtractionLimits.unlimited().withMaxEntries(2));
+                new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntries(2));
         budget.countEntry();
         budget.countEntry();
         assertThatThrownBy(budget::countEntry).isInstanceOfSatisfying(LimitExceededException.class, e -> {
@@ -44,7 +44,7 @@ class ExtractionBudgetTest {
 
     @Test
     void countEntry_neverThrowsWhenUnlimited() {
-        ExtractionBudget budget = new ExtractionBudget(ExtractionLimits.unlimited());
+        ExtractionBudget budget = new ExtractionBudget(ExtractionLimits.noLimits());
         assertThatCode(() -> {
                     for (int i = 0; i < 1000; i++) budget.countEntry();
                 })
@@ -101,7 +101,7 @@ class ExtractionBudgetTest {
     @Test
     void unlimitedBudgetReturnsTheSameStream() {
         var raw = new ByteArrayInputStream(new byte[1]);
-        assertThat(new ExtractionBudget(ExtractionLimits.unlimited()).meter("x", raw))
+        assertThat(new ExtractionBudget(ExtractionLimits.noLimits()).meter("x", raw))
                 .isSameAs(raw);
     }
 
@@ -131,7 +131,7 @@ class ExtractionBudgetTest {
 
     @Test
     void zeroIsAStrictLimit() {
-        var limits = ExtractionLimits.unlimited().withMaxEntrySize(0);
+        var limits = ExtractionLimits.noLimits().withMaxEntrySize(0);
         assertThatCode(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 0)).doesNotThrowAnyException();
         assertThatThrownBy(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 1))
                 .isInstanceOfSatisfying(
@@ -140,14 +140,14 @@ class ExtractionBudgetTest {
 
     @Test
     void checkDeclaredSize_allowsSizeAtTheLimit() {
-        var limits = ExtractionLimits.unlimited().withMaxEntrySize(10);
+        var limits = ExtractionLimits.noLimits().withMaxEntrySize(10);
         assertThatCode(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 10))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void checkDeclaredSize_rejectsSizeAboveTheLimit() {
-        var limits = ExtractionLimits.unlimited().withMaxEntrySize(10);
+        var limits = ExtractionLimits.noLimits().withMaxEntrySize(10);
         assertThatThrownBy(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 11))
                 .isInstanceOfSatisfying(LimitExceededException.class, e -> {
                     assertThat(e.limit()).isEqualTo(Limit.ENTRY_SIZE);
@@ -158,7 +158,7 @@ class ExtractionBudgetTest {
 
     @Test
     void checkDeclaredSize_neverRejectsWhenUnlimited() {
-        assertThatCode(() -> ExtractionBudget.checkDeclaredSize(ExtractionLimits.unlimited(), "a", Long.MAX_VALUE))
+        assertThatCode(() -> ExtractionBudget.checkDeclaredSize(ExtractionLimits.noLimits(), "a", Long.MAX_VALUE))
                 .doesNotThrowAnyException();
     }
 
@@ -178,7 +178,9 @@ class ExtractionBudgetTest {
             }
 
             @Override
-            public void release(java.io.InputStream content) {}
+            public void release(java.io.InputStream content) throws java.io.IOException {
+                content.close();
+            }
         };
         var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.defaults());
         for (int i = 0; i < 1_000_000; i++) {

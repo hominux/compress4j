@@ -119,9 +119,10 @@ class ArchiveExtractorTest {
                 InMemoryArchiveEntry.builder().name("a").content("").build(),
                 InMemoryArchiveEntry.builder().name("b").content("").build());
         try (var extractor = InMemoryArchiveExtractor.builder(entries)
-                .limits(ExtractionLimits.unlimited().withMaxEntries(1))
+                .limits(ExtractionLimits.noLimits().withMaxEntries(1))
                 .build()) {
-            assertThatThrownBy(() -> extractor.stream().forEach(item -> {}))
+            var stream = extractor.stream();
+            assertThatThrownBy(() -> stream.forEach(item -> {}))
                     .isInstanceOf(UncheckedIOException.class)
                     .cause()
                     .isInstanceOfSatisfying(LimitExceededException.class, e -> {

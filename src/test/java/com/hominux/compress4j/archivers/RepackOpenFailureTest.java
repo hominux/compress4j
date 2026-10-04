@@ -54,7 +54,7 @@ class RepackOpenFailureTest {
     @Test
     void addAllSurfacesEntryOpenFailureAsIOException() throws IOException {
         // Given
-        var pipeline = new EntryPipeline(readerFailingToOpen(), 0, entry -> true, ExtractionLimits.unlimited());
+        var pipeline = new EntryPipeline(readerFailingToOpen(), 0, entry -> true, ExtractionLimits.noLimits());
 
         try (var creator = new InMemoryArchiveCreatorBuilder(new ByteArrayOutputStream()).build()) {
             // When

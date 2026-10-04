@@ -51,7 +51,7 @@ class EntryPipelineExhaustionTest {
                 // nothing to release
             }
         };
-        var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.unlimited());
+        var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.noLimits());
 
         // When
         var names = pipeline.stream().map(item -> item.entry().name()).iterator();
