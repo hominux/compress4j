@@ -26,7 +26,15 @@ include::example$java/com/example/archivers/sevenz/SevenZExamples.java[tag=seven
 
 == Notes
 
-* The creator writes to a file path only, because 7z must seek back to patch its header.
+* The creator writes to a file path or a `SeekableByteChannel`, because 7z must seek back to patch its header. A channel is written from offset 0.
 * The creator does not encrypt. Only extraction accepts a password.
 * A symbolic link is stored the way p7zip stores it, as a Unix-mode entry whose content is the link target, and is restored as a symlink on extraction.
 * A wrong or missing password fails with an `IOException`.
+
+.7z extraction when you hold an InputStream
+[,java]
+----
+include::example$java/com/example/StreamingExamples.java[tag=sevenz-from-stream,indent=0]
+----
+
+NOTE: 7z keeps its header at the end of the archive, so it reads only from a file or a `SeekableByteChannel`. The example holds the whole archive in memory; spool large archives to a temp file instead.

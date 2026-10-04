@@ -76,9 +76,10 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ArchiveInputStream<Zip
     /**
      * Creates a builder reading local headers from a forward-only stream.
      *
-     * <p>A stream carries no central directory, where zip keeps Unix modes: entries report mode 0, and a symlink entry
-     * surfaces as a {@link Entry.Type#FILE} whose content is the link target. An entry's size may be empty until its
-     * content is read. Input that is not a zip archive fails on the first read, not in {@code build()}.
+     * <p>Streaming mode reads only local headers; zip keeps Unix modes in the central directory, so entries report mode
+     * 0, and a symlink entry surfaces as a {@link Entry.Type#FILE} whose content is the link target. An entry's size
+     * may be empty until its content is read. Input that is not a zip archive fails on the first read, not in
+     * {@code build()}; input too short to hold a signature reports no entries.
      *
      * @param inputStream the stream holding the archive
      * @return the builder

@@ -13,6 +13,7 @@ https://github.com/thrau/jarchivelib[JArchiveLib].
 * *Safe extraction.* Path traversal (Zip Slip) is rejected, escaping symlinks are rejected by default, and entry-count and
   size limits stop decompression bombs. See <<_safe_extraction_of_untrusted_archives>>.
 * *One API for every format.* Tar, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.lzma`, `.tar.lz4`, `.tar.zst`, Zip, 7z, AR, CPIO and more share the same builders.
+* *Streams.* Read entries as a Java Stream, write from a Stream of files or another archive, repack between formats.
 * *Java 21+, JPMS-ready,* published to Maven Central.
 
 == Installation
@@ -118,6 +119,8 @@ Full documentation, with an example per format, is at https://hominux.com/docs/.
 
 It is built with https://antora.org/[Antora]; the pages live in `docs/modules/ROOT/pages` and the examples they include
 are compiled from `src/examples/java`.
+
+Upgrading from 4.x? Read the link:docs/modules/ROOT/pages/migration_5.adoc[4.x to 5.0 migration guide].
 
 == Contributing
 

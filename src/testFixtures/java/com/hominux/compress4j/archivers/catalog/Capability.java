@@ -16,17 +16,23 @@
 package com.hominux.compress4j.archivers.catalog;
 
 /**
- * A property a format either preserves on a round trip or supports as an I/O mode. {@link #RANDOM_ACCESS_INPUT} marks a
- * reader that reads the whole channel whatever its position; without it, a channel reader starts at the channel's
- * current position.
+ * A format property: the first four are preserved on a round trip, the rest describe I/O modes.
+ * {@link #RANDOM_ACCESS_INPUT} marks a reader that reads the whole channel whatever its position; without it, a channel
+ * reader starts at the channel's current position.
  */
 public enum Capability {
     DIRECTORIES,
     MODES,
     SYMLINKS,
     LAST_MODIFIED,
+
+    /** The writer must know a file's size before its content, as tar, ar and cpio do. */
     REQUIRES_SIZE,
+
+    /** The format reads from a plain, non-seekable input stream. */
     STREAM_INPUT,
+
+    /** The format writes to a plain, non-seekable output stream. */
     STREAM_OUTPUT,
     RANDOM_ACCESS_INPUT
 }

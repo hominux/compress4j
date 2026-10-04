@@ -169,7 +169,8 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      *
      * @param sources the entries to write
      * @throws UnsafeEntryException if an entry name is unsafe, as for {@link #add}
-     * @throws IllegalArgumentException if an entry is rejected, as for {@link #add}
+     * @throws IllegalArgumentException if an entry name is blank, or a file's size is unknown and the format records
+     *     sizes first, as for {@link #add}
      * @throws IllegalStateException if an earlier write failed
      * @throws IOException if the stream fails with an {@link UncheckedIOException}, whose cause is thrown, or writing
      *     fails

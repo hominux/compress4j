@@ -113,9 +113,7 @@ To run the tests, execute:
 
 === Releasing
 
-Releases are automatic. Once a merge to `main` passes CI, the `Release` workflow derives the next version from the commits since the last tag, pushes the `v<version>` tag, publishes to Maven Central and creates the GitHub release with a changelog built from the commit types. Merges that only contain non releasing types, such as `chore` or `docs`, publish nothing.
-
-The workflow can also be started manually; it defaults to a dry run that only reports the version it would release.
+Releases are cut by a maintainer through the `Release` workflow (manual dispatch). It derives the next version from the commits since the last tag, pushes the `v<version>` tag, publishes to Maven Central and creates the GitHub release with a changelog built from the commit types. Commits with only non-releasing types, such as `chore` or `docs`, produce no release. The workflow defaults to a dry run that reports the version it would release.
 
 For instructions on how to perform a local deployment using JReleaser, please refer to link:../docs/jreleaser-local-deployment.adoc[JReleaser Local Deployment].
 

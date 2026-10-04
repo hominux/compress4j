@@ -60,8 +60,6 @@ class ZipArchiveCreatorTest {
     @Captor
     private ArgumentCaptor<Integer> intCaptor;
 
-    private static final int NO_MODE = -1;
-
     @BeforeEach
     void setUp() {
         creator = new ZipArchiveCreator(mockZipStream);
@@ -162,7 +160,7 @@ class ZipArchiveCreatorTest {
             var size = data.length;
 
             // When
-            creator.writeFile("testFile.txt", dataStream, OptionalLong.of(size), NO_MODE, testTime);
+            creator.writeFile("testFile.txt", dataStream, OptionalLong.of(size), FileUtils.NO_MODE, testTime);
 
             // Then
             verify(mockZipStream).putArchiveEntry(entryCaptor.capture());
@@ -170,7 +168,7 @@ class ZipArchiveCreatorTest {
             var entry = entryCaptor.getValue();
             assertThat(entry.getName()).isEqualTo("testFile.txt");
             assertThat(entry.getSize()).isEqualTo(size);
-            assertThat(entry.getUnixMode()).isEqualTo(65535);
+            assertThat(entry.getUnixMode()).isZero();
         }
 
         @Test
