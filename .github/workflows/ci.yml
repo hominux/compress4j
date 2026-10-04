@@ -105,6 +105,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
         run: ./gradlew build --continue --no-daemon --scan
+      - name: Upload build reports
+        if: always()  # A failed coverage gate is exactly when the reports are needed
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: build-reports-ubuntu-jdk21
+          path: |
+            build/reports/
+            build/test-results/
+            build/jacoco/*.exec
+          retention-days: 14
+          if-no-files-found: warn
       - name: Sonar analysis
         # Fork pull requests are never given repository secrets, so the scan would fail with a red X the contributor
         # cannot clear. The scanner reads the pull request context straight from the event it is running on.
@@ -141,6 +152,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
         run: ./gradlew build --continue --no-daemon --scan
+      - name: Upload build reports
+        if: always()  # A failed coverage gate is exactly when the reports are needed
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: build-reports-ubuntu-jdk25
+          path: |
+            build/reports/
+            build/test-results/
+            build/jacoco/*.exec
+          retention-days: 14
+          if-no-files-found: warn
 
   build-other-os:
     permissions:
@@ -179,6 +201,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
         run: ./gradlew build --continue --no-daemon --scan
+      - name: Upload build reports
+        if: always()  # A failed coverage gate is exactly when the reports are needed
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: build-reports-${{ matrix.operating-system }}-jdk${{ matrix.java-version }}
+          path: |
+            build/reports/
+            build/test-results/
+            build/jacoco/*.exec
+          retention-days: 14
+          if-no-files-found: warn
 
   # Stable check name for branch protection: the matrix reports as "Build (<os> JDK <version>)", so protecting the
   # combinations directly silently stops covering them whenever the matrix changes.
