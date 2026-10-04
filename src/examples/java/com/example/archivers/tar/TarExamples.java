@@ -15,7 +15,8 @@
  */
 package com.example.archivers.tar;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
+import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
+import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.zip.Deflater.BEST_COMPRESSION;
 import static java.util.zip.Deflater.HUFFMAN_ONLY;
@@ -71,7 +72,7 @@ public class TarExamples {
         // tag::tar-extractor[]
         try (TarArchiveExtractor tarExtractor = TarArchiveExtractor.builder(Path.of("example.tar"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -109,7 +110,7 @@ public class TarExamples {
         // tag::tar-gz-extractor[]
         try (TarGzArchiveExtractor tarGzExtractor = TarGzArchiveExtractor.builder(Path.of("example.tar.gz"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -143,7 +144,7 @@ public class TarExamples {
         // tag::tar-bzip2-extractor[]
         try (TarBZip2ArchiveExtractor tarBzip2Extractor = TarBZip2ArchiveExtractor.builder(Path.of("example.tar.bz2"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -177,7 +178,7 @@ public class TarExamples {
         // tag::tar-xz-extractor[]
         try (TarXzArchiveExtractor tarXzExtractor = TarXzArchiveExtractor.builder(Path.of("example.tar.xz"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -211,7 +212,7 @@ public class TarExamples {
         // tag::tar-zstd-extractor[]
         try (TarZstdArchiveExtractor tarZstdExtractor = TarZstdArchiveExtractor.builder(Path.of("example.tar.zst"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -242,7 +243,7 @@ public class TarExamples {
         // tag::tar-lzma-extractor[]
         try (TarLzmaArchiveExtractor tarLzmaExtractor = TarLzmaArchiveExtractor.builder(Path.of("example.tar.lzma"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -273,7 +274,7 @@ public class TarExamples {
         // tag::tar-lz4-extractor[]
         try (TarLz4ArchiveExtractor tarLz4Extractor = TarLz4ArchiveExtractor.builder(Path.of("example.tar.lz4"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
@@ -288,7 +289,7 @@ public class TarExamples {
         // tag::tar-z-extractor[]
         try (TarZArchiveExtractor tarZExtractor = TarZArchiveExtractor.builder(Path.of("example.tar.Z"))
                 .filter(entry -> !entry.name().startsWith("bad"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)

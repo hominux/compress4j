@@ -36,7 +36,9 @@
 
 An extractor reads its archive once: call either `stream()` or `extract()`, once.
 
-`RETRY` in an `errorHandler` rewrites the output file with only the bytes not yet read, as in 4.x. A file that failed midway stays truncated.
+An `errorHandler` chooses `ABORT` (default, rethrows the failure), `SKIP` or `SKIP_ALL`; `RETRY` and `BAIL_OUT` are removed.
+
+Devices, FIFOs, sockets and hard links are skipped and reported to `unsupportedEntryHandler` instead of being extracted as files or ignored.
 
 Zips written by 4.x still extract their symlinks as regular files. Only archives re-created with 5.0 contain real symlinks.
 

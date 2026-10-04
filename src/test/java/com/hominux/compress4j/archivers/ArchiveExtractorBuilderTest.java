@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
+import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,7 +43,7 @@ class ArchiveExtractorBuilderTest {
     void shouldBuildArchiveExtractor() throws IOException {
         // given
         Predicate<Entry> filter = entry -> !entry.name().contains("some");
-        BiFunction<Entry, IOException, ErrorHandlerChoice> errorHandler = (entry, exception) -> RETRY;
+        BiFunction<Entry, IOException, ErrorHandlerChoice> errorHandler = (entry, exception) -> SKIP;
         AtomicInteger counter = new AtomicInteger();
         BiConsumer<Entry, Path> postProcessor = (entry, path) -> counter.incrementAndGet();
         InMemoryArchiveExtractorBuilder builder = InMemoryArchiveExtractor.builder(List.of())

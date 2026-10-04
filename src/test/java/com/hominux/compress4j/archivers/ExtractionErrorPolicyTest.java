@@ -16,8 +16,6 @@
 package com.hominux.compress4j.archivers;
 
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.BAIL_OUT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP_ALL;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,30 +38,29 @@ class ExtractionErrorPolicyTest {
             calls.incrementAndGet();
             return ABORT;
         });
-        assertThat(policy.handle(FAILURE, true, ENTRY)).isEqualTo(SKIP_ALL);
+        assertThat(policy.handle(FAILURE, true, ENTRY)).isInstanceOf(EntryOutcome.IgnoreFurtherErrors.class);
         assertThat(calls).hasValue(0);
     }
 
     @Test
-    void handle_rethrowsOnBailOut() {
-        ExtractionErrorPolicy policy = new ExtractionErrorPolicy((e, x) -> BAIL_OUT);
+    void handle_rethrowsOnAbort() {
+        ExtractionErrorPolicy policy = new ExtractionErrorPolicy((e, x) -> ABORT);
         assertThatThrownBy(() -> policy.handle(FAILURE, false, ENTRY)).isSameAs(FAILURE);
     }
 
     @Test
-    void handle_passesThroughTheHandlerChoice() throws IOException {
-        assertThat(new ExtractionErrorPolicy((e, x) -> RETRY).handle(FAILURE, false, ENTRY))
-                .isEqualTo(RETRY);
+    void handle_returnsSkipChoices() throws IOException {
         assertThat(new ExtractionErrorPolicy((e, x) -> SKIP).handle(FAILURE, false, ENTRY))
-                .isEqualTo(SKIP);
+                .isInstanceOf(EntryOutcome.Continue.class);
+        assertThat(new ExtractionErrorPolicy((e, x) -> SKIP_ALL).handle(FAILURE, false, ENTRY))
+                .isInstanceOf(EntryOutcome.IgnoreFurtherErrors.class);
     }
 
     @Test
-    void outcomeOf_mapsEveryChoice() {
-        assertThat(ExtractionErrorPolicy.outcomeOf(ABORT)).isInstanceOf(EntryOutcome.Abort.class);
-        assertThat(ExtractionErrorPolicy.outcomeOf(SKIP_ALL)).isInstanceOf(EntryOutcome.IgnoreFurtherErrors.class);
-        assertThat(ExtractionErrorPolicy.outcomeOf(SKIP)).isInstanceOf(EntryOutcome.Continue.class);
-        assertThat(ExtractionErrorPolicy.outcomeOf(RETRY)).isInstanceOf(EntryOutcome.Continue.class);
-        assertThat(ExtractionErrorPolicy.outcomeOf(BAIL_OUT)).isInstanceOf(EntryOutcome.Continue.class);
+    void handlerReturningNullIsRejected() {
+        ExtractionErrorPolicy policy = new ExtractionErrorPolicy((e, x) -> null);
+        assertThatThrownBy(() -> policy.handle(FAILURE, false, ENTRY))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("errorHandler");
     }
 }

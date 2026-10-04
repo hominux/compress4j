@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.util.Optional;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.archivers.tar.TarConstants;
 
 /**
  * Tar Base ArchiveExtractor
@@ -75,24 +76,54 @@ public abstract class BaseTarArchiveExtractor extends ArchiveExtractor<TarArchiv
     }
 
     /**
-     * Get the next {@code TarArchiveEntry} from the {@code TarArchiveInputStream}. Skip hard links and any entry that
-     * is not a regular file, a directory, or a symbolic link.
+     * Returns the next supported entry, classified by its type flag. Supported are regular files (flags {@code '0'},
+     * NUL and {@code '7'}, plus GNU sparse files), directories and symbolic links. Hard links, character devices, block
+     * devices and FIFOs are reported through {@link #reportUnsupported} as such and skipped, as is every other flag
+     * ({@code "unknown type"}). A global PAX header ({@code 'g'}) is archive metadata: it is skipped without a report.
      *
      * @return the next {@code TarArchiveEntry}, or empty at the end of the archive
      * @throws IOException – if the next entry could not be read
      */
-    private static boolean isFileButNotHardLink(TarArchiveEntry entry) {
-        return entry.isFile() && !entry.isLink();
-    }
-
     private Optional<TarArchiveEntry> getNextTarArchiveEntry() throws IOException {
         TarArchiveEntry te;
         while ((te = archiveInputStream.getNextEntry()) != null) {
-            if (isFileButNotHardLink(te) || te.isDirectory() || te.isSymbolicLink()) {
+            if (te.isGlobalPaxHeader()) {
+                continue;
+            }
+            Optional<String> unsupported = unsupportedKind(te);
+            if (unsupported.isEmpty()) {
                 return Optional.of(te);
             }
+            reportUnsupported(te.getName(), unsupported.orElseThrow());
         }
         return Optional.empty();
+    }
+
+    private static Optional<String> unsupportedKind(TarArchiveEntry te) {
+        if (te.isLink()) {
+            return Optional.of("hard link");
+        } else if (te.isCharacterDevice()) {
+            return Optional.of("character device");
+        } else if (te.isBlockDevice()) {
+            return Optional.of("block device");
+        } else if (te.isFIFO()) {
+            return Optional.of("fifo");
+        } else if (isSupported(te)) {
+            return Optional.empty();
+        }
+        return Optional.of("unknown type");
+    }
+
+    private static boolean isSupported(TarArchiveEntry te) {
+        return te.isDirectory() || te.isSymbolicLink() || isRegularFile(te);
+    }
+
+    private static boolean isRegularFile(TarArchiveEntry te) {
+        byte flag = te.getLinkFlag();
+        return flag == TarConstants.LF_OLDNORM
+                || flag == TarConstants.LF_NORMAL
+                || flag == TarConstants.LF_CONTIG
+                || te.isGNUSparse();
     }
 
     private static Entry.Type type(TarArchiveEntry te) {

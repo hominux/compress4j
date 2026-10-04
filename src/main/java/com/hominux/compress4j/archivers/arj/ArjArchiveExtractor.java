@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.arj;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.utils.UnixFileType;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,17 +32,14 @@ import org.apache.commons.compress.archivers.arj.ArjArchiveInputStream;
 /**
  * Read-only: Compress4J provides no creator for this format.
  *
- * <p>Extracts ARJ archives. Directory and regular file entries are extracted; entries that are Unix symbolic links, or
- * whose data cannot be read (encrypted or using an unsupported method), fail with an {@link IOException} that the error
- * handler receives. Such entries are listed as regular files; their real type is visible in the Unix file type bits of
- * {@link Entry#mode()}.
+ * <p>Extracts ARJ archives. Directory and regular file entries are extracted. Entries from a Unix host that are
+ * symbolic links, devices, FIFOs or sockets are skipped and reported to the unsupported-entry handler. Entries whose
+ * data cannot be read (encrypted or using an unsupported method) fail with an {@link IOException} that the error
+ * handler receives.
  *
  * @since 3.2
  */
 public class ArjArchiveExtractor extends ArchiveExtractor<ArjArchiveInputStream> {
-    private static final int UNIX_FILE_TYPE_MASK = 0170000;
-    private static final int UNIX_SYMLINK = 0120000;
-
     private Optional<ArjArchiveEntry> current = Optional.empty();
 
     /**
@@ -66,17 +64,23 @@ public class ArjArchiveExtractor extends ArchiveExtractor<ArjArchiveInputStream>
     /** {@inheritDoc} */
     @Override
     protected Optional<Entry> nextEntry() throws IOException {
-        current = Optional.ofNullable(archiveInputStream.getNextEntry());
-        return current.map(ArjArchiveExtractor::toEntry);
+        ArjArchiveEntry arjEntry;
+        while ((arjEntry = archiveInputStream.getNextEntry()) != null) {
+            current = Optional.of(arjEntry);
+            UnixFileType fileType = unixTypeOf(arjEntry);
+            if (fileType == UnixFileType.FILE || fileType == UnixFileType.DIRECTORY) {
+                return Optional.of(toEntry(arjEntry, fileType));
+            }
+            reportUnsupported(arjEntry.getName(), fileType.kind());
+        }
+        current = Optional.empty();
+        return Optional.empty();
     }
 
     /** {@inheritDoc} */
     @Override
     protected InputStream openEntryStream(Entry entry) throws IOException {
         var arjEntry = current.orElseThrow(() -> new IOException("No current ARJ entry"));
-        if (isSymlink(arjEntry)) {
-            throw new IOException("Unsupported ARJ entry type: symlink: " + arjEntry.getName());
-        }
         if (!archiveInputStream.canReadEntryData(arjEntry)) {
             throw new IOException(
                     "Cannot read ARJ entry data (encrypted or unsupported method): " + arjEntry.getName());
@@ -84,15 +88,19 @@ public class ArjArchiveExtractor extends ArchiveExtractor<ArjArchiveInputStream>
         return archiveInputStream;
     }
 
-    private static Entry toEntry(ArjArchiveEntry entry) {
-        var type = entry.isDirectory() ? Entry.Type.DIR : Entry.Type.FILE;
+    private static UnixFileType unixTypeOf(ArjArchiveEntry entry) {
+        if (!entry.isHostOsUnix()) {
+            return entry.isDirectory() ? UnixFileType.DIRECTORY : UnixFileType.FILE;
+        }
+        UnixFileType fileType = UnixFileType.of(entry.getUnixMode());
+        return fileType == UnixFileType.FILE && entry.isDirectory() ? UnixFileType.DIRECTORY : fileType;
+    }
+
+    private static Entry toEntry(ArjArchiveEntry entry, UnixFileType fileType) {
+        var type = fileType == UnixFileType.DIRECTORY ? Entry.Type.DIR : Entry.Type.FILE;
         var mode = entry.isHostOsUnix() ? entry.getUnixMode() : 0;
         return new Entry(entry.getName(), type, mode)
                 .withMetadata(entry.getLastModifiedDate(), type == Entry.Type.FILE ? entry.getSize() : 0);
-    }
-
-    private static boolean isSymlink(ArjArchiveEntry entry) {
-        return entry.isHostOsUnix() && (entry.getUnixMode() & UNIX_FILE_TYPE_MASK) == UNIX_SYMLINK;
     }
 
     /**

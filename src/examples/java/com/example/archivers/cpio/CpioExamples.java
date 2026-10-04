@@ -15,7 +15,8 @@
  */
 package com.example.archivers.cpio;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.RETRY;
+import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
+import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
@@ -62,7 +63,7 @@ public class CpioExamples {
                 .encoding(UTF_8.name())
                 .and()
                 .filter(entry -> !entry.name().startsWith("temp"))
-                .errorHandler((entry, exception) -> RETRY)
+                .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)

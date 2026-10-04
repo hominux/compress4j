@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.sevenz;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
 import com.hominux.compress4j.utils.BuildGatedChannel;
+import com.hominux.compress4j.utils.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
@@ -38,7 +39,6 @@ import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveInputStream> {
 
     static final int UNIX_EXTENSION = 0x8000;
-    static final int S_IFMT = 0170000;
     static final int S_IFLNK = 0120000;
     static final long MAX_SYMLINK_TARGET_BYTES = 4096;
 
@@ -87,22 +87,26 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
     /** {@inheritDoc} */
     @Override
     protected Optional<Entry> nextEntry() throws IOException {
-        SevenZArchiveEntry entry = archiveInputStream.getNextEntry();
-        if (entry == null) {
-            return Optional.empty();
+        SevenZArchiveEntry entry;
+        while ((entry = archiveInputStream.getNextEntry()) != null) {
+            String name = Objects.requireNonNull(entry.getName(), "7z entry has no name");
+            int mode = unixMode(entry);
+            Date modified = entry.getHasLastModifiedDate() ? entry.getLastModifiedDate() : null;
+            UnixFileType fileType = UnixFileType.of(mode);
+            Entry result;
+            if (entry.isDirectory() || fileType == UnixFileType.DIRECTORY) {
+                result = new Entry(name, Entry.Type.DIR, mode);
+            } else if (fileType == UnixFileType.SYMLINK) {
+                result = new Entry(name, Entry.Type.SYMLINK, mode).withLinkTarget(readSymlinkTarget(entry));
+            } else if (fileType == UnixFileType.FILE) {
+                result = new Entry(name, Entry.Type.FILE, mode);
+            } else {
+                reportUnsupported(name, fileType.kind());
+                continue;
+            }
+            return Optional.of(result.withMetadata(modified, result.type() == Entry.Type.FILE ? entry.getSize() : 0));
         }
-        String name = Objects.requireNonNull(entry.getName(), "7z entry has no name");
-        int mode = unixMode(entry);
-        Date modified = entry.getHasLastModifiedDate() ? entry.getLastModifiedDate() : null;
-        Entry result;
-        if (entry.isDirectory()) {
-            result = new Entry(name, Entry.Type.DIR, mode);
-        } else if ((mode & S_IFMT) == S_IFLNK) {
-            result = new Entry(name, Entry.Type.SYMLINK, mode).withLinkTarget(readSymlinkTarget(entry));
-        } else {
-            result = new Entry(name, Entry.Type.FILE, mode);
-        }
-        return Optional.of(result.withMetadata(modified, result.type() == Entry.Type.FILE ? entry.getSize() : 0));
+        return Optional.empty();
     }
 
     private String readSymlinkTarget(SevenZArchiveEntry entry) throws IOException {

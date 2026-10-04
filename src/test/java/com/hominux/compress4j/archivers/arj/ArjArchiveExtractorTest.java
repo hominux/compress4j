@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.UnsupportedEntry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -76,35 +77,6 @@ class ArjArchiveExtractorTest {
     }
 
     @Test
-    void shouldLetFiltersDetectASymlinkThroughTheModeTypeBits() throws IOException {
-        var entry = mock(ArjArchiveEntry.class);
-        when(entry.getName()).thenReturn("link");
-        when(entry.isHostOsUnix()).thenReturn(true);
-        when(entry.getUnixMode()).thenReturn(0120777);
-
-        try (var extractor = new ArjArchiveExtractor(streamOf(entry))) {
-            assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.mode() & 0170000).isEqualTo(0120000));
-        }
-    }
-
-    @Test
-    void shouldRejectUnixSymlinkEntryWithoutWritingAnything() throws IOException {
-        var entry = mock(ArjArchiveEntry.class);
-        when(entry.getName()).thenReturn("link");
-        when(entry.isHostOsUnix()).thenReturn(true);
-        when(entry.getUnixMode()).thenReturn(0120777);
-
-        try (var extractor = new ArjArchiveExtractor(streamOf(entry))) {
-            var mapped = extractor.nextEntry().orElseThrow();
-
-            assertThatThrownBy(() -> extractor.openEntryStream(mapped))
-                    .isInstanceOf(IOException.class)
-                    .hasMessage("Unsupported ARJ entry type: symlink: link");
-        }
-    }
-
-    @Test
     void shouldRejectEntryItCannotRead() throws IOException {
         var entry = mock(ArjArchiveEntry.class);
         when(entry.getName()).thenReturn("secret.txt");
@@ -137,34 +109,90 @@ class ArjArchiveExtractorTest {
     @TempDir
     Path tempDir;
 
-    @Test
-    void shouldReportUnsupportedEntryToTheErrorHandlerAndCreateNothing() throws IOException {
+    private static ArjArchiveEntry unixEntry(String name, int mode) {
         var entry = mock(ArjArchiveEntry.class);
-        when(entry.getName()).thenReturn("link");
+        when(entry.getName()).thenReturn(name);
         when(entry.isHostOsUnix()).thenReturn(true);
-        when(entry.getUnixMode()).thenReturn(0120777);
-        var in = mock(ArjArchiveInputStream.class);
-        when(in.getNextEntry()).thenReturn(entry).thenReturn(null);
-        when(in.canReadEntryData(entry)).thenReturn(true);
-        when(in.read(any(byte[].class), anyInt(), anyInt())).thenReturn(-1);
-        var seen = new ArrayList<String>();
+        when(entry.getUnixMode()).thenReturn(mode);
+        return entry;
+    }
 
-        var builder = new ArjArchiveExtractor.ArjArchiveExtractorBuilder(InputStream.nullInputStream()) {
+    private static ArjArchiveExtractor.ArjArchiveExtractorBuilder builderOver(ArjArchiveInputStream in) {
+        return new ArjArchiveExtractor.ArjArchiveExtractorBuilder(InputStream.nullInputStream()) {
             @Override
             public ArjArchiveInputStream buildArchiveInputStream() {
                 return in;
             }
         };
-        try (var extractor = builder.errorHandler((e, failure) -> {
-                    seen.add(e.name());
-                    return ArchiveExtractor.ErrorHandlerChoice.SKIP;
-                })
-                .build()) {
+    }
+
+    private static ArjArchiveInputStream streamOfAll(ArjArchiveEntry... entries) throws IOException {
+        var in = mock(ArjArchiveInputStream.class);
+        var first = entries[0];
+        var rest = new ArjArchiveEntry[entries.length - 1];
+        System.arraycopy(entries, 1, rest, 0, entries.length - 1);
+        when(in.getNextEntry()).thenReturn(first, rest);
+        when(in.canReadEntryData(any())).thenReturn(true);
+        when(in.read(any(byte[].class), anyInt(), anyInt())).thenReturn(-1);
+        return in;
+    }
+
+    @Test
+    void shouldReportUnixSymlinkAndDeviceToTheUnsupportedEntryHandlerAndCreateNothing() throws IOException {
+        var in = streamOfAll(unixEntry("link", 0120777), unixEntry("tty", 0020644), unixEntry("pipe", 0010644), null);
+        var reported = new ArrayList<UnsupportedEntry>();
+
+        try (var extractor =
+                builderOver(in).unsupportedEntryHandler(reported::add).build()) {
             extractor.extract(tempDir);
         }
 
-        assertThat(seen).containsExactly("link");
+        assertThat(reported)
+                .containsExactly(
+                        new UnsupportedEntry("link", "symbolic link"),
+                        new UnsupportedEntry("tty", "character device"),
+                        new UnsupportedEntry("pipe", "fifo"));
         assertThat(tempDir).isEmptyDirectory();
+    }
+
+    @Test
+    void shouldClassifyUnixDirectoryAndModeWithoutTypeBits() throws IOException {
+        var in = streamOfAll(unixEntry("d", 040755), unixEntry("f", 0644), null);
+
+        try (var extractor = builderOver(in).build()) {
+            assertThat(extractor.nextEntry())
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR));
+            assertThat(extractor.nextEntry())
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE));
+        }
+    }
+
+    @Test
+    void shouldTreatUnixHostDirectoryFlagWithTypelessModeAsDirectoryWithoutReporting() throws IOException {
+        var entry = unixEntry("d", 0755);
+        when(entry.isDirectory()).thenReturn(true);
+        var reported = new ArrayList<UnsupportedEntry>();
+
+        try (var extractor = builderOver(streamOfAll(entry, null))
+                .unsupportedEntryHandler(reported::add)
+                .build()) {
+            assertThat(extractor.nextEntry())
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR));
+        }
+        assertThat(reported).isEmpty();
+    }
+
+    @Test
+    void shouldIgnoreModeBitsOfNonUnixHosts() throws IOException {
+        var entry = mock(ArjArchiveEntry.class);
+        when(entry.getName()).thenReturn("dos.txt");
+        when(entry.isHostOsUnix()).thenReturn(false);
+        when(entry.getUnixMode()).thenReturn(0020644);
+
+        try (var extractor = builderOver(streamOfAll(entry, null)).build()) {
+            assertThat(extractor.nextEntry())
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE));
+        }
     }
 
     @Test

@@ -6,9 +6,9 @@ UNIX dump support needs no extra dependency. The extractor writes directory and 
 
 The unnamed root directory entry that every dump archive starts with is skipped, because it denotes the output directory itself.
 
-Every other entry type (links, sockets, FIFOs, devices) fails with an `IOException` that the error handler receives; nothing is written for them.
+Every other entry type (symbolic links, sockets, FIFOs, devices) is skipped and reported to `unsupportedEntryHandler`; nothing is written for it.
 
-Such entries are listed as regular files; the Unix file type bits of the entry's `mode` show the real type, so a `filter` can detect them. If the target already exists and `overwrite(false)` is set, the entry is skipped before it is opened, so the error handler does not see it.
+If the target already exists and `overwrite(false)` is set, the entry is skipped before it is opened, so the error handler does not see it.
 
 == Example Usage
 

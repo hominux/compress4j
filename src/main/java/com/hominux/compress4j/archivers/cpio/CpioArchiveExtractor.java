@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.cpio;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.utils.UnixFileType;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,23 +67,27 @@ public class CpioArchiveExtractor extends ArchiveExtractor<CpioArchiveInputStrea
 
     @Override
     protected Optional<Entry> nextEntry() throws IOException {
-        CpioArchiveEntry cpioEntry = archiveInputStream.getNextEntry();
-        if (cpioEntry == null || "TRAILER!!!".equals(cpioEntry.getName())) {
-            return Optional.empty();
+        CpioArchiveEntry cpioEntry;
+        while ((cpioEntry = archiveInputStream.getNextEntry()) != null && !"TRAILER!!!".equals(cpioEntry.getName())) {
+            int mode = (int) cpioEntry.getMode();
+            UnixFileType fileType = UnixFileType.of(mode);
+            Entry entry;
+            switch (fileType) {
+                case SYMLINK -> {
+                    String target = readSymlinkTargetStoredAsContent(cpioEntry);
+                    entry = new Entry(cpioEntry.getName(), Entry.Type.SYMLINK, mode).withLinkTarget(target);
+                }
+                case DIRECTORY -> entry = new Entry(cpioEntry.getName(), Entry.Type.DIR, mode);
+                case FILE -> entry = new Entry(cpioEntry.getName(), Entry.Type.FILE, mode);
+                default -> {
+                    reportUnsupported(cpioEntry.getName(), fileType.kind());
+                    continue;
+                }
+            }
+            return Optional.of(entry.withMetadata(
+                    cpioEntry.getLastModifiedDate(), entry.type() == Entry.Type.FILE ? cpioEntry.getSize() : 0));
         }
-
-        int mode = (int) cpioEntry.getMode();
-        Entry entry;
-        if (cpioEntry.isSymbolicLink()) {
-            String target = readSymlinkTargetStoredAsContent(cpioEntry);
-            entry = new Entry(cpioEntry.getName(), Entry.Type.SYMLINK, mode).withLinkTarget(target);
-        } else if (cpioEntry.isDirectory()) {
-            entry = new Entry(cpioEntry.getName(), Entry.Type.DIR, mode);
-        } else {
-            entry = new Entry(cpioEntry.getName(), Entry.Type.FILE, mode);
-        }
-        return Optional.of(entry.withMetadata(
-                cpioEntry.getLastModifiedDate(), entry.type() == Entry.Type.FILE ? cpioEntry.getSize() : 0));
+        return Optional.empty();
     }
 
     /**
