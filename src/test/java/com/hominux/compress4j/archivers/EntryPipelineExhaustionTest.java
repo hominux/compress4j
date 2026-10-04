@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,7 +51,7 @@ class EntryPipelineExhaustionTest {
                 // nothing to release
             }
         };
-        var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.NONE);
+        var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.unlimited());
 
         // When
         var names = pipeline.stream().map(item -> item.entry().name()).iterator();

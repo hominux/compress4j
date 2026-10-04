@@ -82,6 +82,7 @@ class ModuleDescriptorTest {
 
         assertThat(exported)
                 .containsExactlyInAnyOrder(
+                        "com.hominux.compress4j",
                         BASE + "archivers",
                         BASE + "archivers.ar",
                         BASE + "archivers.cpio",

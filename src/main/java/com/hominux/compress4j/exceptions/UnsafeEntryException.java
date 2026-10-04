@@ -21,7 +21,7 @@ package com.hominux.compress4j.exceptions;
  *
  * @since 5.0
  */
-public final class UnsafeEntryException extends ArchiveSecurityException {
+public final class UnsafeEntryException extends UnsafeInputException {
 
     /**
      * Creates an exception with the given message.

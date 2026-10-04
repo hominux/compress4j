@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
-import com.hominux.compress4j.exceptions.ArchiveLimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -174,7 +174,7 @@ class ArchiveExtractorStreamingTest {
             Stream<ArchiveItem> items = extractor.stream();
             assertThatThrownBy(items::toList)
                     .isInstanceOf(UncheckedIOException.class)
-                    .hasCauseInstanceOf(ArchiveLimitExceededException.class);
+                    .hasCauseInstanceOf(LimitExceededException.class);
         }
     }
 
@@ -187,7 +187,7 @@ class ArchiveExtractorStreamingTest {
             var item = extractor.stream().findFirst().orElseThrow();
 
             // Then
-            assertThatThrownBy(() -> item.content().readAllBytes()).isInstanceOf(ArchiveLimitExceededException.class);
+            assertThatThrownBy(() -> item.content().readAllBytes()).isInstanceOf(LimitExceededException.class);
         }
     }
 
