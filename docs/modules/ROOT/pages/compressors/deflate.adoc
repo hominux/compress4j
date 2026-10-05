@@ -1,6 +1,10 @@
 = Deflate
 
-Here is a simple example of how to use deflate compression.
+Select deflate with `Compression.deflate()`. It writes a zlib header by default. `Decompressor` never detects deflate, because the stream has no reliable signature: pass `Compression.deflate()` explicitly. A stream with no detectable signature passes through unchanged, so `Decompressor.builder(p)` on deflate data returns the compressed bytes: use `Decompressor.builder(p, Compression.deflate())`.
+
+Options: `level` and `zlibHeader`; `zlibHeader(false)` reads and writes raw deflate.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 

@@ -2,7 +2,11 @@
 
 NOTE: Read-only: Compress4J can extract this format but cannot create it.
 
-Unix compress support needs no extra dependency. The `.Z` format has no end marker, so a truncated file decompresses to a shorter output without an error; `.tar.Z` extraction still fails on a truncated archive because the tar entries are incomplete.
+Select it with `Compression.unixZ()`; `Decompressor` and the tar extractor detect it from its magic number. It needs no extra dependency and has no options.
+
+The `.Z` format has no end marker, so a truncated file decompresses to a shorter output without an error. `.tar.Z` extraction fails when the truncation cuts a tar entry short. A cut that falls between entries reads as the end of the archive.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 
@@ -12,4 +16,4 @@ Unix compress support needs no extra dependency. The `.Z` format has no end mark
 include::example$java/com/example/compressors/ZExamples.java[tag=z-decompressor,indent=0]
 ----
 
-The `.tar.Z` extractor is described on the xref:archivers/tar.adoc[tar] page.
+The tar extractor reads `.tar.Z` too; see xref:archivers/tar.adoc[tar].

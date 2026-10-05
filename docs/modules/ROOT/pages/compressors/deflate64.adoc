@@ -2,7 +2,9 @@
 
 NOTE: Read-only: Compress4J can extract this format but cannot create it.
 
-Deflate64 support needs no extra dependency. It decompresses a raw Deflate64 stream, the compression method 9 that some zip files use for their entries.
+Select it with `Compression.deflate64()`. It reads a raw Deflate64 stream, the compression method 9 that some zip files use for their entries. `Decompressor` never detects it, so pass the `Compression` explicitly. It needs no extra dependency and has no options.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 

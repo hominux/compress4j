@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.compressors.catalog.CodecCatalog;
 import com.hominux.compress4j.compressors.catalog.CodecFormat;
+import com.hominux.compress4j.internal.codec.Codecs;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -112,5 +114,28 @@ class CodecContractTest {
             assertThatThrownBy(builder::build).isInstanceOfAny(IOException.class, RuntimeException.class);
             assertThat(closed).isFalse();
         }
+    }
+
+    static Stream<CodecFormat> readOnly() {
+        return CodecCatalog.all().filter(format -> !format.compression().canWrite());
+    }
+
+    private static byte[] handBuiltHeader(CodecFormat format) {
+        return switch (format.name()) {
+            case "z" -> new byte[] {0x1f, (byte) 0x9d, (byte) 0x90, 0, 0, 0};
+            case "deflate64" -> new byte[] {0x01, 0x03, 0x00, (byte) 0xfc, (byte) 0xff, 'a', 'b', 'c'};
+            case "brotli" -> new byte[] {0x06};
+            default -> throw new IllegalArgumentException(format.name());
+        };
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("readOnly")
+    void readOnlyCodecDetectionMatchesTheCatalog(CodecFormat format) throws IOException {
+        var in = new BufferedInputStream(new ByteArrayInputStream(handBuiltHeader(format)));
+        Compression detected = Codecs.detect(in);
+        assertThat(detected.equals(format.compression()))
+                .as("detected %s", detected)
+                .isEqualTo(format.detectable());
     }
 }

@@ -18,6 +18,8 @@ package com.example;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -46,6 +48,25 @@ public class ReadmeExamples {
             extractor.extract(Path.of("outputDir"));
         }
         // end::readme-extract[]
+    }
+
+    public static void compress() throws IOException {
+        // tag::readme-compress[]
+        try (Compressor compressor = Compressor.builder(
+                        Path.of("file.txt.zst"), Compression.zstd().level(6))
+                .build()) {
+            compressor.write(Path.of("file.txt"));
+        }
+        // end::readme-compress[]
+    }
+
+    public static void decompress() throws IOException {
+        // tag::readme-decompress[]
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("file.txt.zst")).build()) {
+            decompressor.write(Path.of("copy.txt"));
+        }
+        // end::readme-decompress[]
     }
 
     public static void extractUntrusted() throws IOException {

@@ -55,16 +55,29 @@ Compress4J is the module `com.hominux.compress4j`. It requires `org.apache.commo
 
 The library's design centers around a few key components:
 
-* **`Compressor` Interface:** Defines the contract for compressing an `OutputStream`. Implementations handle the specifics of a particular compression algorithm.
-* **`Decompressor` Interface:** Defines the contract for decompressing an `InputStream`. Implementations handle the specifics of decompressing data from a particular format.
+* **`Compression`:** a codec and its options, created by a factory such as `Compression.gzip().level(9)`. Every codec is one value type; there is no class per codec.
+* **`Compressor` and `Decompressor`:** final classes that compress to, and decompress from, a file, channel or stream with any `Compression`. `Decompressor` detects the codec when you give none and enforces the default xref:security.adoc[limits].
 * **`ArchiveExtractor`:** reads an archive as a stream of `ArchiveItem`s (entry plus content) or extracts it safely to a directory. See xref:streaming.adoc[].
-* **`ArchiveCreator`:** writes `EntrySource`s — files, directories and symlinks from disk, memory or another archive.
+* **`ArchiveCreator`:** writes `EntrySource`s: files, directories and symlinks from disk, memory or another archive.
 
-Each supported archive or compression format has its own `ArchiveCreator`/`ArchiveExtractor` or `Compressor`/`Decompressor` implementation, so developers work with the concrete class for the format they need (e.g., `TarArchiveCreator`, `GzipDecompressor`).
+Each archive format has its own creator and extractor (`TarArchiveCreator`, `ZipArchiveExtractor`). A compressed tar is a `TarArchiveCreator` with a `Compression`; see xref:archivers/tar.adoc[tar].
+
+=== Quick start
+
+[,java]
+----
+include::example$java/com/example/ReadmeExamples.java[tag=readme-create,indent=0]
+
+include::example$java/com/example/ReadmeExamples.java[tag=readme-extract,indent=0]
+
+include::example$java/com/example/ReadmeExamples.java[tag=readme-compress,indent=0]
+
+include::example$java/com/example/ReadmeExamples.java[tag=readme-decompress,indent=0]
+----
 
 === Supported Formats
 
-Compress4J supports a variety of common stream compression formats. The goal is to provide access to efficient and widely used algorithms, including (but not necessarily limited to):
+Compress4J reads and writes these archive and compression formats:
 
 * AR (`.a`, `.ar`)
 * ARJ (`.arj`, read-only)
@@ -75,11 +88,11 @@ Compress4J supports a variety of common stream compression formats. The goal is 
 * Brotli (read-only)
 * Bzip2 (`.bz2`)
 * Gzip (`.gz`, `gzip`)
-* Pack200 (`.pack`)
+* Pack200 (`.pack`, never detected)
 * Snappy (`.sz` framed, and raw)
 * Tar (`.tar`, `tar.bz2`, `tbz2`, `tar.gz`, `tgz`, `tar.xz`, `txz`, `tar.lzma`, `tar.lz4`, `tar.zst`, `tar.Z` read-only)
 * LZ4 (`.lz4`, framed and block)
-* LZMA (`.lzma`)
+* LZMA (`.lzma`, never detected)
 * Unix compress (`.Z`, `tar.Z`, read-only)
 * XZ (`.xz`)
 * Zip (`.zip`)
@@ -87,22 +100,29 @@ Compress4J supports a variety of common stream compression formats. The goal is 
 
 Formats marked (read-only) can be extracted or decompressed, as applicable, but not created; see xref:read_only_formats.adoc[Read-only formats].
 
-The library often achieves this by integrating with high-performance backend libraries or by providing its own implementations.
+=== Supported codecs
+
+A test pins the *Write* and *Detected* columns to the codec catalog the contract tests run against, and the *Compression value* column to the `Compression` factories. *Detected* means `Decompressor` and the tar extractor pick the codec from the stream's leading bytes; select the others with their `Compression` value. Input with no detectable signature passes through `Decompressor` unchanged.
+
+include::partial$codecs.adoc[]
 
 IMPORTANT: Some compression formats may require additional support libraries to be included in your project. Please refer to the xref:additional_formats.adoc[Additional Formats] for details on any extra dependencies needed for specific formats.
 
 === Extracting Untrusted Archives
 
 Path traversal is always rejected: entry paths are resolved canonically against the output directory, so both `../`
-entries and writes that would follow a symlink out of the output directory fail with `UnsafeEntryException`, which no error handler can suppress.
+entries and writes that would follow a symlink out of the output directory fail with `UnsafeEntryException`, which no
+error handler can suppress.
 
 Escaping symlinks are rejected by default with `UnsafeEntryException`. Use `escapingSymlinkPolicy(ALLOW)` for
-archives you produced yourself, or `RELATIVIZE_ABSOLUTE` to rewrite absolute targets under the output directory (targets that escape it are still rejected).
+archives you produced yourself, or `RELATIVIZE_ABSOLUTE` to rewrite absolute targets under the output directory
+(targets that escape it are still rejected).
 
-One thing is **not** restricted by default, because it is legitimate in archives you produced yourself:
-
-* **How far an archive may expand.** Use `maxEntries`, `maxEntrySize` and `maxTotalSize` to bound it. Breaching a limit
-  throws `ArchiveLimitExceededException`, which an error handler cannot suppress.
+Decompression bombs are bounded by default: every archive extractor stops at 1,000,000 entries, and every extractor
+and `Decompressor` stops at an expansion ratio above 100 after the first MiB. Size limits are off. Use `limits(...)`,
+`maxEntrySize`, `maxTotalSize` and `maxRatio` to tune them, or `limits(ExtractionLimits.noLimits())` for trusted
+input. Breaching a limit throws `LimitExceededException`, which an error handler cannot suppress. See
+xref:security.adoc[].
 
 [,java]
 ----

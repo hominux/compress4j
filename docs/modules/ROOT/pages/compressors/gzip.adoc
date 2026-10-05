@@ -1,6 +1,10 @@
 = Gzip
 
-Here is a simple example of how to use gzip compression.
+Gzip wraps deflate with a header and a CRC. Select it with `Compression.gzip()`; `Decompressor` detects it from its magic number.
+
+Options, each returning a changed copy: `level`, `bufferSize`, `deflateStrategy`, `fileName`, `comment`, `modificationTime`, `operatingSystem`, `fileNameCharset` and `decompressConcatenated`.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 

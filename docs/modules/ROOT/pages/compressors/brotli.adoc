@@ -2,7 +2,11 @@
 
 NOTE: Read-only: Compress4J can extract this format but cannot create it.
 
-Brotli decompression needs `org.brotli:dec` at runtime; see xref:additional_formats.adoc[Additional Formats]. Without it, building a `BrotliDecompressor` fails with a `MissingArchiveDependencyException`.
+Select it with `Compression.brotli()`. `Decompressor` never detects Brotli, so pass the `Compression` explicitly. It has no options.
+
+Reading needs `org.brotli:dec` at runtime; see xref:additional_formats.adoc[Additional Formats]. Without it, building the `Decompressor` fails with a `MissingArchiveDependencyException`.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 

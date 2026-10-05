@@ -2,18 +2,84 @@
 :description: Breaking changes in Compress4J 5.0 and how to update code written for 4.x.
 :keywords: compress4j, migration, 5.0, breaking changes
 
+Each table lists the 4.x API on the left and its 5.0 replacement on the right. See xref:security.adoc[] for the new defaults in depth.
+
 == Safer defaults
 
-* The default `escapingSymlinkPolicy` changed from `ALLOW` in 4.x to `DISALLOW` in 5.0: escaping symlinks throw `UnsafeEntryException`. Pass `escapingSymlinkPolicy(ALLOW)` for archives you produced yourself.
-* Path traversal and escaping symlinks throw `UnsafeEntryException`; size limits throw `ArchiveLimitExceededException`. Both extend `ArchiveSecurityException`, which an `errorHandler` cannot suppress.
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
+
+|`escapingSymlinkPolicy` defaulted to `ALLOW`
+|The default is `DISALLOW`: escaping symlinks throw `UnsafeEntryException`. Pass `escapingSymlinkPolicy(ALLOW)` for archives you produced yourself.
+
+|No default limits
+|`ExtractionLimits.defaults()`: 1,000,000 entries, expansion ratio 100, no size limits. `limits(ExtractionLimits.noLimits())` restores 4.x behaviour for trusted input.
+
+|`ArchiveExtractor.UNLIMITED`
+|`ExtractionLimits.UNLIMITED`
+
+|Any negative `maxEntries`, `maxEntrySize` or `maxTotalSize` meant unlimited
+|Only `-1` (`ExtractionLimits.UNLIMITED`) means unlimited; other negative values throw `IllegalArgumentException`. `maxRatio` rejects `0` and negatives other than `-1`.
+
+|`maxRatio` did not exist
+|Every reader enforces `maxRatio` (default 100) once it has produced 1 MiB: tar, zip (also `streaming`), 7z, ar, cpio, arj, dump and `Decompressor`. A breach throws `LimitExceededException` with limit `RATIO`; raise it with `maxRatio(...)` or `limits(...)`.
+
+|Path traversal and escaping symlinks threw a plain `IOException`, which the `errorHandler` could `SKIP`
+|`UnsafeEntryException`, a subclass of the sealed `UnsafeInputException`. No `errorHandler` can suppress it.
+
+|`ArchiveLimitExceededException`, which the `errorHandler` never saw
+|`LimitExceededException`, also an `UnsafeInputException`, with `limit()`, `maximum()` and `entryName()`; its message names the builder method that raises the limit.
+|===
+
+IMPORTANT: Behaviour change for 4.x users. An `errorHandler` that returned `SKIP` or `SKIP_ALL` used to continue past a traversal or escaping-symlink entry. In 5.0 that entry aborts the extraction with `UnsafeEntryException`. Code that relied on skipping such entries must stop doing so or filter them out before extraction.
+
 * `DISALLOW`, the default, re-checks every symlink an extraction created once it finishes. Links that escape through later entries are removed and extraction fails with `UnsafeEntryException`.
 * `RELATIVIZE_ABSOLUTE` rewrites absolute targets under the output directory, then rejects any target that still escapes. 4.x accepted relative escapes.
+* `maxEntries` counts entries after `stripComponents` and the filter. Skipped unsupported or filtered entries are not counted, and the `unsupportedEntryHandler` runs once per skipped entry without a bound.
+* A highly compressible but legitimate archive, such as a log archive, can exceed ratio 100. The exception names `maxRatio`.
+* Reading `.xz` and `.lzma` without `memoryLimitKiB` is now capped at 256 MiB, in `Decompressor` and `TarArchiveExtractor`. `memoryLimitKiB(Integer.MAX_VALUE)` lifts the cap.
+* The public stream-taking constructors of 4.x are gone, so every extractor is built through a builder and enforces the limits.
+
+== Errors
+
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
+
+|`ErrorHandlerChoice.RETRY`
+|Removed. Retry outside the extractor: the entry stream is already consumed.
+
+|`ErrorHandlerChoice.BAIL_OUT`
+|`ABORT`, which now has `BAIL_OUT`'s old meaning: stop and rethrow.
+
+|`ABORT` returning normally after a failure
+|`ABORT` rethrows the failure. The default handler aborts.
+
+|`errorHandler(null)`
+|Throws `NullPointerException`, as do `filter(null)` and `postProcessor(null)`.
+
+|Parser `RuntimeException` on corrupt input
+|`IOException` with the original as cause.
+
+|`InvalidPathException` for an entry name or link target with a NUL character
+|`IOException`, which the error handler can skip.
+|===
+
+* Corrupt archives and corrupt compressed data throw `IOException`. Callbacks (filter, error handler, post-processor, unsupported-entry handler) and `MissingArchiveDependencyException` still propagate unchanged.
+* A `RuntimeException` from a caller-supplied source stream is reported as corrupt input.
+* The error handler is consulted for parser failures while reading entry content. In 4.x extraction aborted.
+* `stream()` surfaces parser failures as `UncheckedIOException` wrapping the `IOException`.
+* A `.Z` header demanding a code table above 64 MiB fails with `IOException`.
 
 == Reading archives
 
 [cols="1,1",options="header"]
 |===
 |4.x |5.0
+
+|`ArchiveExtractor.Entry`, `ArchiveExtractor.ErrorHandlerChoice`, `ArchiveExtractor.EscapingSymlinkPolicy`
+|Top-level `Entry`, `ErrorHandlerChoice` and `EscapingSymlinkPolicy` in `com.hominux.compress4j.archivers`.
 
 |`for (Entry e : extractor)` / `extractor.iterator()`
 |`extractor.stream()`; use `item.entry()`
@@ -27,18 +93,23 @@
 |`extractor.setStripComponents(1)` and other setters
 |The matching builder option, e.g. `.stripComponents(1)`
 
+|`setPostProcessor(Consumer<Path>)`
+|`postProcessor(BiConsumer<Entry, Path>)` builder option
+
 |`entry.linkTarget()` returning a nullable `String`
 |`entry.linkTarget()` returning `Optional<String>`
 
+|Record patterns over `Entry`, which was `(String, Type, int, String)`
+|`Entry` is `(String, Type, int, Optional<String>, Optional<FileTime>, OptionalLong)`. Build one with `new Entry(name, type, mode).withLinkTarget(target)`.
+
 |`filter` seeing the archive name
 |`filter` sees the name after `stripComponents`
+
+|Devices, FIFOs, sockets and hard links extracted as empty or regular files, or dropped silently (tar)
+|Skipped and reported to `unsupportedEntryHandler` as `UnsupportedEntry(name, kind)`. arj symbolic links go there too; dump no longer sends unsupported entries to the error handler.
 |===
 
 An extractor reads its archive once: call either `stream()` or `extract()`, once.
-
-An `errorHandler` chooses `ABORT` (default, rethrows the failure), `SKIP` or `SKIP_ALL`; `RETRY` and `BAIL_OUT` are removed.
-
-Devices, FIFOs, sockets and hard links are skipped and reported to `unsupportedEntryHandler` instead of being extracted as files or ignored.
 
 Zips written by 4.x still extract their symlinks as regular files. Only archives re-created with 5.0 contain real symlinks.
 
@@ -48,20 +119,41 @@ Zips written by 4.x still extract their symlinks as regular files. Only archives
 |===
 |4.x |5.0
 
-|`addFile(name, inputStream)`
-|`addFile(name, inputStream, size)`, or `add(EntrySource.buffered(..., tempDir))` when the size is unknown
+|`addFile(name, Path)`
+|`add(EntrySource.file(name, path))`; `EntrySource.file` accepts regular files only.
+
+|`addFile(name, Path, modTime)`
+|`add(EntrySource.file(name, path).withLastModified(modTime))`
+
+|`addFile(name, byte[])`, `addFile(name, byte[], modTime)`
+|`add(EntrySource.file(name, bytes))`, with `.withLastModified(modTime)`
+
+|`addFile(name, InputStream)`
+|`add(EntrySource.file(name, stream, size))`, or `add(EntrySource.buffered(source, tempDir))` when the size is unknown
+
+|`addFile(name, InputStream, modTime)`
+|`add(EntrySource.file(name, stream, size))`, with `.withLastModified(modTime)`. 4.x took no size; 5.0 needs one, or `EntrySource.buffered(source, tempDir)` when it is unknown.
+
+|`addFile(name, path, attrs, modTime)`
+|`add(EntrySource.file(name, path).withLastModified(modTime))`
+
+|`addDirectory(name)`, `addDirectory(name, modTime)`
+|`add(EntrySource.directory(name))`, with `.withLastModified(modTime)`
+
+|`addDirectoryRecursively(Path, FileTime)`
+|`addDirectoryRecursively("", dir, time)`
+
+|A symlink or directory `Path` added under a chosen name
+|`EntrySource.of(base, path)` names it relative to `base`. To choose the name, construct `new EntrySource.Symlink(...)` or `new EntrySource.Directory(...)`.
 
 |`builder.filter((name, path) -> ...)`
-|`builder.filter(source -> ...)` using `source.name()`
+|`builder.filter(source -> ...)` using `source.name()`; the filter takes a `Predicate<EntrySource>`.
 
 |`creator.withFilter(...)`
 |`builder.filter(...)`
 
-|`addFile(name, path, attrs, modTime)`
-|`addFile(name, path, modTime)`
-
-|`addFile(name, inputStream, modTime)`
-|`addFile(name, inputStream, size, modTime)`
+|`protected accept(String, Path)` hook
+|`builder.filter(...)`
 |===
 
 * `builder.filter(null)` throws `NullPointerException`; it no longer resets the filter. The filter may run more than once per entry, so keep it free of side effects.
@@ -69,26 +161,162 @@ Zips written by 4.x still extract their symlinks as regular files. Only archives
 * Every format enforces a file's declared size. Too many or too few bytes throw an `IOException` naming the entry.
 * The creator strips leading slashes from entry names and converts `\` to `/`. Names with a NUL, a drive prefix such as `C:` or a `..` segment throw `UnsafeEntryException`. A name made only of slashes throws `IllegalArgumentException`. A walked file literally named `..\x` aborts `addDirectoryRecursively`.
 * Sockets, FIFOs and devices are rejected as entry sources with `IllegalArgumentException`, including during `addDirectoryRecursively`.
-* `addDirectoryRecursively` now stores directory permissions. On Windows, path modes stay unknown and the format default applies, instead of DOS flags.
+* `addDirectoryRecursively` stores directory permissions. On a file system without a POSIX view (Windows, zip FS), path modes stay unknown and the format default applies, instead of DOS flags.
+* ar and cpio symlink targets over 4096 bytes fail with `IOException`; zip caps symlink targets too.
 
 == Sources and sinks
 
-* `ZipArchiveExtractorBuilder.setSeekableByteChannel(ch)` becomes `ZipArchiveExtractor.builder(ch)`.
-* `SevenZArchiveExtractorBuilder.setSeekableByteChannel(ch)` becomes `SevenZArchiveExtractor.builder(ch)`.
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
+
+|`builder(Path)` opened the file and threw `IOException`
+|`builder(Path)` throws nothing and opens the file in `build()`, for every format, creator and extractor.
+
+|`builder(File)`
+|Removed; use `builder(Path)`.
+
+|`ZipArchiveExtractorBuilder.setSeekableByteChannel(ch)`
+|`ZipArchiveExtractor.builder(ch)`
+
+|`SevenZArchiveExtractorBuilder.setSeekableByteChannel(ch)`
+|`SevenZArchiveExtractor.builder(ch)`
+
+|Public constructors of the archive classes, including the stream-taking ones
+|Removed; every format class is `final`. Use the builders: `builder(Path)`, `builder(SeekableByteChannel)`, and `builder(InputStream)` or `builder(OutputStream)` where the format streams. Zip reads a stream with `ZipArchiveExtractor.streaming(InputStream)`.
+
+|Nested `XxxArchiveExtractorBuilder` and `XxxArchiveCreatorBuilder`
+|Nested `Builder` classes (`StreamingBuilder` for zip streaming) without public constructors.
+
+|`buildArchiveInputStream()`, `buildArchiveOutputStream()`
+|Removed. Commons Compress streams no longer appear in the API.
+
+|`ZipFileArchiveInputStream`, `SevenZFileArchiveInputStream`, `SevenZFileArchiveOutputStream`, and tar's `TarArchiveInputStream` and `TarArchiveOutputStream` accessors
+|Removed.
+|===
+
 * New: `builder(SeekableByteChannel)` on every format, and `ZipArchiveExtractor.streaming(InputStream)`. See xref:streaming.adoc#format-capabilities[format capabilities].
-* The public constructor `ZipArchiveExtractor(ZipFileArchiveInputStream)` and the public `SevenZArchiveExtractorBuilder(Path)` are removed. `new ZipArchiveExtractor(ZipArchiveExtractorBuilder)` is private, `new ZipArchiveExtractorBuilder(Path)` is package-private, and `ZipArchiveExtractor` can no longer be subclassed. Use `ZipArchiveExtractor.builder(Path|SeekableByteChannel)`, `ZipArchiveExtractor.streaming(InputStream)` or `SevenZArchiveExtractor.builder(Path|SeekableByteChannel)`.
-* Constructors taking a prebuilt archive stream are `protected` on `ArjArchiveExtractor`, `DumpArchiveExtractor` and `SevenZArchiveExtractor`. Use their builders.
 * Zip streaming mode reports mode `0`, extracts symlinks as regular files holding the target, and may leave an entry's `size()` empty.
 * 7z needs random access. To read a stream, copy it into a `SeekableInMemoryByteChannel` or a temp file; see xref:archivers/sevenz.adoc[].
-* `SevenZArchiveCreatorBuilder.buildArchiveOutputStream()` throws `IOException`.
 * `SevenZArchiveCreator.builder(Path)` creates its file at `build()`, not when the builder is made. The channel creator writes from offset 0.
+* `ArchiveExtractor` and `ArchiveCreator` lose their type parameter. Their builders become `ArchiveExtractor.Builder<B, E>` and `ArchiveCreator.Builder<B, C>`.
 
-== Custom formats
+== Compressors
 
-Subclasses of `ArchiveCreator` implement `writeDirectory`, `writeFile(name, content, OptionalLong size, mode, lastModified)`, `writeSymlink` and `requiresSize` instead of `writeDirectoryEntry` and `writeFileEntry`. Subclasses of `ArchiveExtractor` implement `nextEntry` and `openEntryStream` as `protected`.
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
 
-* The `protected accept(String, Path)` hook of `ArchiveCreator` is removed. Use `builder.filter(...)`.
-* `ArchiveLimitExceededException` is `final`.
-* The 4.x `setPostProcessor(Consumer<Path>)` has no builder counterpart. Use the `postProcessor(BiConsumer<Entry, Path>)` builder option.
-* `Entry`'s canonical constructor is now `(String, Type, int, Optional<String>, Optional<FileTime>, OptionalLong)`. Build entries with `new Entry(name, type, mode).withLinkTarget(target)`; record patterns over `Entry` need the new component list.
-* `ZipArchiveExtractor` now extends `ArchiveExtractor<ArchiveInputStream<ZipArchiveEntry>>`, and `ZipArchiveExtractorBuilder.buildArchiveInputStream()` returns `ArchiveInputStream<ZipArchiveEntry>`.
+|`GzipCompressor.builder(p)` and the compressor of every other codec
+|`Compressor.builder(p, Compression.gzip())`; `Compression.bzip2()`, `xz()`, `lzma()`, `lz4Block()`, `lz4Framed()`, `zstd()`, `deflate()`, `snappyRaw()`, `snappyFramed()` and `pack200()` cover the rest.
+
+|`GzipDecompressor.builder(p)` and the decompressor of every other codec
+|`Decompressor.builder(p)` detects the codec, or `Decompressor.builder(p, Compression.gzip())`. Input with no detectable signature passes through unchanged, so name deflate, LZMA, LZ4 block and raw Snappy explicitly. Deflate64, Brotli and `.Z` read through `Compression.deflate64()`, `brotli()` and `unixZ()`.
+
+|Codec options on the codec builders
+|Options on the `Compression` value, e.g. `Compression.gzip().level(9)`; `DeflateCompressionLevel` is removed.
+
+|`compressor.write(File)`, `decompressor.write(File)`
+|`Path` only. `Decompressor.write` refuses an existing target unless `overwrite(true)`.
+
+|Packages `compressors.{snappy,lz4,xz,deflate,gzip,bzip2,pack200,zstd,lzma,z,deflate64,brotli}`
+|Removed, with the abstract bases that became `CodecCompressor` and `CodecDecompressor`.
+
+|No limits on decompression
+|`Decompressor` enforces `ExtractionLimits.defaults()` (ratio 100 after 1 MiB); set `limits(...)`, `maxTotalSize(...)` or `maxRatio(...)`. `maxEntries` and `maxEntrySize` do not apply.
+|===
+
+* Detection reads gzip, bzip2, xz, zstd, lz4-framed, `.Z` and snappy-framed by magic number. Concatenated gzip, bzip2, xz and framed LZ4 members are decompressed; zstd, framed Snappy and `.Z` are not verified to read them. LZMA has no magic number: pass `Compression.lzma()`.
+* `Decompressor` never detects Pack200, and tar rejects `Compression.pack200()`. Pass Pack200 explicitly; it decodes eagerly in `build()`, so the limits do not bound it; use it for trusted input only.
+* `Compressor` and `Decompressor` open their path, channel or stream in `build()`.
+
+== Tar
+
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
+
+|`TarGzArchiveCreator.builder(p)` and the BZip2, Xz, Lzma, Lz4 and Zstd variants
+|`TarArchiveCreator.builder(p).compression(Compression.gzip())`
+
+|`TarGzArchiveExtractor.builder(p)` and the BZip2, Xz, Lzma, Lz4, Zstd and `TarZ` variants
+|`TarArchiveExtractor.builder(p)` detects the compression. `.tar.lzma` needs `.compression(Compression.lzma())`.
+
+|`BaseTarArchiveExtractor`, `BaseTarArchiveCreator`, `compressorOutputStreamBuilder`, `xzInputStream`, `lz4InputStream`, `lzmaInputStream`, `zstdInputStream`, `zInputStream`
+|Removed.
+
+|`encoding(String)`
+|`encoding(Charset)`
+
+|`longFileMode(int)`, `bigNumberMode(int)`
+|`longFileMode(TarLongFileMode)` and `bigNumberMode(TarBigNumberMode)`. Defaults are `POSIX` and `STAR` instead of the commons `ERROR` defaults, so long names and big numbers archive without configuration.
+
+|`blockSize(int)` accepting any value
+|`IllegalArgumentException` unless the value is -511 or a positive multiple of 512.
+
+|Bad header checksum, or 1 to 511 bytes of input, read as an empty archive
+|`IOException`
+
+|Tar entries on Windows reporting mode `0`
+|Archived modes on every host.
+|===
+
+== Other formats
+
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
+
+|`cpioInputStream()`, `cpioOutputStream()`, `CpioArchiveInputStreamBuilder`, `CpioArchiveOutputStreamBuilder`, `.and()`
+|`format(CpioFormat)` (`NEW`, `OLD_ASCII`, `OLD_BINARY`), `blockSize(int)` and `encoding(Charset)` on the builder. The `NEW_CRC` format is not offered, and `blockSize` below 1 throws `IllegalArgumentException`.
+
+|arj and dump `encoding(String)`
+|`encoding(Charset)`
+
+|Zip `compressionMethod(int)`
+|`compressionMethod(ZipCompressionMethod)`: `STORED` or `DEFLATED`
+
+|Zip `setUseZip64(Zip64Mode)`
+|`zip64(ZipZip64Mode)`
+
+|Zip `setCreateUnicodeExtraFields(UnicodeExtraFieldPolicy)`
+|`createUnicodeExtraFields(ZipUnicodeExtraFields)`
+
+|Zip `setComment`, `setFallbackToUTF8`, `setUseLanguageEncodingFlag`, `setEncoding(String)`
+|`comment`, `fallbackToUtf8`, `useLanguageEncodingFlag`, `encoding(Charset)`
+
+|Zip `setIgnoreLocalFileHeader`, `setMaxNumberOfDisks`, `setUseUnicodeExtraFields`, `setZstdInputStreamFactory`
+|`ignoreLocalFileHeader`, `maxNumberOfDisks`, `useUnicodeExtraFields`, `zstdInputStreamFactory`
+|===
+
+New in 5.0: `SevenZArchiveCreator.builder(...).contentCompression(SevenZMethod)` with the `SevenZMethod` enum `COPY`, `LZMA2`, `LZMA`, `BZIP2` and `DEFLATE`.
+
+The zip creator's `compressionMethod`, `comment`, `zip64` and `encoding` reject `null` with `NullPointerException`; so do the 7z creator's `contentCompression` and the 7z extractor's `password`.
+
+== File modes
+
+[cols="1,1",options="header"]
+|===
+|4.x |5.0
+
+|Windows extraction marked executable files read-only
+|A file is read-only only when its owner-write bit is missing. Hidden is never set and directories are never marked read-only.
+
+|Directory modes applied as each directory appeared
+|Applied after all entries, deepest first. After creation a directory keeps an interim mode of the archive's permission bits plus owner-rwx, so a read-only directory cannot block its files. An aborted extraction leaves directories owner-writable; the group and other bits stay within the archive's grant. A `postProcessor` that changes a directory's mode may be overwritten by the archive mode.
+
+|Mode `0`
+|Files and directories keep the host defaults.
+
+|An entry path holding a symlink was overwritten through the link
+|The write fails and goes to the error handler.
+|===
+
+== Removed APIs and dependencies
+
+* `ArchiveExtractor.setAttributes`, `ArchiveExtractor.isIsOsWindows`, `ArchiveCreator.mode`, `ArchiveCreator.isIsOsWindows` and `ArchiveCreator.sanitiseName`.
+* `FileUtils.DOS_READ_ONLY`, `DOS_HIDDEN` and `NO_MODE`; `archivers.Compressor`, `utils.StringUtil` and `utils.ExcludeFromJacocoGeneratedReport`. The `utils` package is now the unexported `internal.util`.
+* Custom formats: the format classes are `final`, and `ArchiveExtractor` and `ArchiveCreator` cannot be subclassed outside the library. The reader and writer SPI (`internal.archive`) is not exported from the module. Their constructors take internal types, and `nextEntry`, `openEntryStream`, `closeEntryStream`, `readEntryContent`, `writeDirectoryEntry` and `writeFileEntry` are gone.
+* `MissingArchiveDependencyException` is `final`.
+* commons-compress is not an `api` dependency and no module requires it transitively. It moves to runtime scope in the published POM. Code that uses its types declares the dependency and `requires org.apache.commons.compress` itself.
+* `jakarta.annotation-api` is no longer a dependency. Compress4J requires the JSpecify module (`org.jspecify`) and every exported package is `@NullMarked`, so Kotlin and NullAway see non-null parameters and return types.

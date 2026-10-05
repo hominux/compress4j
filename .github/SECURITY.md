@@ -2,12 +2,12 @@
 
 ## Supported versions
 
-Security fixes are released for the latest `3.x` release. Older majors are not maintained.
+Security fixes are released for the latest `5.x` release. Older majors are not maintained.
 
 | Version | Supported |
 |---------|-----------|
-| 3.x     | Yes       |
-| < 3.0   | No        |
+| 5.x     | Yes       |
+| < 5.0   | No        |
 
 ## Reporting a vulnerability
 
@@ -34,12 +34,16 @@ Compress4J extracts what an archive tells it to. When the archive comes from an 
 - **Escaping symlinks** are rejected by default with `UnsafeEntryException`. Set
   `escapingSymlinkPolicy(EscapingSymlinkPolicy.ALLOW)` to extract them as-is, or `RELATIVIZE_ABSOLUTE` to rewrite
   absolute targets under the output directory and still reject targets that escape it.
-- **Decompression bombs** are only partly bounded by default. Extraction stops after 1,000,000 extracted entries
-  (counted after `stripComponents` and the filter; unsupported and filtered-out entries are not counted). Entry and
-  total sizes are not bounded, and the default expansion ratio of 100 is validated but not enforced by readers yet.
-  For untrusted input set `maxEntrySize` and `maxTotalSize`, for example
-  `limits(ExtractionLimits.defaults().withMaxTotalSize(1024L * 1024 * 1024))`. Breaching a limit throws
-  `LimitExceededException`.
+- **Decompression bombs** are bounded by default. Every reader (tar, zip, 7z, ar, cpio, arj, dump and `Decompressor`)
+  enforces an expansion ratio of 100, checked once it has produced 1 MiB, and extraction stops after 1,000,000
+  extracted entries (counted after `stripComponents` and the filter; unsupported and filtered-out entries are not
+  counted). Entry and total sizes are not bounded by default. For untrusted input set `maxEntrySize` and
+  `maxTotalSize`, for example `limits(ExtractionLimits.defaults().withMaxTotalSize(1024L * 1024 * 1024))`. Raise
+  `maxRatio` for legitimate highly compressible data, or use `limits(ExtractionLimits.noLimits())` for trusted input
+  only. Breaching a limit throws `LimitExceededException`.
+- **Corrupt input** fails with `IOException`, never a parser `RuntimeException`. `.xz` and `.lzma` decoders read with
+  at most 256 MiB of memory unless `memoryLimitKiB` says otherwise. Pack200 is never detected, and its decoding is not
+  bounded by the limits; select it explicitly only for trusted input.
 - **Security failures cannot be suppressed.** `UnsafeEntryException` (traversal, escaping symlinks) and
   `LimitExceededException` both extend `UnsafeInputException`, which no error handler can suppress.
 

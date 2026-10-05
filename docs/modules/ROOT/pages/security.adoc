@@ -1,0 +1,134 @@
+= Security
+:description: How Compress4J limits decompression bombs, rejects unsafe entries and symlinks, handles errors and applies file modes.
+:keywords: compress4j, security, limits, decompression bomb, symlink, path traversal, error handler, file modes
+
+Compress4J extracts what an archive tells it to, within the guards on this page. The defaults protect against path traversal, escaping symlinks and decompression bombs. See the link:https://github.com/hominux/compress4j/blob/main/.github/SECURITY.md[security policy] for reporting a vulnerability.
+
+== Limits
+
+`ExtractionLimits` holds four limits. Every extractor and `Decompressor` starts from `ExtractionLimits.defaults()`:
+
+[cols="1,1,3",options="header"]
+|===
+|Limit |Default |Meaning
+
+|`maxEntries`
+|1,000,000
+|Entries counted after `stripComponents` and the filter. Skipped unsupported or filtered entries are not counted.
+
+|`maxEntrySize`
+|unlimited
+|Uncompressed bytes of one entry.
+
+|`maxTotalSize`
+|unlimited
+|Uncompressed bytes of the whole input.
+
+|`maxRatio`
+|100
+|Uncompressed bytes per compressed byte, checked once the reader has produced 1 MiB.
+|===
+
+The ratio limit stops decompression bombs without capping legitimate large files. Deflate cannot exceed about 1,032:1, and typical data compresses far less than 100:1. Highly repetitive data, such as log archives, can exceed 100. When that data is legitimate, raise `maxRatio`.
+
+Every reader enforces the ratio: tar, zip (including `ZipArchiveExtractor.streaming`), 7z, ar, cpio, arj, dump and `Decompressor`. `Decompressor` applies `maxTotalSize` and `maxRatio` only.
+
+Raise one limit and keep the rest by deriving from `defaults()`:
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=limits,indent=0]
+----
+
+Turn the limits off only for input you trust:
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=unlimited,indent=0]
+----
+
+A breach throws `LimitExceededException`. It reports the `limit()`, the `maximum()` and the `entryName()` when the limit applies to one entry, and its message names the builder method that raises the limit. Entries written before the breach stay on disk, so rethrow instead of treating a normal return as a complete extraction:
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=limit-exceeded,indent=0]
+----
+
+`Decompressor` takes the same limits:
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=decompressor-limits,indent=0]
+----
+
+Reading `.xz` and `.lzma` without an explicit `memoryLimitKiB` caps the decoder at 256 MiB.
+
+Pack200 is the exception to the limits: it decodes eagerly in `build()` and extraction limits do not bound it. `Decompressor` never detects Pack200; select `Compression.pack200()` only for trusted input.
+
+== Unsafe entries
+
+An entry whose name resolves outside the output directory, and a symlink that escapes it, throw `UnsafeEntryException`. The check resolves paths canonically, so `../` entries and writes through a symlink fail alike. An archive creator throws the same exception for names with a NUL character, a drive prefix such as `C:` or a `..` segment.
+
+`UnsafeEntryException` and `LimitExceededException` extend `UnsafeInputException`. No error handler receives it, so a handler that skips failures cannot keep feeding a bomb to the extractor.
+
+An entry name that the file system cannot represent, such as one holding a NUL character, is a corrupt entry: it fails as `IOException`, and the error handler can skip it.
+
+== Symbolic links
+
+`escapingSymlinkPolicy` decides what happens to a link whose target is absolute or resolves outside the output directory:
+
+[cols="1,3",options="header"]
+|===
+|Value |Behaviour
+
+|`DISALLOW` (default)
+|Throws `UnsafeEntryException`. Once extraction finishes, the extractor re-checks every symlink it created. A link that escapes through later entries is removed and extraction fails.
+
+|`RELATIVIZE_ABSOLUTE`
+|Rewrites an absolute target under the output directory, then rejects any target that still escapes.
+
+|`ALLOW`
+|Extracts the link as is, without any check. Use it for archives you produced yourself.
+|===
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=symlink-policy,indent=0]
+----
+
+== Errors
+
+The `errorHandler` answers each non-security `IOException` raised while extracting an entry:
+
+* `ABORT` (default) stops and rethrows the failure. Entries extracted before it stay in place.
+* `SKIP` skips the entry and continues.
+* `SKIP_ALL` skips this entry and every later failing entry without consulting the handler again.
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=error-handler,indent=0]
+----
+
+Corrupt archives and corrupt compressed data always throw `IOException`, never a parser `RuntimeException`. The handler sees parser failures while an entry's content is read. `MissingArchiveDependencyException` and exceptions thrown by your own callbacks propagate unchanged.
+
+== Unsupported entries
+
+Hard links, devices, FIFOs, sockets and unknown entry types are skipped, not extracted as files. The `unsupportedEntryHandler` receives one `UnsupportedEntry(name, kind)` per skipped entry. The name is the raw archive name, before `stripComponents` and the filter.
+
+[,java]
+----
+include::example$java/com/example/SecurityExamples.java[tag=unsupported-entries,indent=0]
+----
+
+== File modes and platforms
+
+Readers report the archive's own metadata, such as modes, on every host. Only the disk writer consults the host file system:
+
+* On a POSIX file system, extraction applies the permission bits.
+* On a DOS file system (Windows), extraction marks a regular file read-only exactly when its owner-write bit is missing. It never sets hidden and never marks a directory read-only.
+* On a file system with neither view, such as a zip file system, extraction ignores modes.
+* An entry with mode `0` keeps the host defaults.
+
+Extraction applies directory modes after the last entry, deepest first. Right after creation, a directory gets an interim mode of the archive's permission bits plus owner-rwx, so a read-only directory cannot block its own files. An aborted extraction leaves directories owner-writable; the group and other bits stay within the archive's grant. A `postProcessor` that changes a directory's mode can see it overwritten by the archive mode.
+
+A write never follows a symlink that already sits at an entry's path. It fails and goes to the error handler.

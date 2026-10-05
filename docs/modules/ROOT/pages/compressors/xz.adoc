@@ -1,6 +1,10 @@
 = XZ
 
-Here is a simple example of how to use xz compression. It requires `org.tukaani:xz` at runtime; see xref:additional_formats.adoc[Additional Formats].
+Select XZ with `Compression.xz()`; `Decompressor` detects it from its magic number. It requires `org.tukaani:xz` at runtime; see xref:additional_formats.adoc[Additional Formats].
+
+Options: `preset` (0 to 9; default 6), `memoryLimitKiB` (reading limit; default 256 MiB) and `decompressConcatenated`.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 
@@ -15,4 +19,3 @@ include::example$java/com/example/compressors/XZExamples.java[tag=xz-compressor,
 ----
 include::example$java/com/example/compressors/XZExamples.java[tag=xz-decompressor,indent=0]
 ----
-
