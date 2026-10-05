@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.cpio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,7 +44,7 @@ class CpioArchiveCreatorBuilderTest {
         assertThat(builder).isNotNull();
 
         try (CpioArchiveCreator creator = builder.build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(archivePath).exists();
@@ -60,7 +61,7 @@ class CpioArchiveCreatorBuilderTest {
         assertThat(builder).isNotNull();
 
         try (CpioArchiveCreator creator = builder.build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -74,7 +75,7 @@ class CpioArchiveCreatorBuilderTest {
 
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -98,7 +99,7 @@ class CpioArchiveCreatorBuilderTest {
                 .format(CpioConstants.FORMAT_NEW)
                 .and()
                 .build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -122,7 +123,7 @@ class CpioArchiveCreatorBuilderTest {
                 .format(CpioConstants.FORMAT_OLD_ASCII)
                 .and()
                 .build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -146,7 +147,7 @@ class CpioArchiveCreatorBuilderTest {
                 .format(CpioConstants.FORMAT_OLD_BINARY)
                 .and()
                 .build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -170,7 +171,7 @@ class CpioArchiveCreatorBuilderTest {
                 .blockSize(1024)
                 .and()
                 .build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -194,7 +195,7 @@ class CpioArchiveCreatorBuilderTest {
                 .encoding("UTF-8")
                 .and()
                 .build()) {
-            creator.addFile("test-äöü.txt", testFile);
+            creator.add(EntrySource.file("test-äöü.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -220,7 +221,7 @@ class CpioArchiveCreatorBuilderTest {
                 .encoding("UTF-8")
                 .and()
                 .build()) {
-            creator.addFile("test-complete.txt", testFile);
+            creator.add(EntrySource.file("test-complete.txt", testFile));
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
@@ -331,7 +332,7 @@ class CpioArchiveCreatorBuilderTest {
                     .blockSize(blockSize)
                     .and()
                     .build()) {
-                creator.addFile("test.txt", testFile);
+                creator.add(EntrySource.file("test.txt", testFile));
             }
 
             assertThat(outputStream.size()).isGreaterThan(0);
@@ -360,7 +361,7 @@ class CpioArchiveCreatorBuilderTest {
                     .encoding(encoding)
                     .and()
                     .build()) {
-                creator.addFile("test-encoding.txt", testFile);
+                creator.add(EntrySource.file("test-encoding.txt", testFile));
             }
 
             assertThat(outputStream.size()).isGreaterThan(0);

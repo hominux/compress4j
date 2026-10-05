@@ -46,7 +46,7 @@ class ChannelOwnershipTest {
         var channel = new SeekableInMemoryByteChannel();
         try (var creator =
                 FormatCatalog.writerOf(format).createOnChannel().orElseThrow().apply(channel)) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
         return Arrays.copyOf(channel.array(), (int) channel.size());
     }
@@ -62,7 +62,7 @@ class ChannelOwnershipTest {
         var channel = new SeekableInMemoryByteChannel();
 
         try (var creator = format.createOnChannel().orElseThrow().apply(channel)) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
 
         assertThat(channel.isOpen()).isFalse();

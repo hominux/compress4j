@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.tar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -61,7 +62,7 @@ class TarGzArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
                 .compression(Compression.gzip())
                 .build()) {
-            creator.addFile("large.txt", sourceFile);
+            creator.add(EntrySource.file("large.txt", sourceFile));
         }
 
         assertThat(Files.size(archivePath)).isLessThan(Files.size(sourceFile));

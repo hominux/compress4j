@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -77,7 +78,7 @@ class CpioArchiveExtractorTest {
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addFile("huge-link", symlink);
+            creator.add(EntrySource.of(tempDir, symlink));
         }
 
         var extractDir = tempDir.resolve("extract-huge-link");
@@ -229,7 +230,7 @@ class CpioArchiveExtractorTest {
                 .encoding("UTF-8")
                 .and()
                 .build()) {
-            creator.addFile("special-äöü.txt", specialFile);
+            creator.add(EntrySource.file("special-äöü.txt", specialFile));
         }
 
         // when
@@ -289,7 +290,7 @@ class CpioArchiveExtractorTest {
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addFile("large.txt", largeFile);
+            creator.add(EntrySource.file("large.txt", largeFile));
         }
 
         // when
@@ -332,8 +333,8 @@ class CpioArchiveExtractorTest {
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addFile("file1.txt", testFile1);
-            creator.addFile("file2.txt", testFile2);
+            creator.add(EntrySource.file("file1.txt", testFile1));
+            creator.add(EntrySource.file("file2.txt", testFile2));
         }
         return archiveOutput.toByteArray();
     }
@@ -347,8 +348,9 @@ class CpioArchiveExtractorTest {
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addDirectory("test_dir/", FileTime.fromMillis(System.currentTimeMillis()));
-            creator.addFile("test_dir/nested.txt", nestedFile);
+            creator.add(EntrySource.directory("test_dir/")
+                    .withLastModified(FileTime.fromMillis(System.currentTimeMillis())));
+            creator.add(EntrySource.file("test_dir/nested.txt", nestedFile));
         }
         return archiveOutput.toByteArray();
     }

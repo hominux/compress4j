@@ -17,14 +17,14 @@ package com.hominux.compress4j.assertion;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.Entry;
 import java.nio.file.Path;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 
 public class Compress4JAssertions {
     private Compress4JAssertions() {}
 
-    public static DecompressorEntryAssert assertThat(ArchiveExtractor.Entry entry) {
+    public static DecompressorEntryAssert assertThat(Entry entry) {
         return new DecompressorEntryAssert(entry);
     }
 

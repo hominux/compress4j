@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.tar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,7 +58,7 @@ class TarArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
                 .longFileMode(TarLongFileMode.GNU)
                 .build()) {
-            creator.addFile("executable.sh", sourceFile);
+            creator.add(EntrySource.file("executable.sh", sourceFile));
         }
 
         try (var extractor =

@@ -18,8 +18,8 @@ package com.hominux.compress4j.archivers.tar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.internal.codec.Codecs;
@@ -70,10 +70,7 @@ class TarCompressionTest {
     }
 
     private static List<String> names(TarArchiveExtractor extractor) {
-        return extractor.stream()
-                .map(ArchiveItem::entry)
-                .map(ArchiveExtractor.Entry::name)
-                .toList();
+        return extractor.stream().map(ArchiveItem::entry).map(Entry::name).toList();
     }
 
     @ParameterizedTest
@@ -314,7 +311,8 @@ class TarCompressionTest {
         var bytes = new ByteArrayOutputStream();
         try (var creator = TarArchiveCreator.builder(bytes).build()) {
             for (String name : List.of("a.txt", "b.txt", "c.txt")) {
-                creator.addFile(name, name.getBytes(StandardCharsets.UTF_8), FileTime.fromMillis(1_700_000_000_123L));
+                creator.add(EntrySource.file(name, name.getBytes(StandardCharsets.UTF_8))
+                        .withLastModified(FileTime.fromMillis(1_700_000_000_123L)));
             }
         }
         byte[] tar = bytes.toByteArray();

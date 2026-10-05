@@ -18,6 +18,9 @@ package com.hominux.compress4j.archivers.ar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.archivers.ErrorHandlerChoice;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,7 +41,7 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("test.txt", "Builder test".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("test.txt", "Builder test".getBytes(StandardCharsets.UTF_8)));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
@@ -58,7 +61,7 @@ class ArArchiveExtractorBuilderTest {
         // given
         var archivePath = tempDir.resolve("test.ar");
         try (var creator = ArArchiveCreator.builder(archivePath).build()) {
-            creator.addFile("path-test.txt", "Path builder test".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("path-test.txt", "Path builder test".getBytes(StandardCharsets.UTF_8)));
         }
 
         var builder = ArArchiveExtractor.builder(archivePath);
@@ -80,9 +83,9 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("include.txt", "Include this".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("exclude.txt", "Exclude this".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("include.log", "Include this too".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("include.txt", "Include this".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("exclude.txt", "Exclude this".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("include.log", "Include this too".getBytes(StandardCharsets.UTF_8)));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
@@ -105,12 +108,11 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("error-test.txt", "Error handling test".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("error-test.txt", "Error handling test".getBytes(StandardCharsets.UTF_8)));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
-        var builder = ArArchiveExtractor.builder(bais)
-                .errorHandler((entry, exception) -> ArArchiveExtractor.ErrorHandlerChoice.SKIP);
+        var builder = ArArchiveExtractor.builder(bais).errorHandler((entry, exception) -> ErrorHandlerChoice.SKIP);
 
         // when
         try (var extractor = builder.build()) {
@@ -129,7 +131,7 @@ class ArArchiveExtractorBuilderTest {
 
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("existing.txt", "New content".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("existing.txt", "New content".getBytes(StandardCharsets.UTF_8)));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
@@ -147,7 +149,7 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("file.txt", "Nested file".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("file.txt", "Nested file".getBytes(StandardCharsets.UTF_8)));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
@@ -167,7 +169,7 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("process.txt", "Process me".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("process.txt", "Process me".getBytes(StandardCharsets.UTF_8)));
         }
 
         var processLog = new StringBuilder();
@@ -193,8 +195,8 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("chain1.txt", "Chain test 1".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("chain2.txt", "Chain test 2".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("chain1.txt", "Chain test 1".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("chain2.txt", "Chain test 2".getBytes(StandardCharsets.UTF_8)));
         }
 
         var log = new StringBuilder();
@@ -204,7 +206,7 @@ class ArArchiveExtractorBuilderTest {
                 .overwrite(true)
                 .postProcessor((entry, path) ->
                         log.append("Processed: ").append(entry.name()).append("\n"))
-                .errorHandler((entry, ex) -> ArArchiveExtractor.ErrorHandlerChoice.SKIP);
+                .errorHandler((entry, ex) -> ErrorHandlerChoice.SKIP);
 
         // when
         try (var extractor = builder.build()) {
@@ -222,7 +224,7 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("stream-test.txt", "Stream test".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("stream-test.txt", "Stream test".getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
@@ -248,7 +250,7 @@ class ArArchiveExtractorBuilderTest {
         assertThat(builder)
                 .isSameAs(builder.filter(entry -> true))
                 .isSameAs(builder.overwrite(true))
-                .isSameAs(builder.errorHandler((entry, ex) -> ArArchiveExtractor.ErrorHandlerChoice.SKIP));
+                .isSameAs(builder.errorHandler((entry, ex) -> ErrorHandlerChoice.SKIP));
     }
 
     @Test
@@ -287,13 +289,12 @@ class ArArchiveExtractorBuilderTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("policy-test.txt", "Symlink policy test".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("policy-test.txt", "Symlink policy test".getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
-        var builder = ArArchiveExtractor.builder(bais)
-                .escapingSymlinkPolicy(ArArchiveExtractor.EscapingSymlinkPolicy.DISALLOW);
+        var builder = ArArchiveExtractor.builder(bais).escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW);
 
         try (var extractor = builder.build()) {
             extractor.extract(tempDir);
@@ -314,7 +315,7 @@ class ArArchiveExtractorBuilderTest {
         // when
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
         try (var extractor = ArArchiveExtractor.builder(bais)
-                .escapingSymlinkPolicy(ArArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)
                 .build()) {
 
             // then

@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.cpio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -342,7 +343,7 @@ class CpioArchiveOutputStreamBuilderTest {
                 .encoding("UTF-8")
                 .and()
                 .build()) {
-            creator.addFile("test-file.txt", testFile);
+            creator.add(EntrySource.file("test-file.txt", testFile));
         }
 
         // then

@@ -27,7 +27,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.exceptions.LimitExceededException;
@@ -82,7 +84,7 @@ class TarArchiveExtractorTest {
             // then
             Compress4JAssertions.assertThat(result.orElseThrow())
                     .hasName("file.txt")
-                    .hasType(ArchiveExtractor.Entry.Type.FILE)
+                    .hasType(Entry.Type.FILE)
                     .hasMode(Set.of(OWNER_READ));
         }
     }
@@ -113,7 +115,7 @@ class TarArchiveExtractorTest {
                     .hasName("file.txt")
                     .hasMode(Set.of(OWNER_READ, OWNER_WRITE, GROUP_READ, OTHERS_READ))
                     .hasLinkName("target.txt")
-                    .hasType(ArchiveExtractor.Entry.Type.SYMLINK);
+                    .hasType(Entry.Type.SYMLINK);
         }
     }
 
@@ -142,7 +144,7 @@ class TarArchiveExtractorTest {
             Compress4JAssertions.assertThat(result.orElseThrow())
                     .hasName("file.txt")
                     .hasMode(Set.of(OWNER_READ))
-                    .hasType(ArchiveExtractor.Entry.Type.DIR);
+                    .hasType(Entry.Type.DIR);
         }
     }
 
@@ -284,7 +286,7 @@ class TarArchiveExtractorTest {
         var target = Files.createDirectory(tempDir.resolve("target"));
 
         try (var extractor = reader(compression, bytes.toByteArray())
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)
                 .build()) {
             assertThatThrownBy(() -> extractor.extract(target)).isInstanceOf(IOException.class);
         }
@@ -331,7 +333,7 @@ class TarArchiveExtractorTest {
                 .longFileMode(TarLongFileMode.ERROR)
                 .bigNumberMode(TarBigNumberMode.ERROR)
                 .build()) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
         return bytes.toByteArray();
     }

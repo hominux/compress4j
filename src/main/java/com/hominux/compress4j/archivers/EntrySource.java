@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.OptionalLong;
 import org.apache.commons.io.function.IOSupplier;
+import org.apache.commons.io.input.CloseShieldInputStream;
 
 /**
  * Something to write into an archive: a file, a directory or a symlink, with its name, Unix permission bits ({@code 0}
@@ -169,6 +170,67 @@ public sealed interface EntrySource permits EntrySource.File, EntrySource.Direct
                 FileTime.from(Instant.now()),
                 OptionalLong.of(copy.length),
                 () -> new ByteArrayInputStream(copy));
+    }
+
+    /**
+     * A regular file read from disk, with its size, mode and last-modified time. Attributes are read without following
+     * links.
+     *
+     * @param name the entry name
+     * @param file the file
+     * @return the source
+     * @throws IllegalArgumentException if {@code file} is not a regular file
+     * @throws IOException if the attributes cannot be read
+     */
+    static File file(String name, Path file) throws IOException {
+        BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attrs.isRegularFile()) {
+            throw new IllegalArgumentException(file + " is not a regular file");
+        }
+        return PathSources.file(name, file, attrs, attrs.lastModifiedTime());
+    }
+
+    /**
+     * A file read from a caller's stream, with unknown mode, modified now. The stream is not closed.
+     *
+     * @param name the entry name
+     * @param content the content, read once
+     * @param size the exact number of bytes {@code content} holds
+     * @return the source
+     * @throws IllegalArgumentException if {@code size} is negative
+     */
+    static File file(String name, InputStream content, long size) {
+        Objects.requireNonNull(content, "content");
+        return new File(
+                name,
+                0,
+                FileTime.from(Instant.now()),
+                OptionalLong.of(size),
+                () -> CloseShieldInputStream.wrap(content));
+    }
+
+    /**
+     * A directory with unknown mode, modified now.
+     *
+     * @param name the entry name
+     * @return the source
+     */
+    static Directory directory(String name) {
+        return new Directory(name, 0, FileTime.from(Instant.now()));
+    }
+
+    /**
+     * Returns a copy with the given last-modified time.
+     *
+     * @param lastModified the time
+     * @return the copy, of the same variant
+     */
+    default EntrySource withLastModified(FileTime lastModified) {
+        return switch (this) {
+            case File f -> new File(f.name(), f.mode(), lastModified, f.size(), f.content());
+            case Directory d -> new Directory(d.name(), d.mode(), lastModified);
+            case Symlink s -> new Symlink(s.name(), s.target(), s.mode(), lastModified);
+        };
     }
 
     /**

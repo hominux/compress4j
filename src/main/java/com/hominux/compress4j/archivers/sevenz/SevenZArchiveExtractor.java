@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.sevenz;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
 import com.hominux.compress4j.utils.BuildGatedChannel;
 import com.hominux.compress4j.utils.UnixFileType;

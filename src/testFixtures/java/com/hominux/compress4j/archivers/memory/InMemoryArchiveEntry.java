@@ -15,11 +15,11 @@
  */
 package com.hominux.compress4j.archivers.memory;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.DIR;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.FILE;
+import static com.hominux.compress4j.archivers.Entry.Type.DIR;
+import static com.hominux.compress4j.archivers.Entry.Type.FILE;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type;
+import com.hominux.compress4j.archivers.Entry.Type;
 import jakarta.annotation.Nullable;
 import java.nio.file.attribute.FileTime;
 import java.util.Date;

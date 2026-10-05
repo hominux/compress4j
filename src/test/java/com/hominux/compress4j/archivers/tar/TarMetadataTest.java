@@ -17,8 +17,8 @@ package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.Entry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

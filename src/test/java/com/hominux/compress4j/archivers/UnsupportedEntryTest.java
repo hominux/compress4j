@@ -18,7 +18,6 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.ar.ArArchiveExtractor;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveExtractor;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveExtractor;

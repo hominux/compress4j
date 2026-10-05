@@ -15,12 +15,10 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.DISALLOW;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
-import com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder;

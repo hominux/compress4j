@@ -17,7 +17,7 @@ package com.hominux.compress4j.archivers.dump;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
+import com.hominux.compress4j.archivers.Entry;
 import org.apache.commons.compress.archivers.dump.DumpArchiveEntry.TYPE;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

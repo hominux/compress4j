@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.cpio;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,7 +58,7 @@ class CpioArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
         // when
         try (var creator = CpioArchiveCreator.builder(archivePath).build()) {
-            creator.addFile("test.txt", sourceFile);
+            creator.add(EntrySource.file("test.txt", sourceFile));
         }
 
         // then

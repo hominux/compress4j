@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.ar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,7 +42,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("single.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("single.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -55,9 +56,9 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("file1.txt", "Content 1".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("file2.txt", "Content 2".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("file3.txt", "Content 3".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("file1.txt", "Content 1".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("file2.txt", "Content 2".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("file3.txt", "Content 3".getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -74,7 +75,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("empty.txt", new byte[0]);
+            creator.add(EntrySource.file("empty.txt", new byte[0]));
         }
 
         // then
@@ -92,7 +93,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("binary.dat", binaryData);
+            creator.add(EntrySource.file("binary.dat", binaryData));
         }
 
         // then
@@ -107,7 +108,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(archivePath).build()) {
-            creator.addFile("path-created.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("path-created.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -126,7 +127,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("stream.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("stream.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -144,7 +145,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("short.txt", sourceFile);
+            creator.add(EntrySource.file("short.txt", sourceFile));
         }
 
         // then
@@ -181,7 +182,8 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("custom-time.txt", content.getBytes(StandardCharsets.UTF_8), customTime);
+            creator.add(EntrySource.file("custom-time.txt", content.getBytes(StandardCharsets.UTF_8))
+                    .withLastModified(customTime));
         }
 
         // then
@@ -195,7 +197,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("placeholder", new byte[0]);
+            creator.add(EntrySource.file("placeholder", new byte[0]));
         }
 
         // then
@@ -219,7 +221,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("large.dat", largeData);
+            creator.add(EntrySource.file("large.dat", largeData));
         }
 
         // then
@@ -234,7 +236,7 @@ class ArArchiveCreatorTest {
 
         // when
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("closeable.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("closeable.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -252,7 +254,7 @@ class ArArchiveCreatorTest {
         assertThatThrownBy(() -> {
                     try (ArArchiveCreator creator =
                             ArArchiveCreator.builder(outputStream).build()) {
-                        creator.addFile(longName, content.getBytes(StandardCharsets.UTF_8));
+                        creator.add(EntrySource.file(longName, content.getBytes(StandardCharsets.UTF_8)));
                     }
                 })
                 .isInstanceOf(IOException.class)
@@ -267,8 +269,8 @@ class ArArchiveCreatorTest {
 
         // when
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("dash-file.txt", content.getBytes(StandardCharsets.UTF_8));
-            creator.addFile("under_file.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("dash-file.txt", content.getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("under_file.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -285,7 +287,8 @@ class ArArchiveCreatorTest {
 
         // when & then
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            assertThatThrownBy(() -> creator.addFile(null, content)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> creator.add(EntrySource.file(null, content)))
+                    .isInstanceOf(NullPointerException.class);
         }
     }
 
@@ -296,7 +299,7 @@ class ArArchiveCreatorTest {
 
         // when & then
         try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            assertThatThrownBy(() -> creator.addFile("test.txt", (byte[]) null))
+            assertThatThrownBy(() -> creator.add(EntrySource.file("test.txt", (byte[]) null)))
                     .isInstanceOf(NullPointerException.class);
         }
     }

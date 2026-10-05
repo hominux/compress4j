@@ -15,18 +15,18 @@
  */
 package com.hominux.compress4j.archivers.sevenz;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.DIR;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.FILE;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.SYMLINK;
+import static com.hominux.compress4j.archivers.Entry.Type.DIR;
+import static com.hominux.compress4j.archivers.Entry.Type.FILE;
+import static com.hominux.compress4j.archivers.Entry.Type.SYMLINK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
-import com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.File;
 import java.io.IOException;
@@ -409,7 +409,7 @@ class SevenZArchiveTest {
         // Given
         var channel = new SeekableInMemoryByteChannel();
         try (var creator = SevenZArchiveCreator.builder(channel).build()) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
 
         // When
@@ -431,7 +431,7 @@ class SevenZArchiveTest {
 
         // When
         try (var creator = SevenZArchiveCreator.builder(channel).build()) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
 
         // Then

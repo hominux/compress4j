@@ -22,7 +22,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.UnsupportedEntry;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,7 +57,7 @@ class ArjArchiveExtractorTest {
 
         try (var extractor = new ArjArchiveExtractor(streamOf(entry))) {
             assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR));
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
         }
     }
 
@@ -70,7 +70,7 @@ class ArjArchiveExtractorTest {
 
         try (var extractor = new ArjArchiveExtractor(streamOf(entry))) {
             assertThat(extractor.nextEntry()).hasValueSatisfying(e -> {
-                assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE);
+                assertThat(e.type()).isEqualTo(Entry.Type.FILE);
                 assertThat(e.mode()).isEqualTo(0100640);
             });
         }
@@ -161,9 +161,9 @@ class ArjArchiveExtractorTest {
 
         try (var extractor = builderOver(in).build()) {
             assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR));
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
             assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE));
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.FILE));
         }
     }
 
@@ -177,7 +177,7 @@ class ArjArchiveExtractorTest {
                 .unsupportedEntryHandler(reported::add)
                 .build()) {
             assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR));
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
         }
         assertThat(reported).isEmpty();
     }
@@ -191,7 +191,7 @@ class ArjArchiveExtractorTest {
 
         try (var extractor = builderOver(streamOfAll(entry, null)).build()) {
             assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE));
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.FILE));
         }
     }
 

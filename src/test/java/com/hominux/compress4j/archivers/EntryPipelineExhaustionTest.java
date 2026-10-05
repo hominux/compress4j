@@ -18,7 +18,6 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.ExtractionLimits;
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;

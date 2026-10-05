@@ -124,7 +124,7 @@ class ArchiveCreatorAddTest {
         };
         var out = new ByteArrayOutputStream();
         try (var creator = CpioArchiveCreator.builder(out).build()) {
-            creator.addFile("a.txt", stingy, content.length);
+            creator.add(EntrySource.file("a.txt", stingy, content.length));
         }
 
         try (var in = new CpioArchiveInputStream(new ByteArrayInputStream(out.toByteArray()))) {
@@ -267,10 +267,10 @@ class ArchiveCreatorAddTest {
     }
 
     @Test
-    void addFileWithInputStreamRequiresASize() throws IOException {
+    void streamFileWithDeclaredSizeIsWritten() throws IOException {
         var out = new ByteArrayOutputStream();
         try (var creator = TarArchiveCreator.builder(out).build()) {
-            creator.addFile("a.txt", new ByteArrayInputStream("abc".getBytes(StandardCharsets.UTF_8)), 3);
+            creator.add(EntrySource.file("a.txt", new ByteArrayInputStream("abc".getBytes(StandardCharsets.UTF_8)), 3));
         }
         assertThat(out.toString(StandardCharsets.ISO_8859_1)).contains("a.txt");
     }

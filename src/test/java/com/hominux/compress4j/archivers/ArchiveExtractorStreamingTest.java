@@ -133,10 +133,7 @@ class ArchiveExtractorStreamingTest {
 
     @Test
     void directoryContentIsEmpty() throws IOException {
-        var dir = InMemoryArchiveEntry.builder()
-                .name("d/")
-                .type(ArchiveExtractor.Entry.Type.DIR)
-                .build();
+        var dir = InMemoryArchiveEntry.builder().name("d/").type(Entry.Type.DIR).build();
         try (var extractor = InMemoryArchiveExtractor.builder(List.of(dir)).build()) {
             // Then
             assertThat(read(extractor.stream().findFirst().orElseThrow())).isEmpty();
@@ -258,13 +255,10 @@ class ArchiveExtractorStreamingTest {
     @Test
     void dirAndSymlinkItemsHaveEmptyContentWithoutOpeningTheEntryStream() throws IOException {
         var entries = List.of(
-                InMemoryArchiveEntry.builder()
-                        .name("d")
-                        .type(ArchiveExtractor.Entry.Type.DIR)
-                        .build(),
+                InMemoryArchiveEntry.builder().name("d").type(Entry.Type.DIR).build(),
                 InMemoryArchiveEntry.builder()
                         .name("l")
-                        .type(ArchiveExtractor.Entry.Type.SYMLINK)
+                        .type(Entry.Type.SYMLINK)
                         .linkName("t")
                         .build());
         try (var extractor = new NoOpenExtractor(InMemoryArchiveExtractor.builder(entries))) {

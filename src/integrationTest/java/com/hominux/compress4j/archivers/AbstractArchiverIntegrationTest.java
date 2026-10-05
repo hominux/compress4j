@@ -91,8 +91,8 @@ public abstract class AbstractArchiverIntegrationTest {
         Files.createDirectories(extractDir);
 
         try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath)) {
-            creator.addFile("renamed1.txt", sourceFile1);
-            creator.addFile("renamed2.txt", sourceFile2);
+            creator.add(EntrySource.file("renamed1.txt", sourceFile1));
+            creator.add(EntrySource.file("renamed2.txt", sourceFile2));
         }
 
         assertThat(archivePath).exists();
@@ -112,8 +112,8 @@ public abstract class AbstractArchiverIntegrationTest {
         Files.createDirectories(extractDir);
 
         try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath)) {
-            creator.addFile("text.txt", "Text content from bytes".getBytes());
-            creator.addFile("binary.dat", new byte[] {0x01, 0x02, 0x03, (byte) 0xFF});
+            creator.add(EntrySource.file("text.txt", "Text content from bytes".getBytes()));
+            creator.add(EntrySource.file("binary.dat", new byte[] {0x01, 0x02, 0x03, (byte) 0xFF}));
         }
 
         assertThat(archivePath).exists();
