@@ -38,6 +38,12 @@ final class PathSources {
         if (attrs.isDirectory()) {
             return new EntrySource.Directory(name, mode, lastModified);
         }
+        return file(name, path, attrs, lastModified);
+    }
+
+    static EntrySource.File file(String name, Path path, BasicFileAttributes attrs, FileTime lastModified)
+            throws IOException {
+        int mode = HostFileSystem.of(path).modeOf(path);
         return new EntrySource.File(
                 name, mode, lastModified, OptionalLong.of(attrs.size()), () -> Files.newInputStream(path));
     }

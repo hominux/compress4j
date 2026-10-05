@@ -31,14 +31,11 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -70,7 +67,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     /** Archive input stream to be used for extraction. */
     protected A archiveInputStream;
     /** Escaping symlink policy for the extractor. */
-    private final ArchiveExtractor.EscapingSymlinkPolicy escapingSymlinkPolicy;
+    private final EscapingSymlinkPolicy escapingSymlinkPolicy;
     /** Filter for the extractor. */
     private final Predicate<Entry> entryFilter;
     /** Error handler for the extractor. */
@@ -334,7 +331,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
             }
             HostFileSystem.of(outputFile).applyMode(outputFile, entry.mode());
         } else {
-            LOGGER.debug("Skipping file entry: {} (already exists)", entry.name);
+            LOGGER.debug("Skipping file entry: {} (already exists)", entry.name());
         }
     }
 
@@ -370,8 +367,8 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     private void processItem(Path outputDir, ArchiveItem item, SymlinkGuard guard, List<DirectoryMode> directoryModes)
             throws IOException {
         Entry entry = item.entry();
-        Path outputFile = EntryPaths.entryFile(outputDir, entry.name);
-        switch (entry.type) {
+        Path outputFile = EntryPaths.entryFile(outputDir, entry.name());
+        switch (entry.type()) {
             case DIR -> {
                 boolean existed = Files.exists(outputFile, LinkOption.NOFOLLOW_LINKS);
                 EntryPaths.makeDirectory(outputFile);
@@ -392,57 +389,6 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
     }
 
     /**
-     * Policy for handling symbolic links which point to outside of archive.
-     *
-     * <p>This is needed to prevent directory traversal attacks when extracting archives from untrusted sources.
-     *
-     * <p>For example, if an archive contains a symlink {@code foo -> /opt/foo} and the archive is extracted to
-     * {@code /foo/bar}, then the symlink should not point to {@code /opt/foo} but rather to {@code /foo/bar/opt/foo}.
-     *
-     * <p>Example: {@code foo -> /opt/foo}
-     *
-     * <p>or {@code foo -> ../foo}
-     *
-     * <p>Extractors default to {@link #DISALLOW}.
-     */
-    public enum EscapingSymlinkPolicy {
-        /**
-         * Extract as is with no modification or check. Potentially can point to a completely different object if the
-         * archive is transferred from some other host.
-         */
-        ALLOW,
-
-        /**
-         * Rejects targets that are absolute or resolve outside the output directory, including through links created
-         * later in the same archive.
-         */
-        DISALLOW,
-
-        /**
-         * Rewrites absolute targets under the output directory, then applies the same checks as {@link #DISALLOW}. For
-         * example, when archive contains link to {@code /opt/foo} and archive is extracted to {@code /foo/bar} then the
-         * resulting link will be {@code /foo/bar/opt/foo}.
-         */
-        RELATIVIZE_ABSOLUTE
-    }
-
-    /** What the extractor does after a non-security failure while extracting an entry. */
-    public enum ErrorHandlerChoice {
-        /**
-         * Stop and rethrow the failure. Entries extracted before it stay in place, except symlinks that resolve outside
-         * the output directory, which are deleted. When the final guard check finds an escaping symlink, from any
-         * entry, it throws that failure as the primary exception and attaches the aborting failure as suppressed.
-         */
-        ABORT,
-
-        /** Skip this entry and continue with the next one. */
-        SKIP,
-
-        /** Skip this entry and every later failing entry without consulting the handler again. */
-        SKIP_ALL
-    }
-
-    /**
      * Builder for creating an {@link ArchiveExtractor}.
      *
      * @param <A> The type of {@link ArchiveInputStream} to read entries from.
@@ -454,7 +400,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
             B extends ArchiveExtractorBuilder<A, B, C>,
             C extends ArchiveExtractor<A>> {
         /** How symbolic links whose target escapes the output directory are handled during extraction. */
-        protected ArchiveExtractor.EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
+        protected EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
 
         Predicate<Entry> entryFilter = ACCEPT_ALL;
 
@@ -495,7 +441,7 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
          * {@code a.txt}, not {@code root/a.txt}.
          *
          * @param entryPredicate the Predicate to filter entries to be extract from the archive.
-         * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
+         * @return this builder
          */
         public B filter(@Nullable Predicate<Entry> entryPredicate) {
             this.entryFilter = entryPredicate != null ? entryPredicate : ACCEPT_ALL;
@@ -521,9 +467,9 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
          * Sets the escaping symlink policy for the extractor. Defaults to {@link EscapingSymlinkPolicy#DISALLOW}.
          *
          * @param policy the escaping symlink policy to set
-         * @return the instance of the {@link ArchiveExtractor.ArchiveExtractorBuilder}
+         * @return this builder
          */
-        public B escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy policy) {
+        public B escapingSymlinkPolicy(EscapingSymlinkPolicy policy) {
             this.escapingSymlinkPolicy = policy;
             return getThis();
         }
@@ -693,117 +639,5 @@ public abstract class ArchiveExtractor<A extends ArchiveInputStream<? extends Ar
          * @throws IOException thrown by the underlying output stream for I/O errors
          */
         public abstract C build() throws IOException;
-    }
-
-    /**
-     * An archive entry as callers see it: name after normalisation, type, Unix mode (0 when the format has none),
-     * symlink target, last-modified time and uncompressed size when the format records them.
-     *
-     * <p>It is recommended to use {@link #name} as a key for the entry, as it is normalized and trimmed.
-     *
-     * @param name the normalised entry name
-     * @param type the entry type
-     * @param mode the Unix mode, or 0 when unknown
-     * @param linkTarget the symlink target, present only for {@link Type#SYMLINK}
-     * @param lastModified the last-modified time, when the archive records one
-     * @param size the uncompressed size, when known before reading the content
-     */
-    public record Entry(
-            String name,
-            Type type,
-            int mode,
-            Optional<String> linkTarget,
-            Optional<FileTime> lastModified,
-            OptionalLong size) {
-
-        /**
-         * Normalizes the name by trimming whitespace, replacing backslashes with forward slashes and removing leading
-         * and trailing slashes; a blank link target and a negative size become empty.
-         *
-         * @throws NullPointerException if any component is null
-         */
-        public Entry {
-            Objects.requireNonNull(type, "type");
-            linkTarget = Objects.requireNonNull(linkTarget, "linkTarget").filter(t -> !t.isBlank());
-            Objects.requireNonNull(lastModified, "lastModified");
-            size = Objects.requireNonNull(size, "size").isPresent() && size.getAsLong() < 0
-                    ? OptionalLong.empty()
-                    : size;
-            name = Objects.requireNonNull(name, "name").trim().replace('\\', '/');
-            int s = 0;
-            int e = name.length() - 1;
-            while (s < e && name.charAt(s) == '/') s++;
-            while (e >= s && name.charAt(e) == '/') e--;
-            name = name.substring(s, e + 1);
-        }
-
-        /**
-         * Creates an entry without link target, last-modified time or size.
-         *
-         * @param name the name of the entry
-         * @param type the type of the entry
-         * @param mode the mode of the entry
-         */
-        public Entry(String name, Type type, int mode) {
-            this(name, type, mode, Optional.empty(), Optional.empty(), OptionalLong.empty());
-        }
-
-        /**
-         * Creates a FILE or DIR entry with mode 0.
-         *
-         * @param name the name of the entry
-         * @param isDirectory whether the entry is a directory
-         */
-        public Entry(String name, boolean isDirectory) {
-            this(name, isDirectory ? Type.DIR : Type.FILE, 0);
-        }
-
-        /**
-         * Returns a copy with the given link target; a null or blank target yields an empty one.
-         *
-         * @param target the symlink target
-         * @return the copy
-         */
-        public Entry withLinkTarget(@Nullable String target) {
-            Optional<String> t = Optional.ofNullable(target).filter(s -> !s.isBlank());
-            return new Entry(name, type, mode, t, lastModified, size);
-        }
-
-        /**
-         * Returns a copy with the given metadata; a null date or negative size yields an empty value.
-         *
-         * @param modified the last-modified date
-         * @param bytes the uncompressed size
-         * @return the copy
-         */
-        public Entry withMetadata(@Nullable Date modified, long bytes) {
-            return new Entry(
-                    name,
-                    type,
-                    mode,
-                    linkTarget,
-                    Optional.ofNullable(modified).map(d -> FileTime.fromMillis(d.getTime())),
-                    bytes < 0 ? OptionalLong.empty() : OptionalLong.of(bytes));
-        }
-
-        /**
-         * Returns a copy with the given name, normalised.
-         *
-         * @param newName the new name
-         * @return the copy
-         */
-        public Entry withName(String newName) {
-            return new Entry(newName, type, mode, linkTarget, lastModified, size);
-        }
-
-        /** Type of the entry. */
-        public enum Type {
-            /** File */
-            FILE,
-            /** Directory */
-            DIR,
-            /** Symbolic link */
-            SYMLINK
-        }
     }
 }

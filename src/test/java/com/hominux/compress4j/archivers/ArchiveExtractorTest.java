@@ -17,15 +17,15 @@ package com.hominux.compress4j.archivers;
 
 import static ch.qos.logback.classic.Level.DEBUG;
 import static ch.qos.logback.classic.Level.TRACE;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.DIR;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.FILE;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.SYMLINK;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP_ALL;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.ALLOW;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
+import static com.hominux.compress4j.archivers.Entry.Type.DIR;
+import static com.hominux.compress4j.archivers.Entry.Type.FILE;
+import static com.hominux.compress4j.archivers.Entry.Type.SYMLINK;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.ABORT;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP_ALL;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.ALLOW;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.DISALLOW;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
 import static com.hominux.compress4j.archivers.memory.InMemoryArchiveInputStream.toInputStream;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +38,6 @@ import static org.mockito.Mockito.mockStatic;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import com.hominux.compress4j.ExtractionLimits;
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder;
@@ -313,11 +312,10 @@ class ArchiveExtractorTest {
                 .content("content2")
                 .build();
         var handlerCalls = new AtomicInteger();
-        BiFunction<ArchiveExtractor.Entry, IOException, ArchiveExtractor.ErrorHandlerChoice> errorHandler =
-                (entry, exception) -> {
-                    handlerCalls.incrementAndGet();
-                    return SKIP_ALL;
-                };
+        BiFunction<Entry, IOException, ErrorHandlerChoice> errorHandler = (entry, exception) -> {
+            handlerCalls.incrementAndGet();
+            return SKIP_ALL;
+        };
 
         try (var inMemoryDecompressor = InMemoryArchiveExtractor.builder(List.of(entry1, entry2))
                 .errorHandler(errorHandler)
@@ -1642,7 +1640,7 @@ class ArchiveExtractorTest {
                 InMemoryArchiveEntry.builder().name("../evil.txt").content("x").build());
 
         try (var extractor = InMemoryArchiveExtractor.builder(entries)
-                .errorHandler((entry, e) -> ArchiveExtractor.ErrorHandlerChoice.SKIP)
+                .errorHandler((entry, e) -> ErrorHandlerChoice.SKIP)
                 .build()) {
             // Then
             assertThatThrownBy(() -> extractor.extract(out)).isInstanceOf(UnsafeEntryException.class);
@@ -1675,7 +1673,7 @@ class ArchiveExtractorTest {
         // Given
         var entries = List.of(InMemoryArchiveEntry.builder()
                 .name("link")
-                .type(ArchiveExtractor.Entry.Type.SYMLINK)
+                .type(Entry.Type.SYMLINK)
                 .linkName("../../outside")
                 .build());
 
@@ -1690,12 +1688,12 @@ class ArchiveExtractorTest {
         // Given
         var entries = List.of(InMemoryArchiveEntry.builder()
                 .name("link")
-                .type(ArchiveExtractor.Entry.Type.SYMLINK)
+                .type(Entry.Type.SYMLINK)
                 .linkName("../../outside")
                 .build());
 
         try (var extractor = InMemoryArchiveExtractor.builder(entries)
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.ALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.ALLOW)
                 .build()) {
             // When
             extractor.extract(out);

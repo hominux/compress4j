@@ -15,9 +15,9 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP_ALL;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.ABORT;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP_ALL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
 
 class ExtractionErrorPolicyTest {
 
-    private static final ArchiveExtractor.Entry ENTRY = new ArchiveExtractor.Entry("a.txt", false);
+    private static final Entry ENTRY = new Entry("a.txt", false);
     private static final IOException FAILURE = new IOException("boom");
 
     @Test

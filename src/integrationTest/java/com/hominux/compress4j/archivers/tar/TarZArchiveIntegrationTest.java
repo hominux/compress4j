@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.UpstreamSamples;
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
@@ -137,7 +137,7 @@ class TarZArchiveIntegrationTest {
         var target = Files.createDirectory(tempDir.resolve("link-target"));
 
         try (var extractor = TarArchiveExtractor.builder(archive)
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)
                 .build()) {
             assertThatThrownBy(() -> extractor.extract(target)).isInstanceOf(IOException.class);
         }

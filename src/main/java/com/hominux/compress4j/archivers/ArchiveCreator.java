@@ -17,7 +17,6 @@ package com.hominux.compress4j.archivers;
 
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
-import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,7 +27,6 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
@@ -38,7 +36,6 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
-import org.apache.commons.io.input.CloseShieldInputStream;
 
 /**
  * This abstract class is the superclass of all classes providing archiving. This class provides functionality to add
@@ -227,27 +224,6 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
         };
     }
 
-    /**
-     * Add a directory entry, modified now, through {@link #add}.
-     *
-     * @param name name of the entry
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addDirectory(String name) throws IOException {
-        addDirectory(name, FileTime.from(Instant.now()));
-    }
-
-    /**
-     * Add a directory entry through {@link #add}.
-     *
-     * @param name name of the entry
-     * @param lastModified last modification time to be used for the entry
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addDirectory(String name, FileTime lastModified) throws IOException {
-        add(new EntrySource.Directory(name, 0, lastModified));
-    }
-
     /** {@inheritDoc} */
     @Override
     public void close() throws IOException {
@@ -290,20 +266,6 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
      * tree fails the walk with {@link IllegalArgumentException}.
      *
-     * @param directory directory to add
-     * @param modTime last modification time of the directory
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addDirectoryRecursively(Path directory, FileTime modTime) throws IOException {
-        addDirectoryRecursively("", directory, modTime);
-    }
-
-    /**
-     * Add a directory recursively to the archive.
-     *
-     * <p>The builder's filter applies; a rejected directory skips its whole subtree. A socket, FIFO or device in the
-     * tree fails the walk with {@link IllegalArgumentException}.
-     *
      * @param topLevelDir prefix for every entry name; empty adds no prefix, a non-empty blank or all-slash value throws
      *     {@link IllegalArgumentException}
      * @param directory directory to add
@@ -326,88 +288,12 @@ public abstract class ArchiveCreator<A extends ArchiveOutputStream<? extends Arc
      * @throws IOException if an I/O error occurred
      */
     public final void addFile(Path path) throws IOException {
-        addFile(path.getFileName().toString(), path);
-    }
-
-    /**
-     * Add {@code path} through {@link #add}. The file's last modification time is used.
-     *
-     * @param name name of the entry
-     * @param path path to add
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String name, Path path) throws IOException {
         BasicFileAttributes attrs = readAttributes(path);
-        add(PathSources.of(name, path, attrs, attrs.lastModifiedTime()));
-    }
-
-    /**
-     * Add {@code path} through {@link #add}.
-     *
-     * @param name name of the entry
-     * @param path path to add
-     * @param lastModified last modification time to be used for the entry
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String name, Path path, FileTime lastModified) throws IOException {
-        add(PathSources.of(name, path, readAttributes(path), lastModified));
+        add(PathSources.of(path.getFileName().toString(), path, attrs, attrs.lastModifiedTime()));
     }
 
     private static BasicFileAttributes readAttributes(Path path) throws IOException {
         return Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-    }
-
-    /**
-     * Add {@code content}, modified now, through {@link #add}.
-     *
-     * @param name name of the entry
-     * @param content bytes to add
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String name, byte[] content) throws IOException {
-        add(EntrySource.file(name, content));
-    }
-
-    /**
-     * Add {@code content} through {@link #add}.
-     *
-     * @param name name of the entry
-     * @param content bytes to add
-     * @param lastModified last modification time to be used for the entry
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String name, byte[] content, FileTime lastModified) throws IOException {
-        byte[] copy = content.clone();
-        add(new EntrySource.File(
-                name, 0, lastModified, OptionalLong.of(copy.length), () -> new ByteArrayInputStream(copy)));
-    }
-
-    /**
-     * Add {@code size} bytes of {@code content}, modified now, through {@link #add}. The caller keeps ownership of the
-     * stream; the creator does not close it.
-     *
-     * @param name name of the entry
-     * @param content stream to read the entry from
-     * @param size number of bytes the stream holds
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String name, InputStream content, long size) throws IOException {
-        addFile(name, content, size, FileTime.from(Instant.now()));
-    }
-
-    /**
-     * Add {@code size} bytes of {@code content} through {@link #add}. The caller keeps ownership of the stream; the
-     * creator does not close it.
-     *
-     * @param name name of the entry
-     * @param content stream to read the entry from
-     * @param size number of bytes the stream holds
-     * @param lastModified last modification time to be used for the entry
-     * @throws IOException if an I/O error occurred
-     */
-    public final void addFile(String name, InputStream content, long size, FileTime lastModified) throws IOException {
-        add(new EntrySource.File(
-                name, 0, lastModified, OptionalLong.of(size), () -> CloseShieldInputStream.wrap(content)));
     }
 
     /**

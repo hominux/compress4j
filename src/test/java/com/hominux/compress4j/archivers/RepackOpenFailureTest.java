@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.hominux.compress4j.ExtractionLimits;
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator.InMemoryArchiveCreatorBuilder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

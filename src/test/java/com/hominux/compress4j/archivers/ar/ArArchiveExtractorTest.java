@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.ar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -40,7 +41,7 @@ class ArArchiveExtractorTest {
 
         try (var archiveOutputStream = new ArArchiveOutputStream(outputStream);
                 var creator = new ArArchiveCreator(archiveOutputStream)) {
-            creator.addFile("test.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("test.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
@@ -60,9 +61,9 @@ class ArArchiveExtractorTest {
         var outputStream = new ByteArrayOutputStream();
 
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("file1.txt", "Content 1".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("file2.txt", "Content 2".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("file3.txt", "Content 3".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("file1.txt", "Content 1".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("file2.txt", "Content 2".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("file3.txt", "Content 3".getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
@@ -84,7 +85,7 @@ class ArArchiveExtractorTest {
 
         // when
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("empty.txt", new byte[0]);
+            creator.add(EntrySource.file("empty.txt", new byte[0]));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
@@ -107,7 +108,7 @@ class ArArchiveExtractorTest {
 
         // when
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("binary.dat", binaryData);
+            creator.add(EntrySource.file("binary.dat", binaryData));
         }
 
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
@@ -126,7 +127,7 @@ class ArArchiveExtractorTest {
         var content = "File from path test";
 
         try (var creator = ArArchiveCreator.builder(archivePath).build()) {
-            creator.addFile("path-test.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("path-test.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         var extractDir = tempDir.resolve("extract");
@@ -147,9 +148,9 @@ class ArArchiveExtractorTest {
         var outputStream = new ByteArrayOutputStream();
 
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("keep.txt", "Keep this".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("skip.txt", "Skip this".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("keep.log", "Keep this too".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("keep.txt", "Keep this".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("skip.txt", "Skip this".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("keep.log", "Keep this too".getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
@@ -173,7 +174,7 @@ class ArArchiveExtractorTest {
         var content = "Specific path test";
 
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("specific.txt", content.getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("specific.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
@@ -194,7 +195,7 @@ class ArArchiveExtractorTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("placeholder", new byte[0]);
+            creator.add(EntrySource.file("placeholder", new byte[0]));
         }
 
         // when
@@ -228,7 +229,7 @@ class ArArchiveExtractorTest {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.addFile("closeable.txt", "test".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("closeable.txt", "test".getBytes(StandardCharsets.UTF_8)));
         }
 
         // when

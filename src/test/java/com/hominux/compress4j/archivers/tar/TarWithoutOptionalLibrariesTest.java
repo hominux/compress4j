@@ -17,8 +17,9 @@ package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.internal.codec.LibraryHidingLoader;
 import java.io.ByteArrayInputStream;
@@ -43,13 +44,13 @@ class TarWithoutOptionalLibrariesTest {
             var bytes = new ByteArrayOutputStream();
             try (var creator =
                     TarArchiveCreator.builder(bytes).compression(compression).build()) {
-                creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+                creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
             }
             try (var extractor = TarArchiveExtractor.builder(new ByteArrayInputStream(bytes.toByteArray()))
                     .build()) {
                 return extractor.stream()
                         .map(ArchiveItem::entry)
-                        .map(ArchiveExtractor.Entry::name)
+                        .map(Entry::name)
                         .reduce("", String::concat);
             }
         }

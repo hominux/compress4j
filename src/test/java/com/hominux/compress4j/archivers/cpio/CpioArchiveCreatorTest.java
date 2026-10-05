@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.cpio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,8 +51,8 @@ class CpioArchiveCreatorTest {
         var archiveOutput = new ByteArrayOutputStream();
         try (var archiveOutputStream = new CpioArchiveOutputStream(archiveOutput);
                 var creator = new CpioArchiveCreator(archiveOutputStream)) {
-            creator.addFile("test1.txt", testFile1);
-            creator.addFile("test2.txt", testFile2);
+            creator.add(EntrySource.file("test1.txt", testFile1));
+            creator.add(EntrySource.file("test2.txt", testFile2));
         }
 
         // then
@@ -85,8 +86,9 @@ class CpioArchiveCreatorTest {
         // when
         var archiveOutput = new ByteArrayOutputStream();
         try (var creator = CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addDirectory("subdir/", FileTime.fromMillis(System.currentTimeMillis()));
-            creator.addFile("subdir/nested.txt", testFile);
+            creator.add(
+                    EntrySource.directory("subdir/").withLastModified(FileTime.fromMillis(System.currentTimeMillis())));
+            creator.add(EntrySource.file("subdir/nested.txt", testFile));
         }
 
         // then
@@ -122,7 +124,7 @@ class CpioArchiveCreatorTest {
 
             var testFile = tempDir.resolve("config-test.txt");
             Files.write(testFile, "Configuration test".getBytes());
-            creator.addFile("config-test.txt", testFile);
+            creator.add(EntrySource.file("config-test.txt", testFile));
         }
 
         // then
@@ -145,7 +147,7 @@ class CpioArchiveCreatorTest {
 
             var testFile = tempDir.resolve("old-format-test.txt");
             Files.write(testFile, "Old format test".getBytes());
-            creator.addFile("old-format-test.txt", testFile);
+            creator.add(EntrySource.file("old-format-test.txt", testFile));
         }
 
         // then
@@ -161,7 +163,7 @@ class CpioArchiveCreatorTest {
 
         // when
         try (var creator = CpioArchiveCreator.builder(archivePath).build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
 
         // then
@@ -178,7 +180,7 @@ class CpioArchiveCreatorTest {
         // when
         var archiveOutput = new ByteArrayOutputStream();
         try (var creator = CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addFile("empty.txt", emptyFile);
+            creator.add(EntrySource.file("empty.txt", emptyFile));
         }
 
         // then
@@ -202,8 +204,10 @@ class CpioArchiveCreatorTest {
         // when
         var archiveOutput = new ByteArrayOutputStream();
         try (var creator = CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addDirectory("dir1/", FileTime.fromMillis(System.currentTimeMillis()));
-            creator.addDirectory("dir1/dir2/", FileTime.fromMillis(System.currentTimeMillis()));
+            creator.add(
+                    EntrySource.directory("dir1/").withLastModified(FileTime.fromMillis(System.currentTimeMillis())));
+            creator.add(EntrySource.directory("dir1/dir2/")
+                    .withLastModified(FileTime.fromMillis(System.currentTimeMillis())));
         }
 
         // then
@@ -245,7 +249,7 @@ class CpioArchiveCreatorTest {
                 .encoding("UTF-8")
                 .and()
                 .build()) {
-            creator.addFile("special-chars äöü.txt", specialFile);
+            creator.add(EntrySource.file("special-chars äöü.txt", specialFile));
         }
 
         // then

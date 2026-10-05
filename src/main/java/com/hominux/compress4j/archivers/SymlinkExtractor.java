@@ -17,8 +17,6 @@ package com.hominux.compress4j.archivers;
 
 import static com.hominux.compress4j.utils.FileUtils.checkValidPath;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
-import com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import java.io.IOException;
 import java.nio.file.Files;

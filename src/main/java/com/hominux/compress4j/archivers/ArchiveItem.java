@@ -32,11 +32,11 @@ import java.time.Instant;
  */
 public final class ArchiveItem {
 
-    private final ArchiveExtractor.Entry entry;
+    private final Entry entry;
     private final EntryPipeline pipeline;
     private final long position;
 
-    ArchiveItem(ArchiveExtractor.Entry entry, EntryPipeline pipeline, long position) {
+    ArchiveItem(Entry entry, EntryPipeline pipeline, long position) {
         this.entry = entry;
         this.pipeline = pipeline;
         this.position = position;
@@ -47,7 +47,7 @@ public final class ArchiveItem {
      *
      * @return the entry, after strip-components has been applied
      */
-    public ArchiveExtractor.Entry entry() {
+    public Entry entry() {
         return entry;
     }
 

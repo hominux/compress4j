@@ -15,8 +15,8 @@
  */
 package com.hominux.compress4j.archivers.memory;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.DIR;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type.SYMLINK;
+import static com.hominux.compress4j.archivers.Entry.Type.DIR;
+import static com.hominux.compress4j.archivers.Entry.Type.SYMLINK;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;

@@ -85,7 +85,7 @@ class SymlinkGuardTest {
     void chainIsKeptWhenAllowed() throws IOException {
         Path out = Files.createDirectories(tmp.resolve("a/b/out"));
         try (var extractor = TarArchiveExtractor.builder(new ByteArrayInputStream(chainArchive()))
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.ALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.ALLOW)
                 .build()) {
             extractor.extract(out);
         }
@@ -123,10 +123,9 @@ class SymlinkGuardTest {
 
     @ParameterizedTest
     @EnumSource(
-            value = ArchiveExtractor.EscapingSymlinkPolicy.class,
+            value = EscapingSymlinkPolicy.class,
             names = {"DISALLOW", "RELATIVIZE_ABSOLUTE"})
-    void linkCreatedThroughSwappedParentSymlinkIsStillChecked(ArchiveExtractor.EscapingSymlinkPolicy policy)
-            throws IOException {
+    void linkCreatedThroughSwappedParentSymlinkIsStillChecked(EscapingSymlinkPolicy policy) throws IOException {
         // Given
         Path out = Files.createDirectories(tmp.resolve("a/b/out"));
 

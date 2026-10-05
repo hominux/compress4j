@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.UnsupportedEntry;
 import java.io.IOException;
 import java.io.InputStream;
@@ -77,7 +77,7 @@ class DumpArchiveExtractorTest {
 
         try (var extractor = new DumpArchiveExtractor(streamOf(entry))) {
             assertThat(extractor.nextEntry())
-                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR));
+                    .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
         }
     }
 
@@ -88,7 +88,7 @@ class DumpArchiveExtractorTest {
 
         try (var extractor = new DumpArchiveExtractor(streamOf(entry))) {
             assertThat(extractor.nextEntry()).hasValueSatisfying(e -> {
-                assertThat(e.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE);
+                assertThat(e.type()).isEqualTo(Entry.Type.FILE);
                 assertThat(e.mode()).isEqualTo(0100640);
             });
         }

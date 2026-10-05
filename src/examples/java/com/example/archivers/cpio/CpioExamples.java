@@ -15,17 +15,16 @@
  */
 package com.example.archivers.cpio;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.ABORT;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.ABORT;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveCreator;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveExtractor;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 import org.apache.commons.compress.archivers.cpio.CpioConstants;
 
 @SuppressWarnings({"java:S1192", "unused"})
@@ -46,9 +45,9 @@ public class CpioExamples {
                 .filter(s -> !s.name().endsWith("temp.txt"))
                 .build()) {
 
-            cpioCreator.addFile("document.txt", Path.of("path/to/document.txt"));
-            cpioCreator.addDirectory("subdir/", FileTime.from(Instant.now()));
-            cpioCreator.addFile("subdir/nested.txt", Path.of("path/to/nested.txt"));
+            cpioCreator.add(EntrySource.file("document.txt", Path.of("path/to/document.txt")));
+            cpioCreator.add(EntrySource.directory("subdir/"));
+            cpioCreator.add(EntrySource.file("subdir/nested.txt", Path.of("path/to/nested.txt")));
 
             cpioCreator.addDirectoryRecursively(Path.of("sourceDir"));
         }
@@ -64,7 +63,7 @@ public class CpioExamples {
                 .and()
                 .filter(entry -> !entry.name().startsWith("temp"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)
                 .postProcessor((entry, exception) -> {})
                 .stripComponents(1)
                 .overwrite(true)

@@ -15,10 +15,8 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP_ALL;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP_ALL;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
-import com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice;
 import com.hominux.compress4j.exceptions.UnsafeInputException;
 import java.io.IOException;
 import java.util.Objects;

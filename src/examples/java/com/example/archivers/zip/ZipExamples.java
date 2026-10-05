@@ -15,10 +15,10 @@
  */
 package com.example.archivers.zip;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
 import static java.util.zip.ZipEntry.DEFLATED;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.zip.ZipArchiveCreator;
 import com.hominux.compress4j.archivers.zip.ZipArchiveExtractor;
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class ZipExamples {
                 .setUseUnicodeExtraFields(true)
                 .filter(entry -> entry.name().endsWith(".txt"))
                 .errorHandler((entry, exception) -> SKIP)
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)
                 .build()) {
             zipExtractor.extract(Path.of("outputDir"));
         }

@@ -23,7 +23,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.Entry;
 import java.io.IOException;
 import java.util.Optional;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
@@ -76,7 +76,7 @@ class ZipArchiveExtractorTest {
 
             // Then
             assertThat(entry.name()).isEqualTo("file.txt");
-            assertThat(entry.type()).isEqualTo(ArchiveExtractor.Entry.Type.FILE);
+            assertThat(entry.type()).isEqualTo(Entry.Type.FILE);
             assertThat(entry.mode()).isEqualTo(0644);
             assertThat(entry.linkTarget()).isEmpty();
             verify(mockInputStream, times(1)).getUnixSymlink(mockZipEntry);
@@ -99,7 +99,7 @@ class ZipArchiveExtractorTest {
 
             // Then
             assertThat(entry.name()).isEqualTo("directory");
-            assertThat(entry.type()).isEqualTo(ArchiveExtractor.Entry.Type.DIR);
+            assertThat(entry.type()).isEqualTo(Entry.Type.DIR);
             assertThat(entry.mode()).isEqualTo(0755);
             verify(mockInputStream, times(1)).getUnixSymlink(mockZipEntry);
         }
@@ -122,7 +122,7 @@ class ZipArchiveExtractorTest {
 
             // Then
             assertThat(entry.name()).isEqualTo("link");
-            assertThat(entry.type()).isEqualTo(ArchiveExtractor.Entry.Type.SYMLINK);
+            assertThat(entry.type()).isEqualTo(Entry.Type.SYMLINK);
             assertThat(entry.linkTarget()).contains("target/file");
             assertThat(entry.mode()).isEqualTo(0777);
             assertThat(entry.size()).hasValue(0);
@@ -175,7 +175,7 @@ class ZipArchiveExtractorTest {
     @DisplayName("openEntryStream should return the wrapped archive input stream")
     void testOpenEntryStream() {
         // Given
-        var mockEntry = mock(ArchiveExtractor.Entry.class);
+        var mockEntry = mock(Entry.class);
 
         // When
         var resultStream = extractor.openEntryStream(mockEntry);

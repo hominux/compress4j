@@ -15,13 +15,12 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.ALLOW;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW;
-import static com.hominux.compress4j.archivers.ArchiveExtractor.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.ALLOW;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.DISALLOW;
+import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -154,7 +153,7 @@ class SymlinkExtractorTest {
     @Test
     void disallowAcceptsTargetsThatResolveToTheOutputDirectory(@TempDir Path out) throws IOException {
         // Given
-        var extractor = new SymlinkExtractor(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW, false);
+        var extractor = new SymlinkExtractor(EscapingSymlinkPolicy.DISALLOW, false);
         var self = new Entry("link", Entry.Type.SYMLINK, 0777).withLinkTarget(".");
         var up = new Entry("a/link", Entry.Type.SYMLINK, 0777).withLinkTarget("..");
 

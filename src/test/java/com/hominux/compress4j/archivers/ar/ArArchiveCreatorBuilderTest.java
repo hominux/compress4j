@@ -45,7 +45,8 @@ class ArArchiveCreatorBuilderTest {
 
         // when
         try (ArArchiveCreator creator = builder.build()) {
-            creator.addFile("builder-test.txt", "Builder with OutputStream".getBytes(StandardCharsets.UTF_8));
+            creator.add(
+                    EntrySource.file("builder-test.txt", "Builder with OutputStream".getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -61,7 +62,7 @@ class ArArchiveCreatorBuilderTest {
 
         // when
         try (ArArchiveCreator creator = builder.build()) {
-            creator.addFile("path-builder.txt", "Builder with Path".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("path-builder.txt", "Builder with Path".getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -169,7 +170,7 @@ class ArArchiveCreatorBuilderTest {
 
         // when
         try (ArArchiveCreator creator = builder.build()) {
-            creator.addFile("new-content.txt", "New content".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("new-content.txt", "New content".getBytes(StandardCharsets.UTF_8)));
         }
 
         // then
@@ -204,7 +205,7 @@ class ArArchiveCreatorBuilderTest {
         // when & then
         assertThatThrownBy(() -> {
                     try (ArArchiveCreator creator = builder.build()) {
-                        creator.addFile("test.txt", "test".getBytes());
+                        creator.add(EntrySource.file("test.txt", "test".getBytes()));
                     }
                 })
                 .isInstanceOf(NullPointerException.class);

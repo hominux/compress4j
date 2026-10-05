@@ -84,11 +84,9 @@ class FormatContractTest {
         return archive;
     }
 
-    private Map<String, ArchiveExtractor.Entry> entries(ArchiveFormat format, Path archive) throws IOException {
+    private Map<String, Entry> entries(ArchiveFormat format, Path archive) throws IOException {
         try (var extractor = format.readAt().apply(archive)) {
-            return extractor.stream()
-                    .map(ArchiveItem::entry)
-                    .collect(Collectors.toMap(ArchiveExtractor.Entry::name, e -> e));
+            return extractor.stream().map(ArchiveItem::entry).collect(Collectors.toMap(Entry::name, e -> e));
         }
     }
 
@@ -119,10 +117,10 @@ class FormatContractTest {
     void symlinksMatchDeclaration(ArchiveFormat format) throws IOException {
         var link = entries(format, roundTrip(format)).get("link");
         if (format.has(SYMLINKS)) {
-            assertThat(link.type()).isEqualTo(ArchiveExtractor.Entry.Type.SYMLINK);
+            assertThat(link.type()).isEqualTo(Entry.Type.SYMLINK);
             assertThat(link.linkTarget()).contains("d/run.sh");
         } else {
-            assertThat(link.type()).isNotEqualTo(ArchiveExtractor.Entry.Type.SYMLINK);
+            assertThat(link.type()).isNotEqualTo(Entry.Type.SYMLINK);
         }
     }
 
@@ -130,7 +128,7 @@ class FormatContractTest {
     @MethodSource("readable")
     void directoriesMatchDeclaration(ArchiveFormat format) throws IOException {
         var names = entries(format, roundTrip(format));
-        assertThat(names.containsKey("d") && names.get("d").type() == ArchiveExtractor.Entry.Type.DIR)
+        assertThat(names.containsKey("d") && names.get("d").type() == Entry.Type.DIR)
                 .isEqualTo(format.has(DIRECTORIES));
     }
 
@@ -158,8 +156,8 @@ class FormatContractTest {
     void filterDropsAnEntry(ArchiveFormat format) throws IOException {
         Path archive = tmp.resolve("filtered." + format.name());
         try (var creator = filtered(format, archive, s -> !s.name().equals("drop.txt"))) {
-            creator.addFile("keep.txt", "k".getBytes(StandardCharsets.UTF_8));
-            creator.addFile("drop.txt", "d".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("keep.txt", "k".getBytes(StandardCharsets.UTF_8)));
+            creator.add(EntrySource.file("drop.txt", "d".getBytes(StandardCharsets.UTF_8)));
         }
         assertThat(entries(format, archive)).containsOnlyKeys("keep.txt");
     }
@@ -187,7 +185,7 @@ class FormatContractTest {
         Path archive = tmp.resolve("channel." + format.name());
         try (var channel = Files.newByteChannel(archive, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
                 var creator = format.createOnChannel().orElseThrow().apply(channel)) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
         try (var channel = Files.newByteChannel(archive);
                 var extractor = format.readFromChannel().orElseThrow().apply(channel)) {
@@ -236,7 +234,7 @@ class FormatContractTest {
     void streamRoundTrip(ArchiveFormat format) throws IOException {
         var bytes = new ByteArrayOutputStream();
         try (var creator = format.createOnStream().orElseThrow().apply(bytes)) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
         try (var extractor = streamReaderOf(format)
                 .readFromStream()

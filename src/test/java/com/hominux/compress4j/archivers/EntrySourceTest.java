@@ -18,7 +18,7 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type;
+import com.hominux.compress4j.archivers.Entry.Type;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
@@ -37,6 +37,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -86,6 +87,74 @@ class EntrySourceTest {
         Path sub = tmp.resolve("sub");
         Path other = tmp.resolve("other.txt");
         assertThatThrownBy(() -> EntrySource.of(sub, other)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void fileFromPathTakesSizeModeAndTime() throws IOException {
+        Path file = Files.writeString(tmp.resolve("a.txt"), "abc");
+
+        EntrySource.File source = EntrySource.file("x/a.txt", file);
+
+        assertThat(source.name()).isEqualTo("x/a.txt");
+        assertThat(source.size()).hasValue(3);
+        assertThat(source.mode()).isEqualTo(HostFileSystem.of(file).modeOf(file));
+        assertThat(source.lastModified()).isEqualTo(Files.getLastModifiedTime(file));
+    }
+
+    @Test
+    void fileFromPathRejectsDirectories() {
+        assertThatThrownBy(() -> EntrySource.file("d", tmp)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void fileFromPathRejectsSymlinks() throws IOException {
+        Files.writeString(tmp.resolve("t.txt"), "t");
+        Path link = Files.createSymbolicLink(tmp.resolve("link"), Path.of("t.txt"));
+
+        assertThatThrownBy(() -> EntrySource.file("l", link)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void fileFromStreamShieldsTheCallersStream() throws IOException {
+        AtomicBoolean closed = new AtomicBoolean();
+        InputStream caller = new ByteArrayInputStream(new byte[2]) {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        };
+
+        EntrySource.File source = EntrySource.file("a", caller, 2);
+        source.content().get().close();
+
+        assertThat(closed).isFalse();
+        assertThat(source.size()).hasValue(2);
+    }
+
+    @Test
+    void directoryHasUnknownMode() {
+        assertThat(EntrySource.directory("d").mode()).isZero();
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void withLastModifiedKeepsTheVariant() throws IOException {
+        FileTime t = FileTime.fromMillis(0);
+        Files.writeString(tmp.resolve("t.txt"), "t");
+        Path link = Files.createSymbolicLink(tmp.resolve("link"), Path.of("t.txt"));
+
+        assertThat(EntrySource.directory("d").withLastModified(t)).isEqualTo(new EntrySource.Directory("d", 0, t));
+        assertThat(new EntrySource.Symlink("l", "t", 0, FileTime.fromMillis(5)).withLastModified(t))
+                .isEqualTo(new EntrySource.Symlink("l", "t", 0, t));
+        assertThat(EntrySource.of(tmp, link).withLastModified(t))
+                .isInstanceOfSatisfying(EntrySource.Symlink.class, s -> {
+                    assertThat(s.target()).isEqualTo("t.txt");
+                    assertThat(s.lastModified()).isEqualTo(t);
+                });
+        assertThat(EntrySource.file("f", new byte[1]).withLastModified(t))
+                .isInstanceOfSatisfying(EntrySource.File.class, f -> assertThat(f.lastModified())
+                        .isEqualTo(t));
     }
 
     @Test

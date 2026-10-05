@@ -22,8 +22,7 @@ import static com.hominux.compress4j.archivers.catalog.Capability.SYMLINKS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry.Type;
+import com.hominux.compress4j.archivers.Entry.Type;
 import com.hominux.compress4j.archivers.catalog.ArchiveFormat;
 import com.hominux.compress4j.archivers.catalog.FormatCatalog;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
@@ -155,7 +154,7 @@ class RepackMatrixTest {
         var zip = new ByteArrayOutputStream();
         try (var creator =
                 FormatCatalog.named("zip").createOnStream().orElseThrow().apply(zip)) {
-            creator.addFile("a.txt", "alpha".getBytes(StandardCharsets.UTF_8));
+            creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
         }
         var streaming = FormatCatalog.named("zip-streaming").readFromStream().orElseThrow();
         try (var extractor = streaming.apply(new ByteArrayInputStream(zip.toByteArray()));

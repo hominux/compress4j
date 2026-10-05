@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.cpio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -91,7 +92,7 @@ class CpioArchiveInputStreamBuilderTest {
                 .encoding("UTF-8")
                 .and()
                 .build()) {
-            creator.addFile("special-äöü.txt", specialFile);
+            creator.add(EntrySource.file("special-äöü.txt", specialFile));
         }
 
         var inputStream = new ByteArrayInputStream(archiveOutput.toByteArray());
@@ -347,8 +348,8 @@ class CpioArchiveInputStreamBuilderTest {
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addFile("file1.txt", file1);
-            creator.addFile("file2.txt", file2);
+            creator.add(EntrySource.file("file1.txt", file1));
+            creator.add(EntrySource.file("file2.txt", file2));
         }
 
         // when
@@ -380,7 +381,7 @@ class CpioArchiveInputStreamBuilderTest {
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(archiveOutput).build()) {
-            creator.addFile("test.txt", testFile);
+            creator.add(EntrySource.file("test.txt", testFile));
         }
         return archiveOutput.toByteArray();
     }

@@ -35,7 +35,7 @@ class ArchiveExtractorApiTest {
     @Test
     void spiIsProtected() throws NoSuchMethodException {
         Method next = ArchiveExtractor.class.getDeclaredMethod("nextEntry");
-        Method open = ArchiveExtractor.class.getDeclaredMethod("openEntryStream", ArchiveExtractor.Entry.class);
+        Method open = ArchiveExtractor.class.getDeclaredMethod("openEntryStream", Entry.class);
 
         assertThat(Modifier.isProtected(next.getModifiers())).isTrue();
         assertThat(Modifier.isProtected(open.getModifiers())).isTrue();

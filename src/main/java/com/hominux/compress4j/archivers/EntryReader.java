@@ -15,7 +15,6 @@
  */
 package com.hominux.compress4j.archivers;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;

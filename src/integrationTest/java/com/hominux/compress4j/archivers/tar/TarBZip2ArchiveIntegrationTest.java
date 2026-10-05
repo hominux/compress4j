@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.tar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -68,8 +69,8 @@ class TarBZip2ArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
                 .compression(Compression.bzip2())
                 .build()) {
-            creator.addFile("text.txt", textFile);
-            creator.addFile("binary.dat", binaryFile);
+            creator.add(EntrySource.file("text.txt", textFile));
+            creator.add(EntrySource.file("binary.dat", binaryFile));
         }
 
         try (var extractor =

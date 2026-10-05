@@ -24,6 +24,7 @@ import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ExtractionBudgetTest {
@@ -166,13 +167,12 @@ class ExtractionBudgetTest {
         var produced = new java.util.concurrent.atomic.AtomicLong();
         EntryReader reader = new EntryReader() {
             @Override
-            public java.util.Optional<ArchiveExtractor.Entry> next() {
-                return java.util.Optional.of(new ArchiveExtractor.Entry(
-                        "e" + produced.incrementAndGet(), ArchiveExtractor.Entry.Type.DIR, 0));
+            public Optional<Entry> next() {
+                return Optional.of(new Entry("e" + produced.incrementAndGet(), Entry.Type.DIR, 0));
             }
 
             @Override
-            public java.io.InputStream open(ArchiveExtractor.Entry entry) {
+            public java.io.InputStream open(Entry entry) {
                 return java.io.InputStream.nullInputStream();
             }
 

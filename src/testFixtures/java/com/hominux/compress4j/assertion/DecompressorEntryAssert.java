@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.assertion;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor.Entry;
+import com.hominux.compress4j.archivers.Entry;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 import org.assertj.core.api.AbstractAssert;

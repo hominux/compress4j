@@ -15,9 +15,9 @@
  */
 package com.example.archivers.sevenz;
 
-import static com.hominux.compress4j.archivers.ArchiveExtractor.ErrorHandlerChoice.SKIP;
+import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveCreator;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveExtractor;
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class SevenZExamples {
                 .stripComponents(1)
                 .filter(entry -> entry.name().endsWith(".txt"))
                 .errorHandler((entry, exception) -> SKIP)
-                .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
+                .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)
                 .build()) {
             sevenZExtractor.extract(Path.of("outputDir"));
         }
