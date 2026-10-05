@@ -90,12 +90,6 @@ class ModuleDescriptorTest {
                         BASE + "archivers.tar",
                         BASE + "archivers.zip",
                         BASE + "compressors",
-                        BASE + "compressors.pack200",
-                        BASE + "compressors.zstd",
-                        BASE + "compressors.lzma",
-                        BASE + "compressors.z",
-                        BASE + "compressors.deflate64",
-                        BASE + "compressors.brotli",
                         BASE + "archivers.arj",
                         BASE + "archivers.dump",
                         BASE + "exceptions");

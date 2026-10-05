@@ -40,11 +40,5 @@ module com.hominux.compress4j {
     exports com.hominux.compress4j.archivers.tar;
     exports com.hominux.compress4j.archivers.zip;
     exports com.hominux.compress4j.compressors;
-    exports com.hominux.compress4j.compressors.brotli;
-    exports com.hominux.compress4j.compressors.deflate64;
-    exports com.hominux.compress4j.compressors.lzma;
-    exports com.hominux.compress4j.compressors.pack200;
-    exports com.hominux.compress4j.compressors.z;
-    exports com.hominux.compress4j.compressors.zstd;
     exports com.hominux.compress4j.exceptions;
 }
