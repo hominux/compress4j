@@ -15,58 +15,36 @@
  */
 package com.hominux.compress4j.archivers.sevenz;
 
-import com.hominux.compress4j.archivers.LegacyArchiveCreator;
+import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
-import java.util.OptionalLong;
-import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
+import java.util.Objects;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.function.IOSupplier;
 
 /**
- * The 7z archive creator. A symbolic link is stored the way p7zip stores it: a Unix-mode entry whose content is the
- * link target.
+ * Writes 7z archives. A symbolic link is stored the way p7zip stores it: a Unix-mode entry whose content is the link
+ * target.
  *
  * @since 3.2
  */
-public class SevenZArchiveCreator extends LegacyArchiveCreator<SevenZFileArchiveOutputStream> {
+public final class SevenZArchiveCreator extends ArchiveCreator {
 
-    private static final int DOS_DIRECTORY = 0x10;
-
-    /**
-     * Create a new SevenZArchiveCreator with the given output stream.
-     *
-     * @param archiveOutputStream the output 7z Archive Output Stream
-     */
-    public SevenZArchiveCreator(SevenZFileArchiveOutputStream archiveOutputStream) {
-        super(archiveOutputStream);
+    private SevenZArchiveCreator(Builder builder, SevenZEntryWriter writer) {
+        super(builder, writer);
     }
 
     /**
-     * Create a new SevenZArchiveCreator with the given builder.
-     *
-     * @param builder the archive output stream builder
-     * @throws IOException if an I/O error occurred
-     */
-    public SevenZArchiveCreator(SevenZArchiveCreatorBuilder builder) throws IOException {
-        super(builder);
-    }
-
-    /**
-     * Helper static method to create an instance of the {@link SevenZArchiveCreatorBuilder}.
+     * Creates a builder writing the archive to the given path. 7z needs a seekable target to patch its header, so there
+     * is no stream variant.
      *
      * @param path the path to write the archive to
-     * @return An instance of the {@link SevenZArchiveCreatorBuilder}
-     * @throws IOException if an I/O error occurred
+     * @return the builder
      */
-    public static SevenZArchiveCreatorBuilder builder(Path path) throws IOException {
-        return new SevenZArchiveCreatorBuilder(path);
+    public static Builder builder(Path path) {
+        Objects.requireNonNull(path, "path");
+        return new Builder(() -> new SevenZOutputFile(path.toFile()));
     }
 
     /**
@@ -78,107 +56,54 @@ public class SevenZArchiveCreator extends LegacyArchiveCreator<SevenZFileArchive
      * @return the builder
      * @since 5.0
      */
-    public static SevenZArchiveCreatorBuilder builder(SeekableByteChannel channel) {
-        return new SevenZArchiveCreatorBuilder(() -> new SevenZOutputFile(channel));
+    public static Builder builder(SeekableByteChannel channel) {
+        Objects.requireNonNull(channel, "channel");
+        return new Builder(() -> new SevenZOutputFile(channel));
     }
 
-    /** {@inheritDoc} */
-    @Override
-    protected boolean requiresSize() {
-        return false;
-    }
+    /**
+     * Builder for {@link SevenZArchiveCreator}.
+     *
+     * @since 5.0
+     */
+    public static final class Builder extends ArchiveCreator.Builder<Builder, SevenZArchiveCreator> {
 
-    /** {@inheritDoc} */
-    @Override
-    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
-        SevenZArchiveEntry entry = newEntry(name, lastModified);
-        entry.setDirectory(true);
-        withWindowsAttributes(
-                entry, DOS_DIRECTORY | (mode != 0 ? SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16) : 0));
-        archiveOutputStream.putArchiveEntry(entry);
-        archiveOutputStream.closeArchiveEntry();
-    }
+        private final IOSupplier<SevenZOutputFile> target;
+        private SevenZMethod method = SevenZMethod.LZMA2;
 
-    /** {@inheritDoc} */
-    @Override
-    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
-            throws IOException {
-        SevenZArchiveEntry entry = newEntry(name, lastModified);
-        size.ifPresent(entry::setSize);
-        if (mode != 0) {
-            withWindowsAttributes(entry, SevenZArchiveExtractor.UNIX_EXTENSION | (mode << 16));
+        private Builder(IOSupplier<SevenZOutputFile> target) {
+            this.target = target;
         }
-        archiveOutputStream.putArchiveEntry(entry);
-        IOUtils.copy(content, archiveOutputStream);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
-        byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
-        SevenZArchiveEntry entry = newEntry(name, lastModified);
-        entry.setSize(bytes.length);
-        withWindowsAttributes(
-                entry,
-                SevenZArchiveExtractor.UNIX_EXTENSION
-                        | ((SevenZArchiveExtractor.S_IFLNK | (mode != 0 ? mode : 0777)) << 16));
-        archiveOutputStream.putArchiveEntry(entry);
-        archiveOutputStream.write(bytes);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    private static void withWindowsAttributes(SevenZArchiveEntry entry, int attributes) {
-        entry.setHasWindowsAttributes(true);
-        entry.setWindowsAttributes(attributes);
-    }
-
-    private static SevenZArchiveEntry newEntry(String name, FileTime modTime) {
-        SevenZArchiveEntry entry = new SevenZArchiveEntry();
-        entry.setName(name);
-        entry.setLastModifiedTime(modTime);
-        return entry;
-    }
-
-    /** 7z creator builder. */
-    public static class SevenZArchiveCreatorBuilder
-            extends ArchiveCreatorBuilder<
-                    SevenZFileArchiveOutputStream, SevenZArchiveCreatorBuilder, SevenZArchiveCreator> {
-
-        private final IOSupplier<SevenZOutputFile> file;
 
         /**
-         * Create a new builder that writes to the given path. {@code build()} creates the file.
+         * Sets how entry content is compressed. Defaults to {@link SevenZMethod#LZMA2}.
          *
-         * <p>7z needs a seekable target to patch its header; for a channel, use {@code builder(SeekableByteChannel)}.
-         *
-         * @param path the path to write the archive to
-         * @throws IOException never thrown; declared for compatibility with 4.x
+         * @param method the method
+         * @return this builder
+         * @throws NullPointerException if the method is null
+         * @since 5.0
          */
-        public SevenZArchiveCreatorBuilder(Path path) throws IOException {
-            this(() -> new SevenZOutputFile(path.toFile()));
-        }
-
-        private SevenZArchiveCreatorBuilder(IOSupplier<SevenZOutputFile> file) {
-            super(OutputStream.nullOutputStream());
-            this.file = file;
-        }
-
-        @Override
-        protected SevenZArchiveCreatorBuilder getThis() {
+        public Builder contentCompression(SevenZMethod method) {
+            this.method = Objects.requireNonNull(method, "contentCompression");
             return this;
         }
 
         /** {@inheritDoc} */
         @Override
-        public SevenZFileArchiveOutputStream buildArchiveOutputStream() throws IOException {
-            return new SevenZFileArchiveOutputStream(file.get());
+        protected Builder getThis() {
+            return this;
         }
 
-        /** {@inheritDoc} */
+        /**
+         * {@inheritDoc}
+         *
+         * @throws IOException if the target cannot be opened
+         */
         @Override
         public SevenZArchiveCreator build() throws IOException {
-            return new SevenZArchiveCreator(this);
+            SevenZOutputFile file = target.get();
+            file.setContentCompression(method.value);
+            return new SevenZArchiveCreator(this, new SevenZEntryWriter(file));
         }
     }
 }

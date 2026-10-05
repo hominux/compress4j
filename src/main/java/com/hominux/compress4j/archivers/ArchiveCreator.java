@@ -33,8 +33,8 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
- * Base of the archive creators that write through an {@code EntryWriter}. Tar is the only such format so far; the
- * others extend {@link LegacyArchiveCreator}.
+ * Base of the archive creators that write through an {@code EntryWriter}; formats not yet migrated extend
+ * {@link LegacyArchiveCreator}.
  *
  * <p>A creator is not thread-safe.
  *

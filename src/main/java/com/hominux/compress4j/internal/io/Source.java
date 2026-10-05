@@ -15,6 +15,7 @@
  */
 package com.hominux.compress4j.internal.io;
 
+import com.hominux.compress4j.utils.BuildGatedChannel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;
@@ -22,18 +23,35 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Where input comes from; nothing is opened until {@link #open()}. */
 public sealed interface Source {
+
+    /** A source that can be read with random access. */
+    sealed interface Seekable extends Source {
+        /**
+         * Opens the source as a channel whose reads are counted.
+         *
+         * @return the opened channel
+         * @throws IOException if the source cannot be opened
+         */
+        OpenedChannel openChannel() throws IOException;
+    }
 
     /**
      * Input read from a file.
      *
      * @param path the file to read
      */
-    record OfPath(Path path) implements Source {
+    record OfPath(Path path) implements Seekable {
         public OfPath {
             Objects.requireNonNull(path, "path");
+        }
+
+        @Override
+        public OpenedChannel openChannel() throws IOException {
+            return new OpenedChannel(new CountingSeekableByteChannel(Files.newByteChannel(path)), Optional.empty());
         }
     }
 
@@ -42,9 +60,15 @@ public sealed interface Source {
      *
      * @param channel the channel to read
      */
-    record OfChannel(SeekableByteChannel channel) implements Source {
+    record OfChannel(SeekableByteChannel channel) implements Seekable {
         public OfChannel {
             Objects.requireNonNull(channel, "channel");
+        }
+
+        @Override
+        public OpenedChannel openChannel() {
+            BuildGatedChannel gate = new BuildGatedChannel(channel);
+            return new OpenedChannel(new CountingSeekableByteChannel(gate), Optional.of(gate));
         }
     }
 
@@ -78,6 +102,38 @@ public sealed interface Source {
             if (owned) {
                 try {
                     in.close();
+                } catch (IOException closeFailure) {
+                    failure.addSuppressed(closeFailure);
+                }
+            }
+            return failure;
+        }
+    }
+
+    /**
+     * An opened random-access source. The caller's channel is gated: closing the result does nothing until
+     * {@link #built()}, so a reader that closes the channel when it fails to open cannot close the caller's.
+     *
+     * @param channel the counting channel to hand to the reader
+     * @param gate the gate around a caller's channel; empty when this library opened the source
+     */
+    record OpenedChannel(CountingSeekableByteChannel channel, Optional<BuildGatedChannel> gate) {
+        /** Marks the reader as built, so closing the channel now closes a caller's channel too. */
+        public void built() {
+            gate.ifPresent(BuildGatedChannel::built);
+        }
+
+        /**
+         * Closes the channel when this library opened it, recording a close failure as suppressed on {@code failure}.
+         *
+         * @param failure the failure being propagated
+         * @param <T> the failure type
+         * @return {@code failure}
+         */
+        public <T extends Throwable> T closeIfOwned(T failure) {
+            if (gate.isEmpty()) {
+                try {
+                    channel.close();
                 } catch (IOException closeFailure) {
                     failure.addSuppressed(closeFailure);
                 }

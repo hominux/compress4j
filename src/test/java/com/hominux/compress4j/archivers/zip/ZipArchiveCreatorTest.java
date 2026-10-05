@@ -18,9 +18,7 @@ package com.hominux.compress4j.archivers.zip;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.zip.ZipArchiveCreator.ZipArchiveCreatorBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -45,10 +43,7 @@ class ZipArchiveCreatorTest {
     @Mock
     private ZipArchiveOutputStream mockZipStream;
 
-    @Mock
-    private ZipArchiveCreatorBuilder mockBuilder;
-
-    private ZipArchiveCreator creator;
+    private ZipEntryWriter creator;
 
     @Captor
     private ArgumentCaptor<ZipArchiveEntry> entryCaptor;
@@ -61,22 +56,7 @@ class ZipArchiveCreatorTest {
 
     @BeforeEach
     void setUp() {
-        creator = new ZipArchiveCreator(mockZipStream);
-    }
-
-    @Test
-    @DisplayName("Constructor with builder should build stream")
-    void testConstructorWithBuilder() throws IOException {
-        // Given
-        when(mockBuilder.buildArchiveOutputStream()).thenReturn(mockZipStream);
-
-        // When
-        var creatorFromBuilder = new ZipArchiveCreator(mockBuilder);
-
-        // Then
-        assertThat(creatorFromBuilder).isNotNull();
-        //noinspection resource
-        verify(mockBuilder).buildArchiveOutputStream();
+        creator = new ZipEntryWriter(mockZipStream);
     }
 
     @Test

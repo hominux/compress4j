@@ -15,62 +15,40 @@
  */
 package com.hominux.compress4j.archivers.sevenz;
 
-import com.hominux.compress4j.archivers.Entry;
-import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
-import com.hominux.compress4j.utils.BuildFailureCleanup;
-import com.hominux.compress4j.utils.BuildGatedChannel;
-import com.hominux.compress4j.utils.EntryValues;
-import com.hominux.compress4j.utils.UnixFileType;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
-import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
+import java.util.function.LongSupplier;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 
 /**
- * 7z Archive Extractor.
+ * Reads 7z archives.
+ *
+ * <p>Supported entries are regular files, directories and symbolic links; every other Unix file type is reported
+ * through the unsupported-entry handler and skipped.
  *
  * @since 3.2
  */
-public class SevenZArchiveExtractor extends LegacyArchiveExtractor<SevenZFileArchiveInputStream> {
+public final class SevenZArchiveExtractor extends ArchiveExtractor {
 
-    static final int UNIX_EXTENSION = 0x8000;
-    static final int S_IFLNK = 0120000;
-    static final long MAX_SYMLINK_TARGET_BYTES = 4096;
-
-    /**
-     * Create a new {@link SevenZArchiveExtractor} with the given input stream.
-     *
-     * @param archiveInputStream the input 7z Archive Input Stream
-     */
-    protected SevenZArchiveExtractor(SevenZFileArchiveInputStream archiveInputStream) {
-        super(archiveInputStream);
+    private SevenZArchiveExtractor(Builder builder, EntryReader reader, LongSupplier compressedBytes) {
+        super(builder, reader, compressedBytes);
     }
 
     /**
-     * Create a new {@link SevenZArchiveExtractor} with the given builder.
-     *
-     * @param builder the archive input stream builder
-     * @throws IOException if an I/O error occurred
-     */
-    public SevenZArchiveExtractor(SevenZArchiveExtractorBuilder builder) throws IOException {
-        super(builder);
-    }
-
-    /**
-     * Helper static method to create an instance of the {@link SevenZArchiveExtractorBuilder}.
+     * Creates a builder reading the archive at the given path.
      *
      * @param path the path to the archive to extract
-     * @return An instance of the {@link SevenZArchiveExtractorBuilder}
+     * @return the builder
      */
-    public static SevenZArchiveExtractorBuilder builder(Path path) {
-        return new SevenZArchiveExtractorBuilder(Optional.of(path), Optional.empty());
+    public static Builder builder(Path path) {
+        return new Builder(
+                new Source.OfPath(path), Optional.of(path.toAbsolutePath().toString()));
     }
 
     /**
@@ -82,132 +60,74 @@ public class SevenZArchiveExtractor extends LegacyArchiveExtractor<SevenZFileArc
      * @return the builder
      * @since 5.0
      */
-    public static SevenZArchiveExtractorBuilder builder(SeekableByteChannel channel) {
-        return new SevenZArchiveExtractorBuilder(Optional.empty(), Optional.of(channel));
+    public static Builder builder(SeekableByteChannel channel) {
+        return new Builder(new Source.OfChannel(channel), Optional.empty());
     }
 
-    /** {@inheritDoc} */
-    @Override
-    protected Optional<Entry> nextEntry() throws IOException {
-        SevenZArchiveEntry entry;
-        while ((entry = archiveInputStream.getNextEntry()) != null) {
-            String name = Objects.requireNonNull(entry.getName(), "7z entry has no name");
-            int mode = unixMode(entry);
-            Optional<Date> modified =
-                    entry.getHasLastModifiedDate() ? Optional.of(entry.getLastModifiedDate()) : Optional.empty();
-            UnixFileType fileType = UnixFileType.of(mode);
-            Entry result;
-            if (entry.isDirectory() || fileType == UnixFileType.DIRECTORY) {
-                result = new Entry(name, Entry.Type.DIR, mode);
-            } else if (fileType == UnixFileType.SYMLINK) {
-                result = new Entry(name, Entry.Type.SYMLINK, mode).withLinkTarget(readSymlinkTarget(entry));
-            } else if (fileType == UnixFileType.FILE) {
-                result = new Entry(name, Entry.Type.FILE, mode);
-            } else {
-                reportUnsupported(name, fileType.kind());
-                continue;
-            }
-            return Optional.of(
-                    EntryValues.withMetadata(result, modified, result.type() == Entry.Type.FILE ? entry.getSize() : 0));
-        }
-        return Optional.empty();
-    }
+    /**
+     * Builder for {@link SevenZArchiveExtractor}.
+     *
+     * @since 5.0
+     */
+    public static final class Builder extends ArchiveExtractor.Builder<Builder, SevenZArchiveExtractor> {
 
-    private String readSymlinkTarget(SevenZArchiveEntry entry) throws IOException {
-        if (entry.getSize() > MAX_SYMLINK_TARGET_BYTES) {
-            throw new IOException("Symlink target of '" + entry.getName() + "' exceeds " + MAX_SYMLINK_TARGET_BYTES
-                    + " bytes: " + entry.getSize());
-        }
-        byte[] target = readEntryContent(entry.getName(), archiveInputStream, entry.getSize());
-        return new String(target, StandardCharsets.UTF_8);
-    }
+        private final Source.Seekable source;
+        private final Optional<String> defaultName;
+        private Optional<char[]> password = Optional.empty();
 
-    private static int unixMode(SevenZArchiveEntry entry) {
-        if (!entry.getHasWindowsAttributes() || (entry.getWindowsAttributes() & UNIX_EXTENSION) == 0) {
-            return 0;
-        }
-        return entry.getWindowsAttributes() >>> 16;
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected InputStream openEntryStream(Entry entry) {
-        return archiveInputStream;
-    }
-
-    /** 7z archive extractor builder. */
-    public static class SevenZArchiveExtractorBuilder
-            extends ArchiveExtractorBuilder<
-                    SevenZFileArchiveInputStream, SevenZArchiveExtractorBuilder, SevenZArchiveExtractor> {
-
-        private final Optional<Path> path;
-        private final Optional<SeekableByteChannel> channel;
-        private char[] password;
-
-        SevenZArchiveExtractorBuilder(Optional<Path> path, Optional<SeekableByteChannel> channel) {
-            this.path = path;
-            this.channel = channel;
+        private Builder(Source.Seekable source, Optional<String> defaultName) {
+            this.source = source;
+            this.defaultName = defaultName;
         }
 
         /**
          * Sets the password used to decrypt encrypted entries.
          *
          * @param password the password; the array is copied
-         * @return {@code this} instance.
+         * @return this builder
+         * @throws NullPointerException if the password is null
+         * @since 5.0
          */
-        public SevenZArchiveExtractorBuilder password(char[] password) {
-            this.password = password == null ? null : password.clone();
+        public Builder password(char[] password) {
+            this.password =
+                    Optional.of(Objects.requireNonNull(password, "password").clone());
             return this;
         }
 
+        /** {@inheritDoc} */
         @Override
-        public SevenZArchiveExtractorBuilder getThis() {
+        protected Builder getThis() {
             return this;
         }
 
         /**
-         * Build the {@link SevenZFileArchiveInputStream}.
+         * {@inheritDoc}
          *
-         * @return the configured input stream
          * @throws IOException if the archive cannot be opened, for example because the password is wrong
          */
         @Override
-        public SevenZFileArchiveInputStream buildArchiveInputStream() throws IOException {
-            if (channel.isEmpty()) {
-                Path archive = path.orElseThrow();
-                SeekableByteChannel opened = Files.newByteChannel(archive);
-                return BuildFailureCleanup.build(
-                        Optional.of(opened),
-                        () -> open(opened, Optional.of(archive.toAbsolutePath().toString())));
+        public SevenZArchiveExtractor build() throws IOException {
+            Source.OpenedChannel opened = source.openChannel();
+            try {
+                opened.channel().position(0);
+                SevenZFile file = open(opened);
+                opened.built();
+                EntryReader reader = new SevenZEntryReader(file, readerContext(), opened.channel()::count);
+                return new SevenZArchiveExtractor(this, reader, opened.channel()::count);
+            } catch (IOException e) {
+                throw opened.closeIfOwned(e);
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
             }
-            var gated = new BuildGatedChannel(channel.orElseThrow());
-            gated.position(0);
-            var stream = open(gated, Optional.empty());
-            gated.built();
-            return stream;
         }
 
-        private SevenZFileArchiveInputStream open(SeekableByteChannel source, Optional<String> name)
-                throws IOException {
+        private SevenZFile open(Source.OpenedChannel opened) throws IOException {
             SevenZFile.Builder file = SevenZFile.builder()
                     .setUseDefaultNameForUnnamedEntries(true)
-                    .setSeekableByteChannel(source);
-            name.ifPresent(file::setDefaultName);
-            if (password != null) {
-                file.setPassword(password);
-            }
-            return new SevenZFileArchiveInputStream(file.get());
-        }
-
-        /**
-         * Build the {@link SevenZArchiveExtractor}.
-         *
-         * @return the configured extractor
-         * @throws IOException if an I/O error occurred
-         */
-        @Override
-        public SevenZArchiveExtractor build() throws IOException {
-            return new SevenZArchiveExtractor(this);
+                    .setSeekableByteChannel(opened.channel());
+            defaultName.ifPresent(file::setDefaultName);
+            password.ifPresent(file::setPassword);
+            return file.get();
         }
     }
 }

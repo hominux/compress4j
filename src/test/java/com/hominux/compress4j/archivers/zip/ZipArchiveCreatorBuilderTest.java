@@ -15,190 +15,210 @@
  */
 package com.hominux.compress4j.archivers.zip;
 
-import static java.util.zip.ZipEntry.DEFLATED;
-import static java.util.zip.ZipEntry.STORED;
-import static org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream.DEFAULT_COMPRESSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import com.hominux.compress4j.archivers.zip.ZipArchiveCreator.ZipArchiveCreatorBuilder;
+import com.hominux.compress4j.archivers.EntrySource;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.zip.ZipEntry;
 import org.apache.commons.compress.archivers.zip.Zip64Mode;
-import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipFile;
+import org.apache.commons.compress.archivers.zip.ZipShort;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockedConstruction;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.io.TempDir;
 
-@ExtendWith(MockitoExtension.class)
 class ZipArchiveCreatorBuilderTest {
 
-    @Mock
-    private OutputStream mockOutputStream;
+    private static final byte[] CONTENT =
+            "Content to be compressed. ".repeat(50).getBytes(StandardCharsets.UTF_8);
 
-    private ZipArchiveCreatorBuilder builder;
+    private static final ZipShort ZIP64_HEADER_ID = new ZipShort(1);
+    private static final ZipShort UNICODE_PATH_HEADER_ID = new ZipShort(0x7075);
 
-    @BeforeEach
-    void setUp() {
-        builder = spy(ZipArchiveCreator.builder(mockOutputStream));
-    }
+    @TempDir
+    Path dir;
 
-    @Test
-    @DisplayName("static builder(OutputStream) should return a builder")
-    void testBuilderWithOutputStream() {
-        // When
-        var newBuilder = ZipArchiveCreator.builder(mockOutputStream);
-
-        // Then
-        assertThat(newBuilder).isNotNull();
-    }
-
-    @Test
-    @DisplayName("getThis() should return the builder instance")
-    void testGetThis() {
-        // When
-        var self = builder.getThis();
-
-        // Then
-        assertThat(self).isSameAs(builder);
-    }
-
-    @Test
-    @DisplayName("compressionLevel() should set valid levels")
-    void testCompressionLevel_Valid() {
-        // When & Then
-        assertThat(builder.compressionLevel(0)).isSameAs(builder);
-        assertThat(builder.compressionLevel(9)).isSameAs(builder);
-        assertThat(builder.compressionLevel(DEFAULT_COMPRESSION)).isSameAs(builder);
-    }
-
-    @Test
-    @DisplayName("compressionLevel() should throw for invalid levels")
-    void testCompressionLevel_Invalid() {
-        // Given
-        var creatorBuilder = ZipArchiveCreator.builder(mockOutputStream);
-
-        // When & Then
-        assertThatThrownBy(() -> creatorBuilder.compressionLevel(-2))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Compression level must be between -1 and 9");
-
-        assertThatThrownBy(() -> creatorBuilder.compressionLevel(10))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Compression level must be between -1 and 9");
-    }
-
-    @Test
-    @DisplayName("compressionMethod() should set valid methods")
-    void testCompressionMethod_Valid() {
-        // When & Then
-        assertThat(builder.compressionMethod(STORED)).isSameAs(builder);
-        assertThat(builder.compressionMethod(DEFLATED)).isSameAs(builder);
-    }
-
-    @Test
-    @DisplayName("compressionMethod() should throw for invalid methods")
-    void testCompressionMethod_Invalid() {
-        // Given
-        var creatorBuilder = ZipArchiveCreator.builder(mockOutputStream);
-
-        // When & Then
-        assertThatThrownBy(() -> creatorBuilder.compressionMethod(1))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Compression method must be STORED or DEFLATED");
-
-        assertThatThrownBy(() -> creatorBuilder.compressionMethod(-1))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Compression method must be STORED or DEFLATED");
-    }
-
-    @Test
-    @DisplayName("buildArchiveOutputStream() should apply default settings")
-    void testBuildArchiveOutputStream_Defaults() {
-        try (MockedConstruction<ZipArchiveOutputStream> mockConstruction =
-                mockConstruction(ZipArchiveOutputStream.class, (mock, context) -> {
-                    assertThat(context.arguments()).hasSize(1);
-                    assertThat(context.arguments().getFirst()).isSameAs(mockOutputStream);
-                })) {
-
-            // When
-            var defaultBuilder = new ZipArchiveCreatorBuilder(mockOutputStream);
-            //noinspection resource
-            defaultBuilder.buildArchiveOutputStream();
-
-            // Then
-            assertThat(mockConstruction.constructed()).hasSize(1).element(0).satisfies(mockedZipOut -> {
-                verify(mockedZipOut).setLevel(ZipArchiveOutputStream.DEFAULT_COMPRESSION);
-                verify(mockedZipOut).setMethod(DEFLATED);
-                verify(mockedZipOut).setComment("");
-                verify(mockedZipOut).setUseZip64(Zip64Mode.AsNeeded);
-                verify(mockedZipOut).setCreateUnicodeExtraFields(ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NEVER);
-                verify(mockedZipOut).setFallbackToUTF8(false);
-                verify(mockedZipOut).setUseLanguageEncodingFlag(true);
-                verify(mockedZipOut).setEncoding("UTF-8");
-            });
+    private ZipArchiveEntry entryOf(ZipArchiveCreator.Builder builder) throws IOException {
+        Path zip = dir.resolve("out.zip");
+        try (var creator = builder.build()) {
+            creator.add(EntrySource.file("a.txt", CONTENT));
+        }
+        try (var file = ZipFile.builder().setPath(zip).get()) {
+            return file.getEntry("a.txt");
         }
     }
 
     @Test
-    @DisplayName("buildArchiveOutputStream() should apply custom settings")
-    void testBuildArchiveOutputStream_Custom() {
-        try (MockedConstruction<ZipArchiveOutputStream> mockConstruction =
-                mockConstruction(ZipArchiveOutputStream.class, (mock, context) -> {
-                    assertThat(context.arguments()).hasSize(1);
-                    assertThat(context.arguments().getFirst()).isSameAs(mockOutputStream);
-                })) {
+    void unbuiltPathBuilderCreatesNoFile() {
+        Path zip = dir.resolve("never.zip");
 
-            // Given
-            builder.compressionLevel(5)
-                    .compressionMethod(STORED)
-                    .setComment("test comment")
-                    .setUseZip64(Zip64Mode.Always)
-                    .setCreateUnicodeExtraFields(ZipArchiveOutputStream.UnicodeExtraFieldPolicy.ALWAYS)
-                    .setFallbackToUTF8(true)
-                    .setUseLanguageEncodingFlag(false)
-                    .setEncoding("ISO-8859-1");
+        ZipArchiveCreator.builder(zip).compressionLevel(9).comment("unused");
 
-            // When
-            //noinspection resource
-            builder.buildArchiveOutputStream();
+        assertThat(zip).doesNotExist();
+    }
 
-            // Then
-            assertThat(mockConstruction.constructed()).hasSize(1).element(0).satisfies(mockedZipOut -> {
-                verify(mockedZipOut).setLevel(5);
-                verify(mockedZipOut).setMethod(STORED);
-                verify(mockedZipOut).setComment("test comment");
-                verify(mockedZipOut).setUseZip64(Zip64Mode.Always);
-                verify(mockedZipOut).setCreateUnicodeExtraFields(ZipArchiveOutputStream.UnicodeExtraFieldPolicy.ALWAYS);
-                verify(mockedZipOut).setFallbackToUTF8(true);
-                verify(mockedZipOut).setUseLanguageEncodingFlag(false);
-                verify(mockedZipOut).setEncoding("ISO-8859-1");
-            });
+    @Test
+    void missingParentDirectoryFailsInBuild() {
+        var builder = ZipArchiveCreator.builder(dir.resolve("missing/out.zip"));
+
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
+    }
+
+    @Test
+    void invalidCompressionLevelIsRejected() {
+        var builder = ZipArchiveCreator.builder(new ByteArrayOutputStream());
+
+        assertThatThrownBy(() -> builder.compressionLevel(-2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Compression level must be between -1 and 9");
+        assertThatThrownBy(() -> builder.compressionLevel(10)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void nullOptionsAreRejected() {
+        var builder = ZipArchiveCreator.builder(new ByteArrayOutputStream());
+
+        assertThatThrownBy(() -> builder.compressionMethod(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> builder.comment(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> builder.zip64(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> builder.createUnicodeExtraFields(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> builder.encoding(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void compressionMethodSelectsStoredOrDeflated() throws IOException {
+        var stored = entryOf(
+                ZipArchiveCreator.builder(dir.resolve("out.zip")).compressionMethod(ZipCompressionMethod.STORED));
+        assertThat(stored.getMethod()).isEqualTo(ZipEntry.STORED);
+
+        var deflated = entryOf(
+                ZipArchiveCreator.builder(dir.resolve("out.zip")).compressionMethod(ZipCompressionMethod.DEFLATED));
+        assertThat(deflated.getMethod()).isEqualTo(ZipEntry.DEFLATED);
+        assertThat(deflated.getCompressedSize()).isLessThan(CONTENT.length);
+    }
+
+    @Test
+    void commentIsWrittenToTheArchive() throws IOException {
+        var channel = new SeekableInMemoryByteChannel();
+        try (var creator = ZipArchiveCreator.builder(channel).comment("note").build()) {
+            creator.add(EntrySource.file("a.txt", CONTENT));
+        }
+
+        assertThat(new String(channel.array(), 0, (int) channel.size(), StandardCharsets.ISO_8859_1))
+                .endsWith("note");
+    }
+
+    @Test
+    void zip64AlwaysWritesZip64ExtraFields() throws IOException {
+        var entry = entryOf(ZipArchiveCreator.builder(dir.resolve("out.zip")).zip64(ZipZip64Mode.ALWAYS));
+
+        assertThat(entry.getExtraField(ZIP64_HEADER_ID)).isNotNull();
+    }
+
+    @Test
+    void zip64NeverOmitsZip64ExtraFields() throws IOException {
+        var entry = entryOf(ZipArchiveCreator.builder(dir.resolve("out.zip")).zip64(ZipZip64Mode.NEVER));
+
+        assertThat(entry.getExtraField(ZIP64_HEADER_ID)).isNull();
+    }
+
+    private ZipArchiveEntry unicodeEntry(ZipUnicodeExtraFields policy, Charset encoding, String name)
+            throws IOException {
+        Path zip = dir.resolve("unicode.zip");
+        try (var creator = ZipArchiveCreator.builder(zip)
+                .encoding(encoding)
+                .createUnicodeExtraFields(policy)
+                .build()) {
+            creator.add(EntrySource.file(name, CONTENT));
+        }
+        try (var file = ZipFile.builder().setPath(zip).setCharset(encoding).get()) {
+            return file.getEntries().nextElement();
         }
     }
 
     @Test
-    @DisplayName("build() should return ZipArchiveCreator")
-    void testBuild() throws IOException {
-        // Given
-        var mockZipOut = mock(ZipArchiveOutputStream.class);
-        when(builder.buildArchiveOutputStream()).thenReturn(mockZipOut);
+    void unicodeExtraFieldsAlwaysAddsThemToEveryEntry() throws IOException {
+        var entry = unicodeEntry(ZipUnicodeExtraFields.ALWAYS, StandardCharsets.UTF_8, "a.txt");
 
-        // When
-        var creator = builder.build();
+        assertThat(entry.getExtraField(UNICODE_PATH_HEADER_ID)).isNotNull();
+    }
 
-        // Then
-        assertThat(creator).isNotNull();
-        //noinspection resource
-        verify(builder).buildArchiveOutputStream();
+    @Test
+    void unicodeExtraFieldsNeverAddsNone() throws IOException {
+        var entry = unicodeEntry(ZipUnicodeExtraFields.NEVER, StandardCharsets.UTF_8, "caf\u00e9.txt");
+
+        assertThat(entry.getExtraField(UNICODE_PATH_HEADER_ID)).isNull();
+    }
+
+    @Test
+    void unicodeExtraFieldsNotEncodeableAddsThemOnlyWhenTheEncodingFails() throws IOException {
+        var encodeable = unicodeEntry(ZipUnicodeExtraFields.NOT_ENCODEABLE, StandardCharsets.US_ASCII, "a.txt");
+        var unencodeable =
+                unicodeEntry(ZipUnicodeExtraFields.NOT_ENCODEABLE, StandardCharsets.US_ASCII, "caf\u00e9.txt");
+
+        assertThat(encodeable.getExtraField(UNICODE_PATH_HEADER_ID)).isNull();
+        assertThat(unencodeable.getExtraField(UNICODE_PATH_HEADER_ID)).isNotNull();
+    }
+
+    @Test
+    void zip64AlwaysWithCompatibilityWritesZip64ExtraFields() throws IOException {
+        var entry = entryOf(
+                ZipArchiveCreator.builder(dir.resolve("out.zip")).zip64(ZipZip64Mode.ALWAYS_WITH_COMPATIBILITY));
+
+        assertThat(entry.getExtraField(ZIP64_HEADER_ID)).isNotNull();
+    }
+
+    @Test
+    void zip64ModesMapToTheirCommonsModes() {
+        assertThat(ZipZip64Mode.NEVER.value).isEqualTo(Zip64Mode.Never);
+        assertThat(ZipZip64Mode.ALWAYS.value).isEqualTo(Zip64Mode.Always);
+        assertThat(ZipZip64Mode.ALWAYS_WITH_COMPATIBILITY.value).isEqualTo(Zip64Mode.AlwaysWithCompatibility);
+        assertThat(ZipZip64Mode.AS_NEEDED.value).isEqualTo(Zip64Mode.AsNeeded);
+    }
+
+    @Test
+    void encodingControlsEntryNames() throws IOException {
+        Path zip = dir.resolve("latin.zip");
+        try (var creator = ZipArchiveCreator.builder(zip)
+                .encoding(StandardCharsets.ISO_8859_1)
+                .useLanguageEncodingFlag(false)
+                .fallbackToUtf8(false)
+                .build()) {
+            creator.add(EntrySource.file("café.txt", CONTENT));
+        }
+
+        try (var file = ZipFile.builder()
+                .setPath(zip)
+                .setCharset(StandardCharsets.ISO_8859_1)
+                .get()) {
+            assertThat(file.getEntry("café.txt")).isNotNull();
+        }
+    }
+
+    @Test
+    void writesToAStreamBuilder() throws IOException {
+        var out = new ByteArrayOutputStream();
+        try (var creator = ZipArchiveCreator.builder(out).build()) {
+            creator.add(EntrySource.file("a.txt", CONTENT));
+        }
+
+        assertThat(out.size()).isPositive();
+    }
+
+    @Test
+    void ownedPathIsFilledByTheCreator() throws IOException {
+        Path zip = dir.resolve("filled.zip");
+        try (var creator = ZipArchiveCreator.builder(zip).build()) {
+            creator.add(EntrySource.file("a.txt", CONTENT));
+        }
+
+        assertThat(Files.size(zip)).isPositive();
     }
 }

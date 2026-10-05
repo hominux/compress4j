@@ -20,8 +20,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.archivers.sevenz.SevenZArchiveCreator;
+import com.hominux.compress4j.archivers.sevenz.SevenZArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
+import com.hominux.compress4j.archivers.zip.ZipArchiveCreator;
+import com.hominux.compress4j.archivers.zip.ZipArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
@@ -123,6 +127,91 @@ class ArchiveRatioTest {
         Path tar = zeroArchive("plain.tar", Compression.none());
         var delivered = new AtomicLong();
         try (var extractor = TarArchiveExtractor.builder(tar).build()) {
+            assertDoesNotThrow(() -> drain(extractor, delivered));
+        }
+        assertThat(delivered.get()).isEqualTo(ZEROS);
+    }
+
+    private Path zeroZip() throws IOException {
+        Path archive = dir.resolve("bomb.zip");
+        try (var creator = ZipArchiveCreator.builder(archive).build()) {
+            creator.add(EntrySource.file("zeros", new byte[ZEROS]));
+        }
+        return archive;
+    }
+
+    @Test
+    void defaultRatioStopsAZipBombEarlyWhenStreaming() throws IOException {
+        var delivered = new AtomicLong();
+        try (var extractor = ZipArchiveExtractor.builder(zeroZip()).build()) {
+            assertThatThrownBy(() -> drain(extractor, delivered))
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                            .isEqualTo(Limit.RATIO));
+        }
+        assertThat(delivered.get()).isLessThanOrEqualTo(EARLY_STOP_BOUND);
+    }
+
+    @Test
+    void defaultRatioStopsAZipBombEarlyWhenExtracting() throws IOException {
+        Path zip = zeroZip();
+        Path out = Files.createDirectory(dir.resolve("out"));
+        try (var extractor = ZipArchiveExtractor.builder(zip).build()) {
+            assertThatThrownBy(() -> extractor.extract(out))
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                            .isEqualTo(Limit.RATIO));
+        }
+        assertThat(Files.size(out.resolve("zeros"))).isLessThanOrEqualTo(EARLY_STOP_BOUND);
+    }
+
+    @Test
+    void unlimitedRatioAcceptsTheSameZipBomb() throws IOException {
+        var delivered = new AtomicLong();
+        try (var extractor = ZipArchiveExtractor.builder(zeroZip())
+                .maxRatio(ExtractionLimits.UNLIMITED)
+                .build()) {
+            assertDoesNotThrow(() -> drain(extractor, delivered));
+        }
+        assertThat(delivered.get()).isEqualTo(ZEROS);
+    }
+
+    @Test
+    void defaultRatioStopsAStreamingZipBombEarly() throws IOException {
+        Path zip = zeroZip();
+        var delivered = new AtomicLong();
+        try (var in = Files.newInputStream(zip);
+                var extractor = ZipArchiveExtractor.streaming(in).build()) {
+            assertThatThrownBy(() -> drain(extractor, delivered))
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                            .isEqualTo(Limit.RATIO));
+        }
+        assertThat(delivered.get()).isLessThanOrEqualTo(EARLY_STOP_BOUND);
+    }
+
+    private Path zeroSevenZ() throws IOException {
+        Path archive = dir.resolve("bomb.7z");
+        try (var creator = SevenZArchiveCreator.builder(archive).build()) {
+            creator.add(EntrySource.file("zeros", new byte[ZEROS]));
+        }
+        return archive;
+    }
+
+    @Test
+    void defaultRatioStopsASevenZBombEarlyWhenStreaming() throws IOException {
+        var delivered = new AtomicLong();
+        try (var extractor = SevenZArchiveExtractor.builder(zeroSevenZ()).build()) {
+            assertThatThrownBy(() -> drain(extractor, delivered))
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                            .isEqualTo(Limit.RATIO));
+        }
+        assertThat(delivered.get()).isLessThanOrEqualTo(EARLY_STOP_BOUND);
+    }
+
+    @Test
+    void unlimitedRatioAcceptsTheSameSevenZBomb() throws IOException {
+        var delivered = new AtomicLong();
+        try (var extractor = SevenZArchiveExtractor.builder(zeroSevenZ())
+                .maxRatio(ExtractionLimits.UNLIMITED)
+                .build()) {
             assertDoesNotThrow(() -> drain(extractor, delivered));
         }
         assertThat(delivered.get()).isEqualTo(ZEROS);
