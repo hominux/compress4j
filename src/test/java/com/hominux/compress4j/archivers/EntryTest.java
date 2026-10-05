@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.attribute.FileTime;
-import java.util.Date;
 import java.util.Optional;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
@@ -38,27 +37,31 @@ class EntryTest {
     }
 
     @Test
-    void withMetadataMapsCommonsConventions() {
-        // Given
-        var date = new Date(1_700_000_000_000L);
+    void withLastModifiedRecordsTheTime() {
+        var time = FileTime.fromMillis(1_700_000_000_000L);
 
-        // When
-        var known = new Entry("a", Entry.Type.FILE, 0).withMetadata(date, 12);
-        var unknown = new Entry("a", Entry.Type.FILE, 0).withMetadata(null, -1);
+        assertThat(new Entry("a", Entry.Type.FILE, 0).withLastModified(time).lastModified())
+                .contains(time);
+    }
 
-        // Then
-        assertThat(known.lastModified()).contains(FileTime.fromMillis(1_700_000_000_000L));
-        assertThat(known.size()).hasValue(12);
-        assertThat(unknown.lastModified()).isEmpty();
-        assertThat(unknown.size()).isEmpty();
+    @Test
+    void withSizeRecordsTheSize() {
+        assertThat(new Entry("a", Entry.Type.FILE, 0).withSize(12).size()).hasValue(12);
+    }
+
+    @Test
+    void negativeSizeIsEmpty() {
+        assertThat(new Entry("a", Entry.Type.FILE, 0).withSize(-1).size()).isEmpty();
     }
 
     @Test
     void blankLinkTargetIsEmpty() {
         assertThat(new Entry("l", Entry.Type.SYMLINK, 0).withLinkTarget(" ").linkTarget())
                 .isEmpty();
-        assertThat(new Entry("l", Entry.Type.SYMLINK, 0).withLinkTarget(null).linkTarget())
-                .isEmpty();
+    }
+
+    @Test
+    void linkTargetIsRecorded() {
         assertThat(new Entry("l", Entry.Type.SYMLINK, 0).withLinkTarget("t").linkTarget())
                 .contains("t");
     }

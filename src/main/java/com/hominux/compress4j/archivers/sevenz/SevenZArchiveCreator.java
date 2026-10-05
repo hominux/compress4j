@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.archivers.sevenz;
 
-import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.LegacyArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -35,7 +35,7 @@ import org.apache.commons.io.function.IOSupplier;
  *
  * @since 3.2
  */
-public class SevenZArchiveCreator extends ArchiveCreator<SevenZFileArchiveOutputStream> {
+public class SevenZArchiveCreator extends LegacyArchiveCreator<SevenZFileArchiveOutputStream> {
 
     private static final int DOS_DIRECTORY = 0x10;
 

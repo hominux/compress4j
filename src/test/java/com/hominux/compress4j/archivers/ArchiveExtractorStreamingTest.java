@@ -22,6 +22,7 @@ import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
 import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.internal.archive.EntryReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -261,7 +263,9 @@ class ArchiveExtractorStreamingTest {
                         .type(Entry.Type.SYMLINK)
                         .linkName("t")
                         .build());
-        try (var extractor = new NoOpenExtractor(InMemoryArchiveExtractor.builder(entries))) {
+        try (var extractor = InMemoryArchiveExtractor.builder(entries)
+                .readerDecorator(NoOpenReader::new)
+                .build()) {
             // When
             List<byte[]> contents = extractor.stream().map(this::bytes).toList();
 
@@ -314,14 +318,20 @@ class ArchiveExtractorStreamingTest {
         }
     }
 
-    private static final class NoOpenExtractor extends InMemoryArchiveExtractor {
-        NoOpenExtractor(InMemoryArchiveExtractorBuilder builder) throws IOException {
-            super(builder);
+    private record NoOpenReader(EntryReader delegate) implements EntryReader {
+        @Override
+        public Optional<Entry> next() throws IOException {
+            return delegate.next();
         }
 
         @Override
-        protected InputStream openEntryStream(Entry entry) {
-            throw new AssertionError("openEntryStream must not be called for " + entry.type());
+        public InputStream open(Entry entry) {
+            throw new AssertionError("open must not be called for " + entry.type());
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

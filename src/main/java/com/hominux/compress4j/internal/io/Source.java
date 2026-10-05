@@ -38,7 +38,7 @@ public sealed interface Source {
     }
 
     /**
-     * Input read from a caller-owned channel.
+     * Input read from a caller-supplied channel.
      *
      * @param channel the channel to read
      */

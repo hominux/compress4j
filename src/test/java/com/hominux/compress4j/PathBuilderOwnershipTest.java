@@ -16,16 +16,12 @@
 package com.hominux.compress4j;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.optional;
 
 import com.hominux.compress4j.archivers.ar.ArArchiveCreator;
 import com.hominux.compress4j.archivers.ar.ArArchiveExtractor;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveCreator;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
-import com.hominux.compress4j.compressors.Compression;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,7 +31,6 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.assertj.core.api.ThrowingConsumer;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -72,8 +67,6 @@ class PathBuilderOwnershipTest {
 
     static Stream<Case> cases() {
         return Stream.of(
-                new Case("TarArchiveCreator", TarArchiveCreator::builder, () -> TarArchiveCreator.builder(out())),
-                new Case("TarArchiveExtractor", TarArchiveExtractor::builder, () -> TarArchiveExtractor.builder(in())),
                 new Case("ArArchiveCreator", ArArchiveCreator::builder, () -> ArArchiveCreator.builder(out())),
                 new Case("ArArchiveExtractor", ArArchiveExtractor::builder, () -> ArArchiveExtractor.builder(in())),
                 new Case("CpioArchiveCreator", CpioArchiveCreator::builder, () -> CpioArchiveCreator.builder(out())),
@@ -102,17 +95,6 @@ class PathBuilderOwnershipTest {
         var builder = testCase.fromStream().create();
 
         assertThat(builder).extracting("ownedStream", optional(Closeable.class)).isEmpty();
-    }
-
-    @Test
-    void shouldCloseOpenedStreamWhenArchiveExtractorBuildFails() throws IOException {
-        var path = Files.writeString(tempDir.resolve("garbage.tar.gz"), "not gzip");
-        var builder = TarArchiveExtractor.builder(path).compression(Compression.gzip());
-
-        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
-
-        assertThatThrownBy(() -> InputStream.class.cast(heldStream(builder)).read())
-                .isInstanceOf(IOException.class);
     }
 
     private static Object heldStream(Object builder) {

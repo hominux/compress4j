@@ -15,41 +15,45 @@
  */
 package com.hominux.compress4j.archivers.tar;
 
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.BIGNUMBER_POSIX;
-import static org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.LONGFILE_POSIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
+import com.hominux.compress4j.compressors.Compression;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TarArchiveCreatorBuilderTest {
 
     @Test
-    void shouldBuildArchiveOutputStream() throws IOException {
-        // given
-        var outputStream = mock(OutputStream.class);
-        var builder = TarArchiveCreator.builder(outputStream)
+    void shouldPadTheArchiveToTheConfiguredBlockSize() throws IOException {
+        var bytes = new ByteArrayOutputStream();
+
+        try (var creator = TarArchiveCreator.builder(bytes)
+                .blockSize(4096)
                 .longFileMode(TarLongFileMode.POSIX)
                 .bigNumberMode(TarBigNumberMode.POSIX)
-                .blockSize(1024)
-                .encoding(StandardCharsets.UTF_8);
-
-        // when
-        try (TarArchiveOutputStream out = spy(builder.buildArchiveOutputStream())) {
-
-            // then
-            assertThat(out)
-                    .isNotNull()
-                    .extracting("longFileMode", "bigNumberMode", "recordsPerBlock", "charsetName")
-                    .containsExactly(LONGFILE_POSIX, BIGNUMBER_POSIX, 2, "UTF-8");
+                .encoding(StandardCharsets.UTF_8)
+                .build()) {
+            assertDoesNotThrow(creator::close);
         }
+
+        assertThat(bytes.size()).isEqualTo(4096);
+    }
+
+    @Test
+    void shouldTerminateAnEmptyArchiveWithTheDefaultBlock() throws IOException {
+        var bytes = new ByteArrayOutputStream();
+
+        TarArchiveCreator.builder(bytes).build().close();
+
+        assertThat(bytes.size()).isEqualTo(1024);
     }
 
     @Test
@@ -63,5 +67,35 @@ class TarArchiveCreatorBuilderTest {
         assertThat(sink.size()).isZero();
         assertThat(builder.blockSize(-511)).isSameAs(builder);
         assertThat(builder.blockSize(512)).isSameAs(builder);
+    }
+
+    @Test
+    void shouldNotCreateTheFileBeforeBuild(@TempDir Path dir) {
+        Path target = dir.resolve("never.tar");
+
+        TarArchiveCreator.builder(target).compression(Compression.gzip());
+
+        assertThat(target).doesNotExist();
+    }
+
+    @Test
+    void shouldLeaveACallerStreamOpenWhenBuildFails() {
+        var closed = new AtomicBoolean();
+        var failing = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw new IOException("write refused");
+            }
+
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        };
+        var builder = TarArchiveCreator.builder(failing).compression(Compression.gzip());
+
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
+
+        assertThat(closed).isFalse();
     }
 }

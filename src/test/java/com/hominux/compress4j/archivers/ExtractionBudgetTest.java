@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
+import com.hominux.compress4j.internal.archive.EntryReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
@@ -32,7 +33,7 @@ class ExtractionBudgetTest {
     @Test
     void countEntry_throwsOnceMaxEntriesIsExceeded() throws IOException {
         ExtractionBudget budget =
-                new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntries(2));
+                new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntries(2), () -> Long.MAX_VALUE);
         budget.countEntry();
         budget.countEntry();
         assertThatThrownBy(budget::countEntry).isInstanceOfSatisfying(LimitExceededException.class, e -> {
@@ -44,7 +45,7 @@ class ExtractionBudgetTest {
 
     @Test
     void countEntry_neverThrowsWhenUnlimited() {
-        ExtractionBudget budget = new ExtractionBudget(ExtractionLimits.noLimits());
+        ExtractionBudget budget = new ExtractionBudget(ExtractionLimits.noLimits(), () -> Long.MAX_VALUE);
         assertThatCode(() -> {
                     for (int i = 0; i < 1000; i++) budget.countEntry();
                 })
@@ -54,7 +55,7 @@ class ExtractionBudgetTest {
     @Test
     void meterThrowsOnTheReadThatCrossesTheEntryLimit() throws IOException {
         // Given
-        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4), () -> Long.MAX_VALUE);
         var in = budget.meter("e", new ByteArrayInputStream(new byte[10]));
 
         // When
@@ -72,7 +73,7 @@ class ExtractionBudgetTest {
     @Test
     void meterCountsTotalAcrossEntries() throws IOException {
         // Given
-        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxTotalSize(6));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxTotalSize(6), () -> Long.MAX_VALUE);
 
         // When
         budget.meter("a", new ByteArrayInputStream(new byte[4])).readAllBytes();
@@ -88,7 +89,7 @@ class ExtractionBudgetTest {
     @Test
     void meterCountsSkippedBytes() {
         // Given
-        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4), () -> Long.MAX_VALUE);
         var in = budget.meter("s", new ByteArrayInputStream(new byte[10]));
 
         // Then
@@ -101,14 +102,14 @@ class ExtractionBudgetTest {
     @Test
     void unlimitedBudgetReturnsTheSameStream() {
         var raw = new ByteArrayInputStream(new byte[1]);
-        assertThat(new ExtractionBudget(ExtractionLimits.noLimits()).meter("x", raw))
+        assertThat(new ExtractionBudget(ExtractionLimits.noLimits(), () -> Long.MAX_VALUE).meter("x", raw))
                 .isSameAs(raw);
     }
 
     @Test
     void entryOfExactlyMaxEntrySizeReadsFullyThenReturnsEof() throws IOException {
         // Given
-        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4), () -> Long.MAX_VALUE);
         var in = budget.meter("e", new ByteArrayInputStream(new byte[4]));
 
         // Then
@@ -119,46 +120,13 @@ class ExtractionBudgetTest {
     @Test
     void totalOfExactlyMaxTotalSizeAcrossTwoEntriesReadsWithoutThrowing() {
         // Given
-        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxTotalSize(6));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxTotalSize(6), () -> Long.MAX_VALUE);
 
         // Then
         assertThatCode(() -> {
                     budget.meter("a", new ByteArrayInputStream(new byte[3])).readAllBytes();
                     budget.meter("b", new ByteArrayInputStream(new byte[3])).readAllBytes();
                 })
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void zeroIsAStrictLimit() {
-        var limits = ExtractionLimits.noLimits().withMaxEntrySize(0);
-        assertThatCode(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 0)).doesNotThrowAnyException();
-        assertThatThrownBy(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 1))
-                .isInstanceOfSatisfying(
-                        LimitExceededException.class, e -> assertThat(e.limit()).isEqualTo(Limit.ENTRY_SIZE));
-    }
-
-    @Test
-    void checkDeclaredSize_allowsSizeAtTheLimit() {
-        var limits = ExtractionLimits.noLimits().withMaxEntrySize(10);
-        assertThatCode(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 10))
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void checkDeclaredSize_rejectsSizeAboveTheLimit() {
-        var limits = ExtractionLimits.noLimits().withMaxEntrySize(10);
-        assertThatThrownBy(() -> ExtractionBudget.checkDeclaredSize(limits, "a", 11))
-                .isInstanceOfSatisfying(LimitExceededException.class, e -> {
-                    assertThat(e.limit()).isEqualTo(Limit.ENTRY_SIZE);
-                    assertThat(e.maximum()).isEqualTo(10);
-                    assertThat(e.entryName()).contains("a");
-                });
-    }
-
-    @Test
-    void checkDeclaredSize_neverRejectsWhenUnlimited() {
-        assertThatCode(() -> ExtractionBudget.checkDeclaredSize(ExtractionLimits.noLimits(), "a", Long.MAX_VALUE))
                 .doesNotThrowAnyException();
     }
 
@@ -177,11 +145,11 @@ class ExtractionBudgetTest {
             }
 
             @Override
-            public void release(java.io.InputStream content) throws java.io.IOException {
-                content.close();
+            public void close() {
+                throw new UnsupportedOperationException("the pipeline does not close its reader");
             }
         };
-        var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.defaults());
+        var pipeline = new EntryPipeline(reader, 0, entry -> true, ExtractionLimits.defaults(), () -> Long.MAX_VALUE);
         for (int i = 0; i < 1_000_000; i++) {
             assertThat(pipeline.advance()).isPresent();
         }

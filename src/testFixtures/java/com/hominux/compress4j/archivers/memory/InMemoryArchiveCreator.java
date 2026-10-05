@@ -20,6 +20,7 @@ import static com.hominux.compress4j.archivers.Entry.Type.FILE;
 import static com.hominux.compress4j.archivers.Entry.Type.SYMLINK;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.internal.archive.EntryWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -27,66 +28,74 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.attribute.FileTime;
 import java.util.OptionalLong;
 
-public class InMemoryArchiveCreator extends ArchiveCreator<InMemoryArchiveOutputStream> {
+public class InMemoryArchiveCreator extends ArchiveCreator {
 
-    @SuppressWarnings("unused")
-    public InMemoryArchiveCreator(InMemoryArchiveOutputStream outputStream) {
-        super(outputStream);
+    public InMemoryArchiveCreator(InMemoryArchiveCreatorBuilder builder) {
+        this(builder, new InMemoryEntryWriter(builder.outputStream));
     }
 
-    public InMemoryArchiveCreator(InMemoryArchiveCreatorBuilder outputStreamBuilder) throws IOException {
-        super(outputStreamBuilder);
+    public InMemoryArchiveCreator(InMemoryArchiveCreatorBuilder builder, InMemoryEntryWriter writer) {
+        super(builder, writer);
     }
 
-    @Override
-    protected boolean requiresSize() {
-        return false;
-    }
+    /** Writes each entry as a JSON document to the output stream. */
+    public static class InMemoryEntryWriter implements EntryWriter {
+        private final InMemoryArchiveOutputStream out;
 
-    @Override
-    public void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
-        archiveOutputStream.putArchiveEntry(InMemoryArchiveEntry.builder()
-                .name(name)
-                .type(DIR)
-                .mode(mode)
-                .lastModifiedDate(lastModified)
-                .build());
-    }
+        public InMemoryEntryWriter(OutputStream outputStream) {
+            this.out = new InMemoryArchiveOutputStream(outputStream);
+        }
 
-    @Override
-    public void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
-            throws IOException {
-        archiveOutputStream.putArchiveEntry(InMemoryArchiveEntry.builder()
-                .name(name)
-                .type(FILE)
-                .mode(mode)
-                .lastModifiedDate(lastModified)
-                .content(new String(content.readAllBytes(), StandardCharsets.UTF_8))
-                .build());
-    }
+        @Override
+        public boolean requiresSize() {
+            return false;
+        }
 
-    @Override
-    public void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
-        archiveOutputStream.putArchiveEntry(InMemoryArchiveEntry.builder()
-                .name(name)
-                .type(SYMLINK)
-                .mode(mode)
-                .linkName(target)
-                .lastModifiedDate(lastModified)
-                .build());
+        @Override
+        public void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
+            out.putArchiveEntry(InMemoryArchiveEntry.builder()
+                    .name(name)
+                    .type(DIR)
+                    .mode(mode)
+                    .lastModifiedDate(lastModified)
+                    .build());
+        }
+
+        @Override
+        public void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
+                throws IOException {
+            out.putArchiveEntry(InMemoryArchiveEntry.builder()
+                    .name(name)
+                    .type(FILE)
+                    .mode(mode)
+                    .lastModifiedDate(lastModified)
+                    .content(new String(content.readAllBytes(), StandardCharsets.UTF_8))
+                    .build());
+        }
+
+        @Override
+        public void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
+            out.putArchiveEntry(InMemoryArchiveEntry.builder()
+                    .name(name)
+                    .type(SYMLINK)
+                    .mode(mode)
+                    .linkName(target)
+                    .lastModifiedDate(lastModified)
+                    .build());
+        }
+
+        @Override
+        public void close() throws IOException {
+            out.close();
+        }
     }
 
     public static class InMemoryArchiveCreatorBuilder
-            extends ArchiveCreatorBuilder<
-                    InMemoryArchiveOutputStream, InMemoryArchiveCreatorBuilder, InMemoryArchiveCreator> {
-        private int someOption = 0;
+            extends ArchiveCreator.Builder<InMemoryArchiveCreatorBuilder, InMemoryArchiveCreator> {
+        private final OutputStream outputStream;
 
         public InMemoryArchiveCreatorBuilder(OutputStream outputStream) {
-            super(outputStream);
-        }
-
-        public InMemoryArchiveCreatorBuilder(OutputStream outputStream, boolean owned) {
-            super(outputStream, owned);
+            this.outputStream = outputStream;
         }
 
         @Override
@@ -94,20 +103,8 @@ public class InMemoryArchiveCreator extends ArchiveCreator<InMemoryArchiveOutput
             return this;
         }
 
-        public InMemoryArchiveCreatorBuilder withSomeOption(int option) {
-            someOption = option;
-            return this;
-        }
-
         @Override
-        public InMemoryArchiveOutputStream buildArchiveOutputStream() {
-            InMemoryArchiveOutputStream out = new InMemoryArchiveOutputStream(outputStream);
-            out.setSomeOption(someOption);
-            return out;
-        }
-
-        @Override
-        public InMemoryArchiveCreator build() throws IOException {
+        public InMemoryArchiveCreator build() {
             return new InMemoryArchiveCreator(this);
         }
     }

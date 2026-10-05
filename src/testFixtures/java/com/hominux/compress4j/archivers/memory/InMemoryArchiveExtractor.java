@@ -17,22 +17,20 @@ package com.hominux.compress4j.archivers.memory;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.utils.EntryValues;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
-public class InMemoryArchiveExtractor extends ArchiveExtractor<InMemoryArchiveInputStream> {
+public class InMemoryArchiveExtractor extends ArchiveExtractor {
 
-    @SuppressWarnings("unused")
-    public InMemoryArchiveExtractor(InMemoryArchiveInputStream inputStream) {
-        super(inputStream);
-    }
-
-    public InMemoryArchiveExtractor(InMemoryArchiveExtractorBuilder inputStreamBuilder) throws IOException {
-        super(inputStreamBuilder);
+    public InMemoryArchiveExtractor(InMemoryArchiveExtractorBuilder builder) throws IOException {
+        super(builder, builder.reader(), () -> Long.MAX_VALUE);
     }
 
     /**
@@ -55,42 +53,70 @@ public class InMemoryArchiveExtractor extends ArchiveExtractor<InMemoryArchiveIn
         return new InMemoryArchiveExtractorBuilder(InMemoryArchiveInputStream.toInputStream(entries));
     }
 
-    @Override
-    protected Optional<Entry> nextEntry() {
-        return Optional.ofNullable(archiveInputStream.getNextEntry())
-                .map(next -> new Entry(next.getName(), next.getType(), next.getMode())
-                        .withLinkTarget(next.getLinkName())
-                        .withMetadata(next.getLastModifiedDate(), next.getSize()));
-    }
+    private static final class InMemoryEntryReader implements EntryReader {
+        private final List<InMemoryArchiveEntry> entries;
+        private int pointer;
+        private Optional<InMemoryArchiveEntry> current = Optional.empty();
 
-    @Override
-    protected InputStream openEntryStream(Entry entry) {
-        return new ByteArrayInputStream(archiveInputStream.readString().getBytes(StandardCharsets.UTF_8));
+        private InMemoryEntryReader(List<InMemoryArchiveEntry> entries) {
+            this.entries = entries;
+        }
+
+        @Override
+        public Optional<Entry> next() {
+            current = pointer < entries.size() ? Optional.of(entries.get(pointer)) : Optional.empty();
+            pointer++;
+            return current.map(InMemoryEntryReader::entryOf);
+        }
+
+        @Override
+        public InputStream open(Entry entry) {
+            return new ByteArrayInputStream(current.orElseThrow().getContent().getBytes(StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void close() {
+            /* nothing to release */
+        }
+
+        private static Entry entryOf(InMemoryArchiveEntry next) {
+            return EntryValues.withMetadata(
+                    EntryValues.withLinkTarget(
+                            new Entry(next.getName(), next.getType(), next.getMode()),
+                            Optional.ofNullable(next.getLinkName())),
+                    Optional.ofNullable(next.getLastModifiedDate()),
+                    next.getSize());
+        }
     }
 
     public static class InMemoryArchiveExtractorBuilder
-            extends ArchiveExtractor.ArchiveExtractorBuilder<
-                    InMemoryArchiveInputStream, InMemoryArchiveExtractorBuilder, InMemoryArchiveExtractor> {
+            extends ArchiveExtractor.Builder<InMemoryArchiveExtractorBuilder, InMemoryArchiveExtractor> {
 
         private final InputStream inputStream;
+        private UnaryOperator<EntryReader> readerDecorator = UnaryOperator.identity();
 
         public InMemoryArchiveExtractorBuilder(InputStream inputStream) {
             this.inputStream = inputStream;
         }
 
-        public InMemoryArchiveExtractorBuilder(InputStream inputStream, boolean owned) {
-            super(inputStream, owned);
-            this.inputStream = inputStream;
+        /**
+         * Wraps the reader the extractor reads from, so a test can inject faults.
+         *
+         * @param decorator wraps the reader
+         * @return this builder
+         */
+        public InMemoryArchiveExtractorBuilder readerDecorator(UnaryOperator<EntryReader> decorator) {
+            this.readerDecorator = decorator;
+            return this;
+        }
+
+        EntryReader reader() throws IOException {
+            return readerDecorator.apply(new InMemoryEntryReader(InMemoryArchiveInputStream.from(inputStream)));
         }
 
         @Override
         protected InMemoryArchiveExtractorBuilder getThis() {
             return this;
-        }
-
-        @Override
-        public InMemoryArchiveInputStream buildArchiveInputStream() throws IOException {
-            return new InMemoryArchiveInputStream(inputStream);
         }
 
         @Override

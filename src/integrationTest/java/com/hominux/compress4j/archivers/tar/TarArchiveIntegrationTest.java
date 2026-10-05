@@ -19,6 +19,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
 import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Reader;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Writer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,13 +35,15 @@ import org.junit.jupiter.api.Test;
 class TarArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Override
-    protected TarArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
-        return TarArchiveCreator.builder(Files.newOutputStream(archivePath)).build();
+    protected Writer writerAt(Path archivePath) throws IOException {
+        return ArchiveFormat.writer(
+                TarArchiveCreator.builder(Files.newOutputStream(archivePath)).build());
     }
 
     @Override
-    protected TarArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
-        return TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build();
+    protected Reader readerAt(Path archivePath) throws IOException {
+        return ArchiveFormat.reader(
+                TarArchiveExtractor.builder(Files.newInputStream(archivePath)).build());
     }
 
     @Override

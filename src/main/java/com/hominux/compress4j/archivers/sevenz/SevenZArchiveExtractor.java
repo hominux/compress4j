@@ -15,10 +15,11 @@
  */
 package com.hominux.compress4j.archivers.sevenz;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
 import com.hominux.compress4j.utils.BuildFailureCleanup;
 import com.hominux.compress4j.utils.BuildGatedChannel;
+import com.hominux.compress4j.utils.EntryValues;
 import com.hominux.compress4j.utils.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +38,7 @@ import org.apache.commons.compress.archivers.sevenz.SevenZFile;
  *
  * @since 3.2
  */
-public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveInputStream> {
+public class SevenZArchiveExtractor extends LegacyArchiveExtractor<SevenZFileArchiveInputStream> {
 
     static final int UNIX_EXTENSION = 0x8000;
     static final int S_IFLNK = 0120000;
@@ -92,7 +93,8 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
         while ((entry = archiveInputStream.getNextEntry()) != null) {
             String name = Objects.requireNonNull(entry.getName(), "7z entry has no name");
             int mode = unixMode(entry);
-            Date modified = entry.getHasLastModifiedDate() ? entry.getLastModifiedDate() : null;
+            Optional<Date> modified =
+                    entry.getHasLastModifiedDate() ? Optional.of(entry.getLastModifiedDate()) : Optional.empty();
             UnixFileType fileType = UnixFileType.of(mode);
             Entry result;
             if (entry.isDirectory() || fileType == UnixFileType.DIRECTORY) {
@@ -105,7 +107,8 @@ public class SevenZArchiveExtractor extends ArchiveExtractor<SevenZFileArchiveIn
                 reportUnsupported(name, fileType.kind());
                 continue;
             }
-            return Optional.of(result.withMetadata(modified, result.type() == Entry.Type.FILE ? entry.getSize() : 0));
+            return Optional.of(
+                    EntryValues.withMetadata(result, modified, result.type() == Entry.Type.FILE ? entry.getSize() : 0));
         }
         return Optional.empty();
     }

@@ -15,8 +15,9 @@
  */
 package com.hominux.compress4j.archivers.cpio;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
+import com.hominux.compress4j.utils.EntryValues;
 import com.hominux.compress4j.utils.UnixFileType;
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +36,7 @@ import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream;
  *
  * @since 2.2
  */
-public class CpioArchiveExtractor extends ArchiveExtractor<CpioArchiveInputStream> {
+public class CpioArchiveExtractor extends LegacyArchiveExtractor<CpioArchiveInputStream> {
 
     /**
      * Create a new CpioArchiveExtractor with the given input stream.
@@ -85,8 +86,10 @@ public class CpioArchiveExtractor extends ArchiveExtractor<CpioArchiveInputStrea
                     continue;
                 }
             }
-            return Optional.of(entry.withMetadata(
-                    cpioEntry.getLastModifiedDate(), entry.type() == Entry.Type.FILE ? cpioEntry.getSize() : 0));
+            return Optional.of(EntryValues.withMetadata(
+                    entry,
+                    Optional.ofNullable(cpioEntry.getLastModifiedDate()),
+                    entry.type() == Entry.Type.FILE ? cpioEntry.getSize() : 0));
         }
         return Optional.empty();
     }

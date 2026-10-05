@@ -15,9 +15,7 @@
  */
 package com.hominux.compress4j.archivers;
 
-import jakarta.annotation.Nullable;
 import java.nio.file.attribute.FileTime;
-import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -26,12 +24,12 @@ import java.util.OptionalLong;
  * An archive entry as callers see it: name after normalization, type, Unix mode (0 when the format has none), symlink
  * target, last-modified time and uncompressed size when the format records them.
  *
- * <p>{@link #name} is normalized, so it is safe to use as a key.
+ * <p>{@link #name} is normalized but not checked for path traversal.
  *
  * @param name the normalized entry name
  * @param type the entry type
  * @param mode the Unix mode, or 0 when unknown
- * @param linkTarget the symlink target, present only for {@link Type#SYMLINK}
+ * @param linkTarget the symlink target, set for {@link Type#SYMLINK} entries read from an archive
  * @param lastModified the last-modified time, when the archive records one
  * @param size the uncompressed size, when known before reading the content
  */
@@ -84,31 +82,35 @@ public record Entry(
     }
 
     /**
-     * Returns a copy with the given link target; a null or blank target yields an empty one.
+     * Returns a copy with the given link target; a blank target yields an empty one.
      *
      * @param target the symlink target
      * @return the copy
+     * @throws NullPointerException if {@code target} is {@code null}
      */
-    public Entry withLinkTarget(@Nullable String target) {
-        Optional<String> t = Optional.ofNullable(target).filter(s -> !s.isBlank());
-        return new Entry(name, type, mode, t, lastModified, size);
+    public Entry withLinkTarget(String target) {
+        return new Entry(name, type, mode, Optional.of(target), lastModified, size);
     }
 
     /**
-     * Returns a copy with the given metadata; a null date or negative size yields an empty value.
+     * Returns a copy with the given last-modified time.
      *
-     * @param modified the last-modified date
+     * @param time the last-modified time
+     * @return the copy
+     * @throws NullPointerException if {@code time} is {@code null}
+     */
+    public Entry withLastModified(FileTime time) {
+        return new Entry(name, type, mode, linkTarget, Optional.of(time), size);
+    }
+
+    /**
+     * Returns a copy with the given uncompressed size; a negative size yields an empty one.
+     *
      * @param bytes the uncompressed size
      * @return the copy
      */
-    public Entry withMetadata(@Nullable Date modified, long bytes) {
-        return new Entry(
-                name,
-                type,
-                mode,
-                linkTarget,
-                Optional.ofNullable(modified).map(d -> FileTime.fromMillis(d.getTime())),
-                bytes < 0 ? OptionalLong.empty() : OptionalLong.of(bytes));
+    public Entry withSize(long bytes) {
+        return new Entry(name, type, mode, linkTarget, lastModified, OptionalLong.of(bytes));
     }
 
     /**

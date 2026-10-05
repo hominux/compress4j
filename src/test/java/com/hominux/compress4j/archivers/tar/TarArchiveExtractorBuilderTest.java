@@ -16,26 +16,61 @@
 package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.spy;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
+import com.hominux.compress4j.compressors.Compression;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TarArchiveExtractorBuilderTest {
 
     @Test
-    void shouldBuildArchiveInputStream() throws IOException {
-        // given
-        var inputStream = new ByteArrayInputStream(new byte[0]);
-        var builder = TarArchiveExtractor.builder(inputStream);
+    void shouldBuildAnExtractorOverAnEmptyStream() throws IOException {
+        var builder = TarArchiveExtractor.builder(new ByteArrayInputStream(new byte[0]));
 
-        // when
-        try (TarArchiveInputStream out = spy(builder.buildArchiveInputStream())) {
-
-            // then
-            assertThat(out).isNotNull();
+        try (var extractor = builder.build()) {
+            assertThat(extractor.stream()).isEmpty();
         }
+    }
+
+    @Test
+    void shouldRejectPack200() {
+        var builder = TarArchiveExtractor.builder(InputStream.nullInputStream());
+        var pack200 = Compression.pack200();
+
+        assertThatThrownBy(() -> builder.compression(pack200)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldLeaveACallerStreamOpenWhenBuildFails() {
+        var closed = new AtomicBoolean();
+        var stream = new ByteArrayInputStream("not gzip".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        };
+        var builder = TarArchiveExtractor.builder(stream).compression(Compression.gzip());
+
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
+
+        assertThat(closed).isFalse();
+    }
+
+    @Test
+    void shouldNotOpenAMissingPathBeforeBuild(@TempDir Path dir) {
+        Path missing = dir.resolve("missing.tar");
+
+        var builder = assertDoesNotThrow(() -> TarArchiveExtractor.builder(missing));
+
+        assertThatThrownBy(builder::build).isInstanceOf(NoSuchFileException.class);
     }
 }

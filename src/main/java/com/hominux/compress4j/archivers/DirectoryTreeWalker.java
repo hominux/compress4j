@@ -24,43 +24,52 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.function.Function;
-import org.apache.commons.compress.archivers.ArchiveEntry;
-import org.apache.commons.compress.archivers.ArchiveOutputStream;
+import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Adds a directory tree to an {@link ArchiveCreator}, applying its entry filter. */
-final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveEntry>> extends SimpleFileVisitor<Path> {
+/** Adds a directory tree to an archive creator, applying its entry filter. */
+final class DirectoryTreeWalker extends SimpleFileVisitor<Path> {
+
+    @FunctionalInterface
+    interface EntryAdder {
+        void add(EntrySource source) throws IOException;
+    }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DirectoryTreeWalker.class);
 
     private final Path root;
     private final String prefix;
     private final Function<BasicFileAttributes, FileTime> modTime;
-    private final ArchiveCreator<E> archiveCreator;
+    private final Predicate<EntrySource> accepts;
+    private final EntryAdder adder;
 
     private DirectoryTreeWalker(
-            ArchiveCreator<E> archiveCreator,
+            Predicate<EntrySource> accepts,
+            EntryAdder adder,
             Path root,
             String prefix,
             Function<BasicFileAttributes, FileTime> modTime) {
         this.root = root;
         this.prefix = prefix;
         this.modTime = modTime;
-        this.archiveCreator = archiveCreator;
+        this.accepts = accepts;
+        this.adder = adder;
     }
 
     /**
      * Add a directory recursively to the archive using a {@code SimpleFileVisitor}.
      *
-     * @param creator the creator to add the entries to
+     * @param accepts the creator's entry filter
+     * @param adder adds an entry to the creator
      * @param topLevelDir when a non-empty value specified, create a directory entry with this name and add all entries
      * @param directory directory to add
      * @param modTime resolves each entry's modification time from the attributes of the visited path
      * @throws IOException if an I/O error occurred
      */
-    static <E extends ArchiveOutputStream<? extends ArchiveEntry>> void walk(
-            ArchiveCreator<E> creator,
+    static void walk(
+            Predicate<EntrySource> accepts,
+            EntryAdder adder,
             String topLevelDir,
             Path directory,
             Function<BasicFileAttributes, FileTime> modTime)
@@ -71,7 +80,7 @@ final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveE
         topLevelDir = topLevelDir.isEmpty() ? "" : EntryNames.sanitised(topLevelDir);
         LOGGER.atTrace().log("dir={} topLevelDir={}", directory, topLevelDir);
 
-        Files.walkFileTree(directory, new DirectoryTreeWalker<>(creator, directory, topLevelDir, modTime));
+        Files.walkFileTree(directory, new DirectoryTreeWalker(accepts, adder, directory, topLevelDir, modTime));
 
         LOGGER.atTrace().log(".");
     }
@@ -84,11 +93,11 @@ final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveE
             return FileVisitResult.CONTINUE;
         }
         EntrySource source = PathSources.of(name, dir, attrs, modTime.apply(attrs));
-        if (!archiveCreator.accepts(source)) {
+        if (!accepts.test(source)) {
             return FileVisitResult.SKIP_SUBTREE;
         }
         LOGGER.atTrace().log("  {} -> {}/", dir, name);
-        archiveCreator.add(source);
+        adder.add(source);
         return FileVisitResult.CONTINUE;
     }
 
@@ -97,7 +106,7 @@ final class DirectoryTreeWalker<E extends ArchiveOutputStream<? extends ArchiveE
     public FileVisitResult visitFile(@Nonnull Path file, @Nonnull BasicFileAttributes attrs) throws IOException {
         String name = entryName(file);
         LOGGER.atTrace().log("  {} -> {}{}", file, name, attrs.isSymbolicLink() ? " symlink" : " size=" + attrs.size());
-        archiveCreator.add(PathSources.of(name, file, attrs, modTime.apply(attrs)));
+        adder.add(PathSources.of(name, file, attrs, modTime.apply(attrs)));
         return FileVisitResult.CONTINUE;
     }
 

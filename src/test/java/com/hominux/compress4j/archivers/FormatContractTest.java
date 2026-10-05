@@ -146,9 +146,9 @@ class FormatContractTest {
         return FormatCatalog.writable();
     }
 
-    private ArchiveCreator<?> filtered(ArchiveFormat format, Path archive, Predicate<? super EntrySource> filter)
+    private ArchiveFormat.Writer filtered(ArchiveFormat format, Path archive, Predicate<? super EntrySource> filter)
             throws IOException {
-        return format.builderAt().orElseThrow().apply(archive).filter(filter).build();
+        return format.builderAt().orElseThrow().open(archive, filter);
     }
 
     @ParameterizedTest

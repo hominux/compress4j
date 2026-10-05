@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.archivers.cpio;
 
-import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.LegacyArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -37,7 +37,7 @@ import org.apache.commons.io.IOUtils;
  * @since 2.2
  */
 @SuppressWarnings("OctalInteger")
-public class CpioArchiveCreator extends ArchiveCreator<CpioArchiveOutputStream> {
+public class CpioArchiveCreator extends LegacyArchiveCreator<CpioArchiveOutputStream> {
 
     private final short format;
 

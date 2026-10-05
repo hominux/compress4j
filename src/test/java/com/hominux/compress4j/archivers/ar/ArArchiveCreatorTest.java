@@ -282,26 +282,16 @@ class ArArchiveCreatorTest {
     @Test
     void testAddNullFileName() throws IOException {
         // given
-        var outputStream = new ByteArrayOutputStream();
         byte[] content = "content".getBytes(StandardCharsets.UTF_8);
 
         // when & then
-        try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            assertThatThrownBy(() -> creator.add(EntrySource.file(null, content)))
-                    .isInstanceOf(NullPointerException.class);
-        }
+        assertThatThrownBy(() -> EntrySource.file(null, content)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void testAddNullContent() throws IOException {
-        // given
-        var outputStream = new ByteArrayOutputStream();
-
         // when & then
-        try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            assertThatThrownBy(() -> creator.add(EntrySource.file("test.txt", (byte[]) null)))
-                    .isInstanceOf(NullPointerException.class);
-        }
+        assertThatThrownBy(() -> EntrySource.file("test.txt", (byte[]) null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test

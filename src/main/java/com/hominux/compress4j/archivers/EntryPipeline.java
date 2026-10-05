@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers;
 
 import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.internal.archive.EntryReader;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -39,14 +41,18 @@ final class EntryPipeline {
     private boolean started;
     private boolean exhausted;
     private long position;
-    private Optional<InputStream> rawContent = Optional.empty();
     private Optional<InputStream> guardedContent = Optional.empty();
 
-    EntryPipeline(EntryReader reader, int stripComponents, Predicate<Entry> filter, ExtractionLimits limits) {
+    EntryPipeline(
+            EntryReader reader,
+            int stripComponents,
+            Predicate<Entry> filter,
+            ExtractionLimits limits,
+            LongSupplier compressedBytes) {
         this.reader = reader;
         this.stripComponents = stripComponents;
         this.filter = filter;
-        this.budget = new ExtractionBudget(limits);
+        this.budget = new ExtractionBudget(limits, compressedBytes);
     }
 
     Stream<ArchiveItem> stream() {
@@ -62,7 +68,7 @@ final class EntryPipeline {
     }
 
     Optional<ArchiveItem> advance() throws IOException {
-        releaseContent();
+        guardedContent = Optional.empty();
         if (exhausted) {
             return Optional.empty();
         }
@@ -79,17 +85,6 @@ final class EntryPipeline {
         return Optional.empty();
     }
 
-    void release(Throwable failure) throws IOException {
-        try {
-            releaseContent();
-        } catch (IOException releaseFailure) {
-            if (failure == null) {
-                throw releaseFailure;
-            }
-            failure.addSuppressed(releaseFailure);
-        }
-    }
-
     InputStream content(ArchiveItem item) {
         if (!isCurrent(item.position())) {
             throw new IllegalStateException(staleMessage(item.entry()));
@@ -100,7 +95,6 @@ final class EntryPipeline {
         if (guardedContent.isEmpty()) {
             try {
                 InputStream raw = reader.open(item.entry());
-                rawContent = Optional.of(raw);
                 guardedContent = Optional.of(
                         new GuardedContent(item, budget.meter(item.entry().name(), raw)));
             } catch (IOException e) {
@@ -119,15 +113,6 @@ final class EntryPipeline {
             return Optional.of(entry);
         }
         return EntryPaths.stripComponents(entry.name(), stripComponents).map(entry::withName);
-    }
-
-    private void releaseContent() throws IOException {
-        Optional<InputStream> toRelease = rawContent;
-        rawContent = Optional.empty();
-        guardedContent = Optional.empty();
-        if (toRelease.isPresent()) {
-            reader.release(toRelease.orElseThrow());
-        }
     }
 
     private static String staleMessage(Entry entry) {

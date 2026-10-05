@@ -101,7 +101,6 @@ class RepackMatrixTest {
         Path target = tmp.resolve("out." + to.name());
         try (var extractor = from.readAt().apply(source);
                 var creator = to.createAt().orElseThrow().apply(target)) {
-            assertThat(creator.requiresSize()).as("REQUIRES_SIZE").isEqualTo(to.has(REQUIRES_SIZE));
             if (rejected) {
                 Stream<EntrySource> sources = extractor.stream().map(ArchiveItem::toSource);
                 assertThatThrownBy(() -> creator.addAll(sources)).isInstanceOf(IllegalArgumentException.class);

@@ -326,10 +326,13 @@ class TarCompressionTest {
 
     @Test
     void bigNumbersDefaultToStar() throws IOException {
-        try (var out = TarArchiveCreator.builder(new ByteArrayOutputStream()).buildArchiveOutputStream()) {
-            assertThat(out)
-                    .extracting("bigNumberMode", "longFileMode")
-                    .containsExactly(TarArchiveOutputStream.BIGNUMBER_STAR, TarArchiveOutputStream.LONGFILE_POSIX);
+        var year2300 = FileTime.from(java.time.Instant.parse("2300-01-01T00:00:00Z"));
+        var bytes = new ByteArrayOutputStream();
+        try (var creator = TarArchiveCreator.builder(bytes).build()) {
+            creator.add(EntrySource.file("a.txt", new byte[] {1}).withLastModified(year2300));
         }
+        byte[] tar = bytes.toByteArray();
+        assertThat(tar[156]).isNotEqualTo((byte) 'x');
+        assertThat(tar[136]).isEqualTo((byte) 0x80);
     }
 }

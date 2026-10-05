@@ -13,18 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.archivers;
+/**
+ * Not exported by the module; reachable only through the protected constructors of {@code ArchiveExtractor} and
+ * {@code ArchiveCreator}. No compatibility guarantee.
+ *
+ * @since 5.0
+ */
+@Nonnull
+package com.hominux.compress4j.internal.archive;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Optional;
-
-/** Raw access to a format's entries, in archive order, before any pipeline rule applies. */
-interface EntryReader {
-
-    Optional<Entry> next() throws IOException;
-
-    InputStream open(Entry entry) throws IOException;
-
-    void release(InputStream content) throws IOException;
-}
+import jakarta.annotation.Nonnull;

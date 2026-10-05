@@ -20,8 +20,9 @@ import com.hominux.compress4j.archivers.ExtractionErrorPolicy.EntryOutcome;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.exceptions.UnsafeInputException;
-import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.archive.ReaderContext;
+import com.hominux.compress4j.utils.BuildFailureCleanup;
+import jakarta.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,56 +40,99 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Base of the archive extractors that read through an {@code EntryReader}. Tar is the only such format so far; the
- * others extend {@link LegacyArchiveExtractor}.
+ * Transitional base for formats not yet moved onto {@link ArchiveExtractor}.
  *
  * <p>An extractor is not thread-safe.
  *
+ * @param <A> The type of {@link ArchiveInputStream} to read entries from.
  * @since 2.2
  */
-public abstract class ArchiveExtractor implements Closeable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveExtractor.class);
+public abstract class LegacyArchiveExtractor<A extends ArchiveInputStream<? extends ArchiveEntry>>
+        implements Closeable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LegacyArchiveExtractor.class);
 
     private static final Predicate<Entry> ACCEPT_ALL = entry -> true;
 
     private static final DirectoryModeApplier DEFAULT_MODE_APPLIER =
             (path, mode) -> HostFileSystem.of(path).applyMode(path, mode);
 
-    private final EntryReader reader;
+    /** Archive input stream to be used for extraction. */
+    protected A archiveInputStream;
+    /** Escaping symlink policy for the extractor. */
     private final EscapingSymlinkPolicy escapingSymlinkPolicy;
+    /** Filter for the extractor. */
     private final Predicate<Entry> entryFilter;
+    /** Error handler for the extractor. */
     private final BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandler;
+    /** Post processor for the extractor. */
     private final BiConsumer<Entry, ? super Path> postProcessor;
+
     private final DirectoryModeApplier directoryModeApplier;
+
+    private final Consumer<UnsupportedEntry> unsupportedEntryHandler;
+
+    /** Number of leading path components to strip from the extracted entries. */
     private final int stripComponents;
+
+    /** Whether to overwrite existing files. */
     private final boolean overwrite;
+
+    final ExtractionLimits limits;
 
     private final EntryPipeline pipeline;
 
+    private final LegacyEntryReader entryReader;
+
     /**
-     * Creates an extractor over a format reader.
+     * Creates a new {@code LegacyArchiveExtractor}.
      *
-     * @param builder the builder holding the extraction options
-     * @param reader the format reader, closed by {@link #close()}
-     * @param compressedBytes supplies the compressed bytes consumed so far, for the expansion ratio limit
+     * @param builder - the archive input stream builder
+     * @param <B> - the type of the {@code ArchiveExtractorBuilder} to build from
+     * @param <C> The type of the {@link LegacyArchiveExtractor} to instantiate.
+     * @throws IOException - if the {@code A} could not be created
      */
-    protected ArchiveExtractor(Builder<?, ?> builder, EntryReader reader, LongSupplier compressedBytes) {
-        this.reader = reader;
+    protected <B extends ArchiveExtractorBuilder<A, B, C>, C extends LegacyArchiveExtractor<A>> LegacyArchiveExtractor(
+            B builder) throws IOException {
+        this.archiveInputStream = BuildFailureCleanup.build(builder.ownedStream, builder::buildArchiveInputStream);
         this.entryFilter = builder.entryFilter;
         this.errorHandler = builder.errorHandlerFunction;
+        this.unsupportedEntryHandler = builder.unsupportedEntryHandler;
         this.postProcessor = builder.postProcessor;
         this.stripComponents = builder.stripComponents;
         this.overwrite = builder.overwrite;
         this.escapingSymlinkPolicy = builder.escapingSymlinkPolicy;
         this.directoryModeApplier = builder.directoryModeApplier;
-        this.pipeline = new EntryPipeline(reader, stripComponents, entryFilter, builder.limits, compressedBytes);
+        this.limits = builder.limits;
+        this.entryReader = reader();
+        this.pipeline = new EntryPipeline(entryReader, stripComponents, entryFilter, limits, () -> Long.MAX_VALUE);
+    }
+
+    /**
+     * Creates a new {@code LegacyArchiveExtractor}.
+     *
+     * @param archiveInputStream - the {@code A} to the compressed file
+     */
+    protected LegacyArchiveExtractor(A archiveInputStream) {
+        this.archiveInputStream = archiveInputStream;
+        this.entryFilter = ACCEPT_ALL;
+        this.errorHandler = (x, y) -> ErrorHandlerChoice.ABORT;
+        this.unsupportedEntryHandler = entry -> {};
+        this.postProcessor = null;
+        this.stripComponents = 0;
+        this.overwrite = false;
+        this.escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
+        this.directoryModeApplier = DEFAULT_MODE_APPLIER;
+        this.limits = ExtractionLimits.defaults();
+        this.entryReader = reader();
+        this.pipeline = new EntryPipeline(entryReader, stripComponents, entryFilter, limits, () -> Long.MAX_VALUE);
     }
 
     /**
@@ -116,11 +160,14 @@ public abstract class ArchiveExtractor implements Closeable {
                     failure.addSuppressed(unsafe);
                 } else {
                     unsafe.addSuppressed(failure);
+                    entryReader.release(unsafe);
                     throw unsafe;
                 }
             }
+            entryReader.release(failure);
             throw failure;
         }
+        entryReader.release(null);
     }
 
     private void applyDirectoryModes(List<DirectoryMode> directoryModes, boolean ignoreErrors) throws IOException {
@@ -179,14 +226,77 @@ public abstract class ArchiveExtractor implements Closeable {
         }
     }
 
-    /**
-     * Closes the reader and its underlying input.
-     *
-     * @throws IOException if closing fails
-     */
+    /** {@inheritDoc} */
     @Override
-    public final void close() throws IOException {
-        reader.close();
+    public void close() throws IOException {
+        archiveInputStream.close();
+    }
+
+    /**
+     * Close the stream for the current entry. This method is called after the entry has been processed and should close
+     * stream opened by {@link #openEntryStream(Entry)}.
+     *
+     * @param stream the InputStream for the current entry
+     * @throws IOException if an I/O error occurs
+     */
+    @SuppressWarnings("RedundantThrows")
+    protected void closeEntryStream(@SuppressWarnings("unused") InputStream stream) throws IOException {
+        /* no-op */
+    }
+
+    /**
+     * Retrieve the next entry from the archive.
+     *
+     * @return the next entry from the archive, or empty if there are no more entries
+     * @throws IOException if an I/O error occurs
+     * @since 3.0
+     */
+    protected abstract Optional<Entry> nextEntry() throws IOException;
+
+    /**
+     * Reports an entry this reader skips because its type cannot be extracted.
+     *
+     * @param name the entry name as stored in the archive
+     * @param kind a readable description of the entry type
+     * @since 5.0
+     */
+    protected final void reportUnsupported(String name, String kind) {
+        unsupportedEntryHandler.accept(new UnsupportedEntry(name, kind));
+    }
+
+    /**
+     * Open the stream for the current entry. This method is called before the entry is processed and should open the
+     * stream for the current entry.
+     *
+     * @param entry the entry to open the stream for
+     * @return the InputStream for the current entry
+     * @throws IOException if an I/O error occurs
+     * @since 3.0
+     */
+    protected abstract InputStream openEntryStream(Entry entry) throws IOException;
+
+    private LegacyEntryReader reader() {
+        return new LegacyEntryReader(new LegacyEntryReader.Hooks() {
+            @Override
+            public Optional<Entry> nextEntry() throws IOException {
+                return LegacyArchiveExtractor.this.nextEntry();
+            }
+
+            @Override
+            public InputStream openEntryStream(Entry entry) throws IOException {
+                return LegacyArchiveExtractor.this.openEntryStream(entry);
+            }
+
+            @Override
+            public void closeEntryStream(InputStream stream) throws IOException {
+                LegacyArchiveExtractor.this.closeEntryStream(stream);
+            }
+
+            @Override
+            public void closeArchive() throws IOException {
+                archiveInputStream.close();
+            }
+        });
     }
 
     /**
@@ -204,7 +314,7 @@ public abstract class ArchiveExtractor implements Closeable {
      * @return the entries of the archive
      * @since 5.0
      */
-    public final Stream<ArchiveItem> stream() {
+    public Stream<ArchiveItem> stream() {
         return pipeline.stream();
     }
 
@@ -246,6 +356,22 @@ public abstract class ArchiveExtractor implements Closeable {
         }
     }
 
+    /**
+     * Reads exactly {@code declaredSize} bytes from {@code in}, enforcing the configured maximum entry size first. Lets
+     * a subclass safely read an entry's content into memory (e.g. a symlink target that has no dedicated header field)
+     * without letting a crafted archive force an oversized allocation via its own declared size.
+     *
+     * @param entryName the name of the entry being read, used in the exception message
+     * @param in the stream to read from
+     * @param declaredSize the number of bytes to read, as declared by the archive entry
+     * @return the bytes read
+     * @throws IOException if an I/O error occurs
+     * @throws LimitExceededException if declaredSize exceeds the configured maximum entry size
+     */
+    protected byte[] readEntryContent(String entryName, InputStream in, long declaredSize) throws IOException {
+        return new ReaderContext(limits, unsupportedEntryHandler).readDeclared(entryName, in, declaredSize);
+    }
+
     private void processItem(Path outputDir, ArchiveItem item, SymlinkGuard guard, List<DirectoryMode> directoryModes)
             throws IOException {
         Entry entry = item.entry();
@@ -265,43 +391,68 @@ public abstract class ArchiveExtractor implements Closeable {
             case SYMLINK ->
                 new SymlinkExtractor(escapingSymlinkPolicy, overwrite).extract(outputDir, entry, outputFile, guard);
         }
-        postProcessor.accept(entry, outputFile);
+        if (postProcessor != null) {
+            postProcessor.accept(entry, outputFile);
+        }
     }
 
     /**
-     * Builder for creating an {@link ArchiveExtractor}.
+     * Builder for creating an {@link LegacyArchiveExtractor}.
      *
-     * @param <B> The type of this builder
-     * @param <E> The type of {@link ArchiveExtractor} it builds
+     * @param <A> The type of {@link ArchiveInputStream} to read entries from.
+     * @param <B> The type of the {@code ArchiveExtractorBuilder} to build from.
+     * @param <C> The type of the {@link LegacyArchiveExtractor} to instantiate.
      */
-    public abstract static class Builder<B extends Builder<B, E>, E extends ArchiveExtractor> {
-        EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
+    public abstract static class ArchiveExtractorBuilder<
+            A extends ArchiveInputStream<? extends ArchiveEntry>,
+            B extends ArchiveExtractorBuilder<A, B, C>,
+            C extends LegacyArchiveExtractor<A>> {
+        /** How symbolic links whose target escapes the output directory are handled during extraction. */
+        protected EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
 
         Predicate<Entry> entryFilter = ACCEPT_ALL;
 
         BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction =
                 (x, y) -> ErrorHandlerChoice.ABORT;
-        BiConsumer<Entry, ? super Path> postProcessor = (entry, path) -> {};
+        BiConsumer<Entry, ? super Path> postProcessor;
         Consumer<UnsupportedEntry> unsupportedEntryHandler = entry -> {};
         int stripComponents = 0;
         boolean overwrite = false;
         ExtractionLimits limits = ExtractionLimits.defaults();
         DirectoryModeApplier directoryModeApplier = DEFAULT_MODE_APPLIER;
 
-        /** Creates a builder with the default options. */
-        protected Builder() {}
+        final Optional<Closeable> ownedStream;
+
+        /**
+         * Default constructor for ArchiveExtractor.
+         *
+         * <p><b>Warning:</b> Use of this constructor does not provide a comment or initialize required fields. It is
+         * recommended to use the builder or parameterized constructors instead.
+         */
+        protected ArchiveExtractorBuilder() {
+            this.ownedStream = Optional.empty();
+        }
+
+        /**
+         * Constructor for builders that read from a stream.
+         *
+         * @param stream the stream the archive is read from
+         * @param owned whether the builder opened {@code stream} itself, so a failed build closes it
+         */
+        protected ArchiveExtractorBuilder(Closeable stream, boolean owned) {
+            this.ownedStream = owned ? Optional.of(stream) : Optional.empty();
+        }
 
         /**
          * Sets predicate to be used when entries are being extracted. The predicate applies to both {@link #stream()}
          * and {@link #extract(Path)} and sees each entry after strip-components: with {@code stripComponents(1)}, match
          * {@code a.txt}, not {@code root/a.txt}.
          *
-         * @param entryPredicate the entries to extract
+         * @param entryPredicate the Predicate to filter entries to be extract from the archive.
          * @return this builder
-         * @throws NullPointerException if {@code entryPredicate} is {@code null}
          */
-        public final B filter(Predicate<Entry> entryPredicate) {
-            this.entryFilter = Objects.requireNonNull(entryPredicate, "filter");
+        public B filter(@Nullable Predicate<Entry> entryPredicate) {
+            this.entryFilter = entryPredicate != null ? entryPredicate : ACCEPT_ALL;
             return getThis();
         }
 
@@ -315,7 +466,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * @return this builder
          * @throws NullPointerException if {@code errorHandlerFunction} is {@code null}
          */
-        public final B errorHandler(BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction) {
+        public B errorHandler(BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction) {
             this.errorHandlerFunction = Objects.requireNonNull(errorHandlerFunction, "errorHandler");
             return getThis();
         }
@@ -326,7 +477,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * @param policy the escaping symlink policy to set
          * @return this builder
          */
-        public final B escapingSymlinkPolicy(EscapingSymlinkPolicy policy) {
+        public B escapingSymlinkPolicy(EscapingSymlinkPolicy policy) {
             this.escapingSymlinkPolicy = policy;
             return getThis();
         }
@@ -341,7 +492,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * @throws NullPointerException if {@code handler} is {@code null}
          * @since 5.0
          */
-        public final B unsupportedEntryHandler(Consumer<UnsupportedEntry> handler) {
+        public B unsupportedEntryHandler(Consumer<UnsupportedEntry> handler) {
             this.unsupportedEntryHandler = Objects.requireNonNull(handler, "unsupportedEntryHandler");
             return getThis();
         }
@@ -353,10 +504,9 @@ public abstract class ArchiveExtractor implements Closeable {
          *
          * @param entryBiConsumer the post processor to set
          * @return this builder
-         * @throws NullPointerException if {@code entryBiConsumer} is {@code null}
          */
-        public final B postProcessor(BiConsumer<Entry, ? super Path> entryBiConsumer) {
-            this.postProcessor = Objects.requireNonNull(entryBiConsumer, "postProcessor");
+        public B postProcessor(BiConsumer<Entry, ? super Path> entryBiConsumer) {
+            this.postProcessor = entryBiConsumer;
             return getThis();
         }
 
@@ -367,7 +517,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * @param level the number of leading path components to strip
          * @return this builder
          */
-        public final B stripComponents(int level) {
+        public B stripComponents(int level) {
             this.stripComponents = level;
             return getThis();
         }
@@ -378,7 +528,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * @param overwrite whether to overwrite existing files
          * @return this builder
          */
-        public final B overwrite(boolean overwrite) {
+        public B overwrite(boolean overwrite) {
             this.overwrite = overwrite;
             return getThis();
         }
@@ -392,7 +542,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * @throws NullPointerException if {@code limits} is {@code null}
          * @since 5.0
          */
-        public final B limits(ExtractionLimits limits) {
+        public B limits(ExtractionLimits limits) {
             this.limits = Objects.requireNonNull(limits, "limits");
             return getThis();
         }
@@ -411,7 +561,7 @@ public abstract class ArchiveExtractor implements Closeable {
          *     least 0
          * @since 3.1
          */
-        public final B maxEntries(long maxEntries) {
+        public B maxEntries(long maxEntries) {
             this.limits = limits.withMaxEntries(maxEntries);
             return getThis();
         }
@@ -427,7 +577,7 @@ public abstract class ArchiveExtractor implements Closeable {
          *     least 0
          * @since 3.1
          */
-        public final B maxEntrySize(long maxEntrySize) {
+        public B maxEntrySize(long maxEntrySize) {
             this.limits = limits.withMaxEntrySize(maxEntrySize);
             return getThis();
         }
@@ -443,14 +593,14 @@ public abstract class ArchiveExtractor implements Closeable {
          *     least 0
          * @since 3.1
          */
-        public final B maxTotalSize(long maxTotalSize) {
+        public B maxTotalSize(long maxTotalSize) {
             this.limits = limits.withMaxTotalSize(maxTotalSize);
             return getThis();
         }
 
         /**
-         * Sets the maximum expansion ratio (uncompressed bytes per compressed byte read), enforced once an extraction
-         * has produced more than 1 MiB. Defaults to 100.
+         * Sets the maximum expansion ratio (uncompressed bytes per compressed byte read). Defaults to 100. Not yet
+         * enforced for this format.
          *
          * @param maxRatio the maximum, at least 1, or {@link ExtractionLimits#UNLIMITED}
          * @return this builder
@@ -458,7 +608,7 @@ public abstract class ArchiveExtractor implements Closeable {
          *     least 1
          * @since 5.0
          */
-        public final B maxRatio(long maxRatio) {
+        public B maxRatio(long maxRatio) {
             this.limits = limits.withMaxRatio(maxRatio);
             return getThis();
         }
@@ -476,20 +626,26 @@ public abstract class ArchiveExtractor implements Closeable {
         protected abstract B getThis();
 
         /**
-         * Returns the context a format reader needs to enforce limits and report unsupported entries.
+         * Build a {@code A} from the given {@code InputStream}. If you want to combine an archive format with a
+         * compression format - like when reading a `tar.gz` file - you wrap the {@code ArchiveInputStream} around
          *
-         * @return the reader context for the options set so far
+         * <pre>{@code
+         * return new TarArchiveInputStream(new GzipCompressorInputStream(inputStream));
+         * }</pre>
+         *
+         * @return a {@code A} from the given {@code InputStream}
+         * @throws IOException - if the {@code A} could not be created
          */
-        protected final ReaderContext readerContext() {
-            return new ReaderContext(limits, unsupportedEntryHandler);
-        }
+        public abstract A buildArchiveInputStream() throws IOException;
 
         /**
-         * Builds the extractor.
+         * Use this method to build an instance of the {@link LegacyArchiveExtractor}, use
+         * {@link LegacyArchiveExtractor#LegacyArchiveExtractor(LegacyArchiveExtractor.ArchiveExtractorBuilder)} to pass
+         * in instance of this builder
          *
-         * @return the extractor
-         * @throws IOException if the archive cannot be opened
+         * @return an instance of the {@link LegacyArchiveExtractor}
+         * @throws IOException thrown by the underlying output stream for I/O errors
          */
-        public abstract E build() throws IOException;
+        public abstract C build() throws IOException;
     }
 }

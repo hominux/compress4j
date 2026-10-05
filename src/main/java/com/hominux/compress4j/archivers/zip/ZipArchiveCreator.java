@@ -20,7 +20,7 @@ import static java.util.zip.ZipEntry.STORED;
 import static org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream.DEFAULT_COMPRESSION;
 import static org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NEVER;
 
-import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.LegacyArchiveCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -42,7 +42,7 @@ import org.apache.commons.io.IOUtils;
  *
  * @since 2.2
  */
-public class ZipArchiveCreator extends ArchiveCreator<ZipArchiveOutputStream> {
+public class ZipArchiveCreator extends LegacyArchiveCreator<ZipArchiveOutputStream> {
 
     private static final int DEFAULT_SYMLINK_PERMISSIONS = 0777;
 

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator.InMemoryArchiveCreatorBuilder;
+import com.hominux.compress4j.internal.archive.EntryReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,8 +45,8 @@ class RepackOpenFailureTest {
             }
 
             @Override
-            public void release(InputStream content) {
-                // open never succeeds, so there is nothing to release
+            public void close() {
+                throw new UnsupportedOperationException("the pipeline does not close its reader");
             }
         };
     }
@@ -53,7 +54,8 @@ class RepackOpenFailureTest {
     @Test
     void addAllSurfacesEntryOpenFailureAsIOException() throws IOException {
         // Given
-        var pipeline = new EntryPipeline(readerFailingToOpen(), 0, entry -> true, ExtractionLimits.noLimits());
+        var pipeline = new EntryPipeline(
+                readerFailingToOpen(), 0, entry -> true, ExtractionLimits.noLimits(), () -> Long.MAX_VALUE);
 
         try (var creator = new InMemoryArchiveCreatorBuilder(new ByteArrayOutputStream()).build()) {
             // When

@@ -19,6 +19,9 @@ import static com.hominux.compress4j.assertion.Compress4JAssertions.assertThat;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Reader;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Writer;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -34,9 +37,21 @@ public abstract class AbstractArchiverIntegrationTest {
     @TempDir
     protected Path tempDir;
 
-    protected abstract ArchiveCreator<?> archiveCreatorBuilder(Path archivePath) throws IOException;
+    protected LegacyArchiveCreator<?> archiveCreatorBuilder(Path archivePath) throws IOException {
+        throw new UnsupportedOperationException("override writerAt or archiveCreatorBuilder");
+    }
 
-    protected abstract ArchiveExtractor<?> archiveExtractorBuilder(Path archivePath) throws IOException;
+    protected LegacyArchiveExtractor<?> archiveExtractorBuilder(Path archivePath) throws IOException {
+        throw new UnsupportedOperationException("override readerAt or archiveExtractorBuilder");
+    }
+
+    protected Writer writerAt(Path archivePath) throws IOException {
+        return ArchiveFormat.writer(archiveCreatorBuilder(archivePath));
+    }
+
+    protected Reader readerAt(Path archivePath) throws IOException {
+        return ArchiveFormat.reader(archiveExtractorBuilder(archivePath));
+    }
 
     protected abstract String getExtension();
 
@@ -64,7 +79,7 @@ public abstract class AbstractArchiverIntegrationTest {
         var extractDir = tempDir.resolve("extracted");
         Files.createDirectories(extractDir);
 
-        try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath)) {
+        try (Writer creator = writerAt(archivePath)) {
             creator.addFile(sourceFile1);
             creator.addFile(sourceFile2);
             creator.addFile(sourceFile3);
@@ -72,7 +87,7 @@ public abstract class AbstractArchiverIntegrationTest {
 
         assertThat(archivePath).exists();
 
-        try (ArchiveExtractor<?> extractor = archiveExtractorBuilder(archivePath)) {
+        try (Reader extractor = readerAt(archivePath)) {
             extractor.extract(extractDir);
         }
 
@@ -90,14 +105,14 @@ public abstract class AbstractArchiverIntegrationTest {
         var extractDir = tempDir.resolve("extracted");
         Files.createDirectories(extractDir);
 
-        try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath)) {
+        try (Writer creator = writerAt(archivePath)) {
             creator.add(EntrySource.file("renamed1.txt", sourceFile1));
             creator.add(EntrySource.file("renamed2.txt", sourceFile2));
         }
 
         assertThat(archivePath).exists();
 
-        try (ArchiveExtractor<?> extractor = archiveExtractorBuilder(archivePath)) {
+        try (Reader extractor = readerAt(archivePath)) {
             extractor.extract(extractDir);
         }
 
@@ -111,14 +126,14 @@ public abstract class AbstractArchiverIntegrationTest {
         var extractDir = tempDir.resolve("extracted");
         Files.createDirectories(extractDir);
 
-        try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath)) {
+        try (Writer creator = writerAt(archivePath)) {
             creator.add(EntrySource.file("text.txt", "Text content from bytes".getBytes()));
             creator.add(EntrySource.file("binary.dat", new byte[] {0x01, 0x02, 0x03, (byte) 0xFF}));
         }
 
         assertThat(archivePath).exists();
 
-        try (ArchiveExtractor<?> extractor = archiveExtractorBuilder(archivePath)) {
+        try (Reader extractor = readerAt(archivePath)) {
             extractor.extract(extractDir);
         }
 
@@ -136,7 +151,7 @@ public abstract class AbstractArchiverIntegrationTest {
             var extractDir = tempDir.resolve("os_extracted");
             Files.createDirectories(extractDir);
 
-            try (ArchiveExtractor<?> extractor = archiveExtractorBuilder(osArchive)) {
+            try (Reader extractor = readerAt(osArchive)) {
                 extractor.extract(extractDir);
 
                 try (var files = Files.list(extractDir)) {
@@ -164,21 +179,21 @@ public abstract class AbstractArchiverIntegrationTest {
         Files.createDirectories(extractDir1);
         Files.createDirectories(extractDir2);
 
-        try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath1)) {
+        try (Writer creator = writerAt(archivePath1)) {
             creator.addFile(sourceFile1);
             creator.addFile(sourceFile2);
         }
 
-        try (ArchiveExtractor<?> extractor = archiveExtractorBuilder(archivePath1)) {
+        try (Reader extractor = readerAt(archivePath1)) {
             extractor.extract(extractDir1);
         }
 
-        try (ArchiveCreator<?> creator = archiveCreatorBuilder(archivePath2)) {
+        try (Writer creator = writerAt(archivePath2)) {
             creator.addFile(extractDir1.resolve("round1.txt"));
             creator.addFile(extractDir1.resolve("round2.txt"));
         }
 
-        try (ArchiveExtractor<?> extractor = archiveExtractorBuilder(archivePath2)) {
+        try (Reader extractor = readerAt(archivePath2)) {
             extractor.extract(extractDir2);
         }
 

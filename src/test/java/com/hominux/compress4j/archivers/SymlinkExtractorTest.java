@@ -29,8 +29,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
-@DisabledOnOs(OS.WINDOWS)
 class SymlinkExtractorTest {
 
     @TempDir
@@ -45,18 +46,21 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void allow_createsTheLinkAsIs() throws IOException {
         extract(new SymlinkExtractor(ALLOW, false), link("/opt/foo"));
         assertThat(Files.readSymbolicLink(outputDir.resolve("link"))).isEqualTo(Path.of("/opt/foo"));
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void relativizeAbsolute_rebasesAbsoluteTargetsUnderTheOutputDir() throws IOException {
         extract(new SymlinkExtractor(RELATIVIZE_ABSOLUTE, false), link("/opt/foo"));
         assertThat(Files.readSymbolicLink(outputDir.resolve("link"))).isEqualTo(outputDir.resolve("opt/foo"));
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void disallow_rejectsAbsoluteTargets() {
         assertThatThrownBy(() -> extract(new SymlinkExtractor(DISALLOW, false), link("/opt/foo")))
                 .isInstanceOf(IOException.class)
@@ -71,6 +75,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void disallow_acceptsTargetsInsideTheOutputDir() throws IOException {
         extract(new SymlinkExtractor(DISALLOW, false), link("inside/file"));
         assertThat(Files.readSymbolicLink(outputDir.resolve("link"))).isEqualTo(Path.of("inside/file"));
@@ -84,6 +89,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void keepsAnExistingLinkUnlessOverwriting() throws IOException {
         Files.createSymbolicLink(outputDir.resolve("link"), Path.of("old"));
         extract(new SymlinkExtractor(ALLOW, false), link("new"));
@@ -94,6 +100,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void disallowRejectsAbsoluteTargetWithUnsafeEntryException(@TempDir Path out) {
         // Given
         var entry = new Entry("link", Entry.Type.SYMLINK, 0777).withLinkTarget("/etc/passwd");
@@ -117,6 +124,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void disallowAcceptsRelativeTargetThatStaysInside(@TempDir Path out) throws IOException {
         // Given
         Files.writeString(out.resolve("b.txt"), "b");
@@ -131,6 +139,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void relativizeAbsoluteRewritesAbsoluteTargetsInside(@TempDir Path out) throws IOException {
         var entry = new Entry("link", Entry.Type.SYMLINK, 0777).withLinkTarget("/etc/passwd");
         new SymlinkExtractor(RELATIVIZE_ABSOLUTE, false)
@@ -139,6 +148,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void relativizeAbsoluteRejectsTargetsThatStillEscape(@TempDir Path out) {
         var absolute = new Entry("a", Entry.Type.SYMLINK, 0777).withLinkTarget("/../../etc");
         var relative = new Entry("r", Entry.Type.SYMLINK, 0777).withLinkTarget("../../x");
@@ -151,6 +161,7 @@ class SymlinkExtractorTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void disallowAcceptsTargetsThatResolveToTheOutputDirectory(@TempDir Path out) throws IOException {
         // Given
         var extractor = new SymlinkExtractor(EscapingSymlinkPolicy.DISALLOW, false);
@@ -164,5 +175,30 @@ class SymlinkExtractorTest {
         // Then
         assertThat(Files.readSymbolicLink(out.resolve("link"))).isEqualTo(Path.of("."));
         assertThat(Files.readSymbolicLink(out.resolve("a/link"))).isEqualTo(Path.of(".."));
+    }
+
+    @Test
+    void disallow_rejectsAbsoluteTargets_onAnyPlatform() {
+        String absolute = outputDir.toAbsolutePath().resolve("elsewhere").toString();
+
+        assertThatThrownBy(() -> extract(new SymlinkExtractor(DISALLOW, false), link(absolute)))
+                .isInstanceOf(UnsafeEntryException.class)
+                .hasMessageContaining("Invalid symlink (absolute path): link -> " + absolute);
+    }
+
+    @ParameterizedTest
+    @EnumSource(EscapingSymlinkPolicy.class)
+    void keepsAnExistingFileWithoutOverwriting(EscapingSymlinkPolicy policy) throws IOException {
+        Path existing = Files.writeString(outputDir.resolve("link"), "file");
+
+        extract(new SymlinkExtractor(policy, false), link("inside/file"));
+
+        assertThat(existing).hasContent("file");
+    }
+
+    @Test
+    void relativizeAbsolute_rejectsRelativeTargetsThatEscape() {
+        assertThatThrownBy(() -> extract(new SymlinkExtractor(RELATIVIZE_ABSOLUTE, false), link("../../x")))
+                .isInstanceOf(UnsafeEntryException.class);
     }
 }

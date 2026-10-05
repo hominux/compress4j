@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
@@ -37,7 +38,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-@DisabledOnOs(OS.WINDOWS)
 class SymlinkGuardTest {
 
     @TempDir
@@ -67,6 +67,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void chainedSymlinkEscapeIsRejectedAndRemovedByDefault() throws IOException {
         // Given
         Path out = Files.createDirectories(tmp.resolve("a/b/out"));
@@ -82,6 +83,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void chainIsKeptWhenAllowed() throws IOException {
         Path out = Files.createDirectories(tmp.resolve("a/b/out"));
         try (var extractor = TarArchiveExtractor.builder(new ByteArrayInputStream(chainArchive()))
@@ -93,6 +95,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void realLocationFollowsExistingLinksAndCollapsesMissingComponents() throws IOException {
         // Given
         Path base = Files.createDirectories(tmp.resolve("base"));
@@ -122,6 +125,7 @@ class SymlinkGuardTest {
     }
 
     @ParameterizedTest
+    @DisabledOnOs(OS.WINDOWS)
     @EnumSource(
             value = EscapingSymlinkPolicy.class,
             names = {"DISALLOW", "RELATIVIZE_ABSOLUTE"})
@@ -169,6 +173,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void relativeOutputDirStillReportsUnsafeEntryAndRemovesLink() throws IOException {
         // Given
         Path out = Path.of("build/tmp/rel-guard-" + System.nanoTime() + "/out");
@@ -187,6 +192,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void messageNamesEntryRelativeToOutputDirReachedThroughAlias() throws IOException {
         // Given
         Path real = Files.createDirectories(tmp.resolve("a/b/out"));
@@ -202,6 +208,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void verifyRethrowsTheSameExceptionWithoutDuplicates() throws IOException {
         // Given
         Path out = Files.createDirectories(tmp.resolve("out"));
@@ -225,6 +232,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void guardRejectionAfterNonSecurityFailureIsPrimary() throws IOException {
         // Given
         Path out = Files.createDirectories(tmp.resolve("a/b/out"));
@@ -243,6 +251,7 @@ class SymlinkGuardTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void securityPrimaryStaysPrimaryWithGuardSuppressedOnce() throws IOException {
         // Given
         Path out = Files.createDirectories(tmp.resolve("a/b/out"));
@@ -275,5 +284,38 @@ class SymlinkGuardTest {
         // Then
         assertThat(file).isRegularFile();
         assertThat(dir).isDirectory();
+    }
+
+    @Test
+    void realLocationResolvesDotsAndMissingComponentsWithoutLinks() throws IOException {
+        Path base = Files.createDirectories(tmp.resolve("base"));
+        Path real = base.toRealPath();
+
+        assertThat(SymlinkGuard.realLocation(base.resolve("./d/../e"))).isEqualTo(real.resolve("e"));
+        assertThat(SymlinkGuard.realLocation(base.resolve("a/./b/../c"))).isEqualTo(real.resolve("a/c"));
+    }
+
+    @Test
+    void realLocationStaysAtTheFileSystemRootWhenGoingUp() throws IOException {
+        Path root = tmp.toAbsolutePath().getRoot();
+
+        assertThat(SymlinkGuard.realLocation(root.resolve(".."))).isEqualTo(root.toRealPath());
+    }
+
+    @Test
+    void verifyIsIdempotentWhenNothingEscapes() throws IOException {
+        var guard = new SymlinkGuard(Files.createDirectories(tmp.resolve("out")));
+        guard.remember(tmp.resolve("out/never-created"));
+
+        assertThatCode(guard::verify).doesNotThrowAnyException();
+        assertThatCode(guard::verify).doesNotThrowAnyException();
+    }
+
+    @Test
+    void verifyFallsBackToTheNormalisedPathWhenTheOutputDirIsMissing() {
+        var guard = new SymlinkGuard(tmp.resolve("missing/../absent"));
+        guard.remember(tmp.resolve("absent/link"));
+
+        assertThatCode(guard::verify).doesNotThrowAnyException();
     }
 }

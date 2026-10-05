@@ -15,9 +15,10 @@
  */
 package com.hominux.compress4j.archivers.zip;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
 import com.hominux.compress4j.utils.BuildGatedChannel;
+import com.hominux.compress4j.utils.EntryValues;
 import com.hominux.compress4j.utils.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +38,7 @@ import org.apache.commons.io.function.IOFunction;
  *
  * @since 2.2
  */
-public class ZipArchiveExtractor extends ArchiveExtractor<ArchiveInputStream<ZipArchiveEntry>> {
+public class ZipArchiveExtractor extends LegacyArchiveExtractor<ArchiveInputStream<ZipArchiveEntry>> {
 
     private final IOFunction<ZipArchiveEntry, String> symlinkTarget;
 
@@ -103,9 +104,10 @@ public class ZipArchiveExtractor extends ArchiveExtractor<ArchiveInputStream<Zip
                 continue;
             }
             Entry.Type t = type.orElseThrow();
-            return Optional.of(new Entry(ze.getName(), t, ze.getUnixMode())
-                    .withLinkTarget(symlinkTarget.apply(ze))
-                    .withMetadata(ze.getLastModifiedDate(), t == Entry.Type.FILE ? ze.getSize() : 0));
+            Entry base = EntryValues.withLinkTarget(
+                    new Entry(ze.getName(), t, ze.getUnixMode()), Optional.ofNullable(symlinkTarget.apply(ze)));
+            return Optional.of(EntryValues.withMetadata(
+                    base, Optional.ofNullable(ze.getLastModifiedDate()), t == Entry.Type.FILE ? ze.getSize() : 0));
         }
         return Optional.empty();
     }

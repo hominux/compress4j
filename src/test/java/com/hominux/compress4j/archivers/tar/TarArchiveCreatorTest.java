@@ -35,6 +35,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.Set;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.file.attribute.FileTimes;
 import org.junit.jupiter.api.Test;
@@ -50,8 +51,8 @@ class TarArchiveCreatorTest {
         var inputStream = new ByteArrayInputStream("test".getBytes());
 
         // when
-        var aOut = spy(TarArchiveCreator.builder(outputStream).buildArchiveOutputStream());
-        try (TarArchiveCreator tarCompressor = new TarArchiveCreator(aOut)) {
+        var aOut = spy(new TarArchiveOutputStream(outputStream));
+        try (var tarCompressor = new TarEntryWriter(aOut)) {
 
             FileTime modTime = FileTime.from(now());
             @SuppressWarnings("OctalInteger")
@@ -78,9 +79,9 @@ class TarArchiveCreatorTest {
         var inputStream = mock(InputStream.class);
 
         // when
-        var aOut = spy(TarArchiveCreator.builder(outputStream).buildArchiveOutputStream());
+        var aOut = spy(new TarArchiveOutputStream(outputStream));
         try (MockedStatic<IOUtils> mockIOUtils = mockStatic(IOUtils.class);
-                TarArchiveCreator tarCompressor = new TarArchiveCreator(aOut)) {
+                var tarCompressor = new TarEntryWriter(aOut)) {
 
             Instant now = now();
             FileTime modTime = FileTime.from(now);

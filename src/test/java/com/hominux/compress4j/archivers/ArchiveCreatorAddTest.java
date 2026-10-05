@@ -81,18 +81,18 @@ class ArchiveCreatorAddTest {
 
     private static Stream<Arguments> sizeFirstFormats() {
         return Stream.of(
-                Arguments.of("tar", (IOFunction<OutputStream, ArchiveCreator<?>>)
-                        out -> TarArchiveCreator.builder(out).build()),
-                Arguments.of("ar", (IOFunction<OutputStream, ArchiveCreator<?>>)
-                        out -> ArArchiveCreator.builder(out).build()),
-                Arguments.of("cpio", (IOFunction<OutputStream, ArchiveCreator<?>>)
-                        out -> CpioArchiveCreator.builder(out).build()));
+                Arguments.of("tar", (IOFunction<OutputStream, ArchiveFormat.Writer>) out ->
+                        ArchiveFormat.writer(TarArchiveCreator.builder(out).build())),
+                Arguments.of("ar", (IOFunction<OutputStream, ArchiveFormat.Writer>) out ->
+                        ArchiveFormat.writer(ArArchiveCreator.builder(out).build())),
+                Arguments.of("cpio", (IOFunction<OutputStream, ArchiveFormat.Writer>) out ->
+                        ArchiveFormat.writer(CpioArchiveCreator.builder(out).build())));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("sizeFirstFormats")
     void unknownSizeIntoSizeFirstFormatFailsWithBufferedHint(
-            String format, IOFunction<OutputStream, ArchiveCreator<?>> factory) throws IOException {
+            String format, IOFunction<OutputStream, ArchiveFormat.Writer> factory) throws IOException {
         try (var creator = factory.apply(new ByteArrayOutputStream())) {
             var source = unsized("a.txt");
             assertThatThrownBy(() -> creator.add(source))
@@ -181,7 +181,7 @@ class ArchiveCreatorAddTest {
         }
     }
 
-    private static Closeable quietly(ArchiveCreator<?> creator) {
+    private static Closeable quietly(Closeable creator) {
         return () -> IOUtils.closeQuietly(creator);
     }
 

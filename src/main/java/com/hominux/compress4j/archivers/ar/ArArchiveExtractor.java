@@ -15,8 +15,9 @@
  */
 package com.hominux.compress4j.archivers.ar;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
+import com.hominux.compress4j.utils.EntryValues;
 import com.hominux.compress4j.utils.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,7 +35,7 @@ import org.apache.commons.compress.archivers.ar.ArArchiveInputStream;
  *
  * @since 2.2
  */
-public class ArArchiveExtractor extends ArchiveExtractor<ArArchiveInputStream> {
+public class ArArchiveExtractor extends LegacyArchiveExtractor<ArArchiveInputStream> {
 
     /**
      * Create a new ArArchiveExtractor with the given input stream.
@@ -107,8 +108,10 @@ public class ArArchiveExtractor extends ArchiveExtractor<ArArchiveInputStream> {
                     continue;
                 }
             }
-            return Optional.of(
-                    entry.withMetadata(ae.getLastModifiedDate(), entry.type() == Entry.Type.FILE ? ae.getSize() : 0));
+            return Optional.of(EntryValues.withMetadata(
+                    entry,
+                    Optional.ofNullable(ae.getLastModifiedDate()),
+                    entry.type() == Entry.Type.FILE ? ae.getSize() : 0));
         }
         return Optional.empty();
     }
