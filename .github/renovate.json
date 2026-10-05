@@ -35,6 +35,8 @@
       "matchPackageNames": [
         "/^ch\\.qos\\.logback:/",
         "/^com\\.fasterxml\\.jackson(\\.core)?:/",
+        "com.google.errorprone:error_prone_core",
+        "com.uber.nullaway:nullaway",
         "/^org\\.assertj:/",
         "/^org\\.junit(\\.jupiter|\\.platform)?:/",
         "/^org\\.mockito:/",
@@ -51,9 +53,9 @@
       "description": "Runtime libraries reach users, so their updates are released as a patch. Listed exactly, never by pattern: a stray match here publishes to Maven Central.",
       "matchPackageNames": [
         "commons-io:commons-io",
-        "jakarta.annotation:jakarta.annotation-api",
         "org.apache.commons:commons-compress",
         "org.apache.commons:commons-lang3",
+        "org.jspecify:jspecify",
         "org.slf4j:slf4j-api",
         "org.tukaani:xz"
       ],
@@ -65,12 +67,12 @@
       "semanticCommitType": "fix"
     },
     {
-      "description": "commons-compress, commons-io and jakarta.annotation-api are api() dependencies, so a major bump can break consumers without changing compress4j's own signatures, which is all japicmp compares. Merging publishes nothing; retitle to 'feat(deps)!: ...' if the public API breaks.",
+      "description": "commons-compress, commons-io and jspecify are api() dependencies, so a major bump can break consumers without changing compress4j's own signatures, which is all japicmp compares. Merging publishes nothing; retitle to 'feat(deps)!: ...' if the public API breaks.",
       "matchPackageNames": [
         "commons-io:commons-io",
-        "jakarta.annotation:jakarta.annotation-api",
         "org.apache.commons:commons-compress",
         "org.apache.commons:commons-lang3",
+        "org.jspecify:jspecify",
         "org.slf4j:slf4j-api",
         "org.tukaani:xz"
       ],

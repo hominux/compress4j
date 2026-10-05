@@ -56,6 +56,11 @@ final class EntryPaths {
         Files.createDirectories(path);
     }
 
+    static Path requireParent(Path path) {
+        return Optional.ofNullable(path.getParent())
+                .orElseThrow(() -> new IllegalArgumentException("Path has no parent: " + path));
+    }
+
     static Optional<String> stripComponents(String entryName, int count) {
         List<String> ourPathSplit = splitPath(entryName);
         if (ourPathSplit.size() <= count) {

@@ -56,4 +56,15 @@ class EntryPathsTest {
         assertThat(EntryPaths.stripComponents("a/b", 2)).isEmpty();
         assertThat(EntryPaths.stripComponents("a", 3)).isEmpty();
     }
+
+    @Test
+    void requireParent_returnsTheParent() {
+        assertThat(EntryPaths.requireParent(outputDir.resolve("a.txt"))).isEqualTo(outputDir);
+    }
+
+    @Test
+    void requireParent_rejectsAPathWithoutParent() {
+        assertThatThrownBy(() -> EntryPaths.requireParent(Path.of("a.txt")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

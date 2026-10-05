@@ -18,7 +18,7 @@
  *
  * @since 5.0
  */
-@Nonnull
+@NullMarked
 package com.hominux.compress4j.internal.limits;
 
-import jakarta.annotation.Nonnull;
+import org.jspecify.annotations.NullMarked;

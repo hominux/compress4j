@@ -18,4 +18,7 @@
  *
  * @since 2.2
  */
+@NullMarked
 package com.hominux.compress4j.archivers.zip;
+
+import org.jspecify.annotations.NullMarked;

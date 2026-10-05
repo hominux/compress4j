@@ -63,8 +63,9 @@ record SymlinkExtractor(EscapingSymlinkPolicy policy, boolean overwrite) {
 
         if (overwrite || !Files.exists(outputFile, LinkOption.NOFOLLOW_LINKS)) {
             Path outputTarget = Paths.get(target);
-            EntryPaths.makeDirectory(outputFile.getParent());
-            Path realLocation = outputFile.getParent().toRealPath().resolve(outputFile.getFileName());
+            Path parent = EntryPaths.requireParent(outputFile);
+            EntryPaths.makeDirectory(parent);
+            Path realLocation = parent.toRealPath().resolve(outputFile.getFileName());
             Files.deleteIfExists(outputFile);
             Files.createSymbolicLink(outputFile, outputTarget);
             if (policy != EscapingSymlinkPolicy.ALLOW) {
@@ -98,7 +99,7 @@ record SymlinkExtractor(EscapingSymlinkPolicy policy, boolean overwrite) {
      */
     private static void verifySymlinkTarget(String entryName, String linkTarget, Path outputDir, Path outputFile)
             throws UnsafeEntryException {
-        Path linkTargetPath = outputFile.getParent().resolve(Paths.get(linkTarget));
+        Path linkTargetPath = EntryPaths.requireParent(outputFile).resolve(Paths.get(linkTarget));
         if (pointsAtOutputDir(linkTargetPath, outputDir)) {
             return;
         }

@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/** Entry points and limit types shared by the archive and compression APIs. */
+/** Exceptions thrown by the archiving and compression API. */
 @NullMarked
-package com.hominux.compress4j;
+package com.hominux.compress4j.exceptions;
 
 import org.jspecify.annotations.NullMarked;

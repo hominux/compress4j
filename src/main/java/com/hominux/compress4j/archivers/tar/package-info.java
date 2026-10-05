@@ -22,7 +22,7 @@
  *
  * @since 2.2
  */
-@Nonnull
+@NullMarked
 package com.hominux.compress4j.archivers.tar;
 
-import jakarta.annotation.Nonnull;
+import org.jspecify.annotations.NullMarked;

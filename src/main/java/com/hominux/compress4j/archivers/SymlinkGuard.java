@@ -97,7 +97,7 @@ final class SymlinkGuard {
             return false;
         }
         try {
-            Path target = link.getParent().resolve(Files.readSymbolicLink(link));
+            Path target = EntryPaths.requireParent(link).resolve(Files.readSymbolicLink(link));
             return !realLocation(target).startsWith(realOut);
         } catch (IOException e) {
             return true;
