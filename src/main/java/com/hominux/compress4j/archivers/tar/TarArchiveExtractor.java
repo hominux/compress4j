@@ -16,23 +16,22 @@
 package com.hominux.compress4j.archivers.tar;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
-import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.codec.Codecs;
+import com.hominux.compress4j.internal.io.CountingInputStream;
+import com.hominux.compress4j.internal.io.Source;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import java.util.function.LongSupplier;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.archivers.tar.TarConstants;
 
 /**
  * Reads tar archives, plain or compressed with any codec {@link Compression} can read except Pack200.
@@ -50,19 +49,12 @@ import org.apache.commons.compress.archivers.tar.TarConstants;
  *
  * @since 2.2
  */
-public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputStream> {
+public final class TarArchiveExtractor extends ArchiveExtractor {
 
     private static final String PACK200_MESSAGE = "Pack200 compresses JAR files, not tar streams";
-    private static final int RECORD_SIZE = TarConstants.DEFAULT_RCDSIZE;
 
-    private boolean started;
-
-    private TarArchiveExtractor(Builder builder) throws IOException {
-        super(builder);
-    }
-
-    TarArchiveExtractor(TarArchiveInputStream tarArchiveInputStream) {
-        super(tarArchiveInputStream);
+    private TarArchiveExtractor(Builder builder, EntryReader reader, LongSupplier compressedBytes) {
+        super(builder, reader, compressedBytes);
     }
 
     /**
@@ -70,10 +62,9 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
      *
      * @param path the path to the archive to extract
      * @return the builder
-     * @throws IOException if the file cannot be opened
      */
-    public static Builder builder(Path path) throws IOException {
-        return new Builder(Files.newInputStream(path), true);
+    public static Builder builder(Path path) {
+        return new Builder(new Source.OfPath(path));
     }
 
     /**
@@ -86,7 +77,7 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
      * @since 5.0
      */
     public static Builder builder(SeekableByteChannel channel) {
-        return new Builder(Channels.newInputStream(channel), false);
+        return new Builder(new Source.OfChannel(channel));
     }
 
     /**
@@ -98,93 +89,7 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
      * @return the builder
      */
     public static Builder builder(InputStream inputStream) {
-        return new Builder(inputStream, false);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected Optional<Entry> nextEntry() throws IOException {
-        return getNextTarArchiveEntry().map(TarArchiveExtractor::toEntry);
-    }
-
-    private static Entry toEntry(TarArchiveEntry te) {
-        Entry base = new Entry(te.getName(), type(te), te.getMode()).withLinkTarget(te.getLinkName());
-        return base.withMetadata(te.getLastModifiedDate(), base.type() == Entry.Type.FILE ? te.getSize() : 0);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected InputStream openEntryStream(Entry entry) {
-        return archiveInputStream;
-    }
-
-    private Optional<TarArchiveEntry> getNextTarArchiveEntry() throws IOException {
-        TarArchiveEntry te;
-        while ((te = archiveInputStream.getNextEntry()) != null) {
-            started = true;
-            requireValidChecksum(te);
-            if (te.isGlobalPaxHeader()) {
-                continue;
-            }
-            Optional<String> unsupported = unsupportedKind(te);
-            if (unsupported.isEmpty()) {
-                return Optional.of(te);
-            }
-            reportUnsupported(te.getName(), unsupported.orElseThrow());
-        }
-        requireNotTruncatedBeforeFirstEntry();
-        started = true;
-        return Optional.empty();
-    }
-
-    private static void requireValidChecksum(TarArchiveEntry te) throws IOException {
-        if (!te.isCheckSumOK()) {
-            throw new IOException("not a tar archive: the header checksum of entry '" + te.getName() + "' is wrong");
-        }
-    }
-
-    private void requireNotTruncatedBeforeFirstEntry() throws IOException {
-        long read = archiveInputStream.getBytesRead();
-        if (!started && read > 0 && read < RECORD_SIZE) {
-            throw new IOException("not a tar archive: " + read + " bytes, shorter than one header record");
-        }
-    }
-
-    private static Optional<String> unsupportedKind(TarArchiveEntry te) {
-        if (te.isLink()) {
-            return Optional.of("hard link");
-        } else if (te.isCharacterDevice()) {
-            return Optional.of("character device");
-        } else if (te.isBlockDevice()) {
-            return Optional.of("block device");
-        } else if (te.isFIFO()) {
-            return Optional.of("fifo");
-        } else if (isSupported(te)) {
-            return Optional.empty();
-        }
-        return Optional.of("unknown type");
-    }
-
-    private static boolean isSupported(TarArchiveEntry te) {
-        return te.isDirectory() || te.isSymbolicLink() || isRegularFile(te);
-    }
-
-    private static boolean isRegularFile(TarArchiveEntry te) {
-        byte flag = te.getLinkFlag();
-        return flag == TarConstants.LF_OLDNORM
-                || flag == TarConstants.LF_NORMAL
-                || flag == TarConstants.LF_CONTIG
-                || te.isGNUSparse();
-    }
-
-    private static Entry.Type type(TarArchiveEntry te) {
-        if (te.isSymbolicLink()) {
-            return Entry.Type.SYMLINK;
-        } else if (te.isDirectory()) {
-            return Entry.Type.DIR;
-        } else {
-            return Entry.Type.FILE;
-        }
+        return new Builder(new Source.OfStream(inputStream));
     }
 
     /**
@@ -192,15 +97,13 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
      *
      * @since 5.0
      */
-    public static final class Builder
-            extends ArchiveExtractorBuilder<TarArchiveInputStream, Builder, TarArchiveExtractor> {
-        private final InputStream inputStream;
+    public static final class Builder extends ArchiveExtractor.Builder<Builder, TarArchiveExtractor> {
+        private final Source source;
         private Optional<Compression> compression = Optional.empty();
         private Charset encoding = StandardCharsets.UTF_8;
 
-        private Builder(InputStream inputStream, boolean owned) {
-            super(inputStream, owned);
-            this.inputStream = inputStream;
+        private Builder(Source source) {
+            this.source = source;
         }
 
         /**
@@ -213,10 +116,11 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
          * @since 5.0
          */
         public Builder compression(Compression compression) {
-            if (Objects.requireNonNull(compression, "compression") instanceof Compression.Pack200) {
+            Objects.requireNonNull(compression, "compression");
+            if (compression instanceof Compression.Pack200) {
                 throw new IllegalArgumentException(PACK200_MESSAGE);
             }
-            this.compression = Optional.of(Objects.requireNonNull(compression, "compression"));
+            this.compression = Optional.of(compression);
             return this;
         }
 
@@ -241,17 +145,23 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
 
         /** {@inheritDoc} */
         @Override
-        public TarArchiveInputStream buildArchiveInputStream() throws IOException {
-            InputStream buffered = inputStream.markSupported() ? inputStream : new BufferedInputStream(inputStream);
+        public TarArchiveExtractor build() throws IOException {
+            Source.Opened opened = source.open();
+            try {
+                TarArchiveInputStream tar = tarStream(opened.in());
+                return new TarArchiveExtractor(this, new TarEntryReader(tar, readerContext()), opened.in()::count);
+            } catch (IOException e) {
+                throw opened.closeIfOwned(e);
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
+            }
+        }
+
+        private TarArchiveInputStream tarStream(CountingInputStream in) throws IOException {
+            InputStream buffered = in.markSupported() ? in : new BufferedInputStream(in);
             Compression selected =
                     compression.isPresent() ? compression.orElseThrow() : Codecs.detectForReading(buffered);
             return new TarArchiveInputStream(Codecs.decompressing(selected, buffered), encoding.name());
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public TarArchiveExtractor build() throws IOException {
-            return new TarArchiveExtractor(this);
         }
     }
 }

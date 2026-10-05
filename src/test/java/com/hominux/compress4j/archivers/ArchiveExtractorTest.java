@@ -26,7 +26,6 @@ import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP_ALL;
 import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.ALLOW;
 import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.DISALLOW;
 import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
-import static com.hominux.compress4j.archivers.memory.InMemoryArchiveInputStream.toInputStream;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,12 +39,11 @@ import ch.qos.logback.classic.LoggerContext;
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
-import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder;
-import com.hominux.compress4j.archivers.memory.InMemoryArchiveInputStream;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
+import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.test.util.log.InMemoryLogAppender;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -62,6 +60,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -101,15 +100,6 @@ class ArchiveExtractorTest {
     void cleanUp() {
         inMemoryLogAppender.reset();
         inMemoryLogAppender.stop();
-    }
-
-    @Test
-    void streamConstructorUsesDefaultLimits() throws IOException {
-        try (var extractor =
-                new InMemoryArchiveExtractor(new InMemoryArchiveInputStream(List.<InMemoryArchiveEntry>of()))) {
-            ArchiveExtractor<?> base = extractor;
-            assertThat(base.limits).isEqualTo(ExtractionLimits.defaults());
-        }
     }
 
     @Test
@@ -946,24 +936,27 @@ class ArchiveExtractorTest {
                 InMemoryArchiveEntry.builder().name("file1.txt").content("abc").build();
         List<InMemoryArchiveEntry> entries = new ArrayList<>();
         entries.add(entry1);
-        var inputStream = toInputStream(entries);
-        var faultInjectingBuilder = new InMemoryArchiveExtractorBuilder(inputStream) {
-            private int callCount = 0;
-
-            @Override
-            public InMemoryArchiveInputStream buildArchiveInputStream() {
-                return new InMemoryArchiveInputStream(entries) {
+        var callCount = new AtomicInteger();
+        var faultInjectingBuilder = InMemoryArchiveExtractor.builder(entries)
+                .readerDecorator(delegate -> new EntryReader() {
                     @Override
-                    public InMemoryArchiveEntry getNextEntry() {
-                        callCount++;
-                        if (callCount == 2) {
+                    public Optional<Entry> next() throws IOException {
+                        if (callCount.incrementAndGet() == 2) {
                             throw new RuntimeException("Simulated error reading next entry");
                         }
-                        return super.getNextEntry();
+                        return delegate.next();
                     }
-                };
-            }
-        };
+
+                    @Override
+                    public InputStream open(Entry entry) throws IOException {
+                        return delegate.open(entry);
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        delegate.close();
+                    }
+                });
 
         try (var extractor =
                 faultInjectingBuilder.errorHandler((entry, ex) -> ABORT).build()) {
@@ -1239,17 +1232,11 @@ class ArchiveExtractorTest {
     }
 
     @Test
-    void builderShouldCorrectlySetNullEntryFilter() throws IOException {
-        InMemoryArchiveExtractor.ArchiveExtractorBuilder<?, ?, ?> builder =
-                InMemoryArchiveExtractor.builder(Collections.emptyList());
-        builder.filter(null);
+    void builderShouldRejectNullFilterAndPostProcessor() throws IOException {
+        ArchiveExtractor.Builder<?, ?> builder = InMemoryArchiveExtractor.builder(Collections.emptyList());
 
-        var entry1 = InMemoryArchiveEntry.builder().name("test1").content("c1").build();
-        try (var extractor =
-                InMemoryArchiveExtractor.builder(List.of(entry1)).filter(null).build()) {
-            extractor.extract(tempDir);
-            assertThat(tempDir.resolve("test1")).exists();
-        }
+        assertThatThrownBy(() -> builder.filter(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> builder.postProcessor(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -1367,12 +1354,11 @@ class ArchiveExtractorTest {
     }
 
     @Test
-    void shouldHandleNullAndAlwaysFalseEntryFilter() throws IOException {
+    void shouldHandleAcceptAllAndAlwaysFalseEntryFilter() throws IOException {
         var entry1 = InMemoryArchiveEntry.builder().name("test1").content("c1").build();
         var entry2 = InMemoryArchiveEntry.builder().name("test2").content("c2").build();
-        try (var extractor = InMemoryArchiveExtractor.builder(List.of(entry1, entry2))
-                .filter(null)
-                .build()) {
+        try (var extractor =
+                InMemoryArchiveExtractor.builder(List.of(entry1, entry2)).build()) {
             extractor.extract(tempDir);
             assertThat(tempDir.resolve("test1")).hasContent("c1");
             assertThat(tempDir.resolve("test2")).hasContent("c2");
@@ -1383,20 +1369,6 @@ class ArchiveExtractorTest {
                 .build()) {
             extractor.extract(temp2);
             assertThat(temp2).isEmptyDirectory();
-        }
-    }
-
-    @Test
-    void nullEntryFilterShouldExtractEverything() throws IOException {
-        var entry1 = InMemoryArchiveEntry.builder().name("test1").content("c1").build();
-        try (var extractor = InMemoryArchiveExtractor.builder(List.of(entry1))
-                .filter(entry -> false)
-                .filter(null)
-                .build()) {
-
-            extractor.extract(tempDir);
-
-            assertThat(tempDir.resolve("test1")).hasContent("c1");
         }
     }
 
@@ -1468,77 +1440,6 @@ class ArchiveExtractorTest {
                             assertThat(e.maximum()).isEqualTo(4);
                             assertThat(e.entryName()).contains("big.txt");
                         });
-            }
-        }
-
-        @Test
-        void shouldReleaseEntryStreamAfterSuccessfulWrite() throws IOException {
-            // given
-            var entry = InMemoryArchiveEntry.builder().name("a").content("a").build();
-            var released = new AtomicInteger();
-
-            try (var extractor = new InMemoryArchiveExtractor(InMemoryArchiveExtractor.builder(List.of(entry))) {
-                @Override
-                protected void closeEntryStream(InputStream stream) {
-                    released.incrementAndGet();
-                }
-            }) {
-                // when
-                extractor.extract(tempDir);
-
-                // then
-                assertThat(released).hasValue(1);
-            }
-        }
-
-        @Test
-        void shouldReleaseEntryStreamWhenWriteFails() throws IOException {
-            // given
-            var entry = InMemoryArchiveEntry.builder()
-                    .name("big.txt")
-                    .content("0123456789")
-                    .build();
-            var released = new AtomicInteger();
-
-            try (var extractor =
-                    new InMemoryArchiveExtractor(
-                            InMemoryArchiveExtractor.builder(List.of(entry)).maxEntrySize(4)) {
-                        @Override
-                        protected void closeEntryStream(InputStream stream) {
-                            released.incrementAndGet();
-                        }
-                    }) {
-
-                // when
-                assertThatThrownBy(() -> extractor.extract(tempDir)).isInstanceOf(LimitExceededException.class);
-
-                // then
-                assertThat(released).hasValue(1);
-            }
-        }
-
-        @Test
-        void shouldKeepWriteFailureAsPrimaryWhenReleasingEntryStreamAlsoFails() throws IOException {
-            // given
-            var entry = InMemoryArchiveEntry.builder()
-                    .name("big.txt")
-                    .content("0123456789")
-                    .build();
-            var releaseFailure = new IOException("release failed");
-
-            try (var extractor =
-                    new InMemoryArchiveExtractor(
-                            InMemoryArchiveExtractor.builder(List.of(entry)).maxEntrySize(4)) {
-                        @Override
-                        protected void closeEntryStream(InputStream stream) throws IOException {
-                            throw releaseFailure;
-                        }
-                    }) {
-
-                // when / then
-                assertThatThrownBy(() -> extractor.extract(tempDir))
-                        .isInstanceOf(LimitExceededException.class)
-                        .hasSuppressedException(releaseFailure);
             }
         }
 
@@ -1751,28 +1652,6 @@ class ArchiveExtractorTest {
         // Then
         assertThat(out.resolve("keep.txt")).hasContent("k");
         assertThat(out.resolve("skip.txt")).doesNotExist();
-    }
-
-    @Test
-    void releaseFailureOnAdvanceIsReportedOnceAndStreamReleasedOnce(@TempDir Path out) throws IOException {
-        var entries = List.of(
-                InMemoryArchiveEntry.builder().name("a").content("1").build(),
-                InMemoryArchiveEntry.builder().name("b").content("2").build());
-        var releaseFailure = new IOException("release failed");
-        var releases = new AtomicInteger();
-
-        try (var extractor = new InMemoryArchiveExtractor(InMemoryArchiveExtractor.builder(entries)) {
-            @Override
-            protected void closeEntryStream(InputStream stream) throws IOException {
-                releases.incrementAndGet();
-                throw releaseFailure;
-            }
-        }) {
-            // When / Then
-            assertThatThrownBy(() -> extractor.extract(out)).isSameAs(releaseFailure);
-            assertThat(releases).hasValue(1);
-            assertThat(out.resolve("a")).hasContent("1");
-        }
     }
 
     @Test

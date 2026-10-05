@@ -18,10 +18,12 @@ package com.hominux.compress4j.archivers;
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
+import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 
 /**
  * Tracks what one {@link ArchiveExtractor#stream()} or {@link ArchiveExtractor#extract} run has consumed against its
@@ -30,18 +32,12 @@ import java.util.Optional;
 final class ExtractionBudget {
 
     private final ExtractionLimits limits;
+    private final ExpansionMeter meter;
     private long entries = 0;
-    long extractedBytes = 0;
 
-    ExtractionBudget(ExtractionLimits limits) {
+    ExtractionBudget(ExtractionLimits limits, LongSupplier compressedBytes) {
         this.limits = limits;
-    }
-
-    static void checkDeclaredSize(ExtractionLimits limits, String entryName, long declaredSize)
-            throws LimitExceededException {
-        if (limits.maxEntrySize() != ExtractionLimits.UNLIMITED && declaredSize > limits.maxEntrySize()) {
-            throw new LimitExceededException(Limit.ENTRY_SIZE, limits.maxEntrySize(), Optional.of(entryName));
-        }
+        this.meter = new ExpansionMeter(limits, compressedBytes);
     }
 
     void countEntry() throws LimitExceededException {
@@ -52,7 +48,8 @@ final class ExtractionBudget {
 
     InputStream meter(String entryName, InputStream in) {
         if (limits.maxEntrySize() == ExtractionLimits.UNLIMITED
-                && limits.maxTotalSize() == ExtractionLimits.UNLIMITED) {
+                && limits.maxTotalSize() == ExtractionLimits.UNLIMITED
+                && limits.maxRatio() == ExtractionLimits.UNLIMITED) {
             return in;
         }
         return new MeteredInputStream(entryName, in);
@@ -94,13 +91,10 @@ final class ExtractionBudget {
 
         private void count(long n) throws LimitExceededException {
             entryBytes += n;
-            extractedBytes += n;
             if (limits.maxEntrySize() != ExtractionLimits.UNLIMITED && entryBytes > limits.maxEntrySize()) {
                 throw new LimitExceededException(Limit.ENTRY_SIZE, limits.maxEntrySize(), Optional.of(entryName));
             }
-            if (limits.maxTotalSize() != ExtractionLimits.UNLIMITED && extractedBytes > limits.maxTotalSize()) {
-                throw new LimitExceededException(Limit.TOTAL_SIZE, limits.maxTotalSize(), Optional.of(entryName));
-            }
+            meter.produced(n, Optional.of(entryName));
         }
     }
 }

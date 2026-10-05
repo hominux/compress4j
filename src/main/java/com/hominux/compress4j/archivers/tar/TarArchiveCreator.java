@@ -17,38 +17,28 @@ package com.hominux.compress4j.archivers.tar;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
 import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.internal.archive.EntryWriter;
 import com.hominux.compress4j.internal.codec.Codecs;
+import com.hominux.compress4j.internal.io.Sink;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.Objects;
-import java.util.OptionalLong;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.archivers.tar.TarConstants;
-import org.apache.commons.compress.archivers.zip.UnixStat;
-import org.apache.commons.io.IOUtils;
 
 /**
  * Writes tar archives, plain or compressed with any codec {@link Compression} can write except Pack200.
  *
  * @since 2.2
  */
-public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStream> {
+public final class TarArchiveCreator extends ArchiveCreator {
 
-    private TarArchiveCreator(Builder builder) throws IOException {
-        super(builder);
-    }
-
-    TarArchiveCreator(TarArchiveOutputStream archiveOutputStream) {
-        super(archiveOutputStream);
+    private TarArchiveCreator(Builder builder, EntryWriter writer) {
+        super(builder, writer);
     }
 
     /**
@@ -56,10 +46,9 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
      *
      * @param path the path to write the archive to
      * @return the builder
-     * @throws IOException if the file cannot be opened
      */
-    public static Builder builder(Path path) throws IOException {
-        return new Builder(Files.newOutputStream(path), true);
+    public static Builder builder(Path path) {
+        return new Builder(new Sink.OfPath(path));
     }
 
     /**
@@ -71,7 +60,7 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
      * @since 5.0
      */
     public static Builder builder(SeekableByteChannel channel) {
-        return new Builder(Channels.newOutputStream(channel), false);
+        return new Builder(new Sink.OfChannel(channel));
     }
 
     /**
@@ -82,54 +71,7 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
      * @return the builder
      */
     public static Builder builder(OutputStream outputStream) {
-        return new Builder(outputStream, false);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected boolean requiresSize() {
-        return true;
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
-        TarArchiveEntry e = new TarArchiveEntry(name + '/');
-        e.setModTime(lastModified);
-        if (mode != 0) {
-            e.setMode(UnixStat.DIR_FLAG | mode);
-        }
-        archiveOutputStream.putArchiveEntry(e);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
-            throws IOException {
-        TarArchiveEntry e = new TarArchiveEntry(name);
-        e.setSize(size.orElseThrow());
-        e.setModTime(lastModified);
-        if (mode != 0) {
-            e.setMode(mode);
-        }
-        archiveOutputStream.putArchiveEntry(e);
-        IOUtils.copy(content, archiveOutputStream);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
-        TarArchiveEntry e = new TarArchiveEntry(name, TarConstants.LF_SYMLINK);
-        e.setLinkName(target);
-        e.setSize(0);
-        e.setModTime(lastModified);
-        if (mode != 0) {
-            e.setMode(mode);
-        }
-        archiveOutputStream.putArchiveEntry(e);
-        archiveOutputStream.closeArchiveEntry();
+        return new Builder(new Sink.OfStream(outputStream));
     }
 
     /**
@@ -137,8 +79,7 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
      *
      * @since 5.0
      */
-    public static final class Builder
-            extends ArchiveCreatorBuilder<TarArchiveOutputStream, Builder, TarArchiveCreator> {
+    public static final class Builder extends ArchiveCreator.Builder<Builder, TarArchiveCreator> {
         private static final int DEFAULT_BLOCK_SIZE = -511;
 
         private Compression compression = Compression.none();
@@ -148,8 +89,10 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
         private TarBigNumberMode bigNumberMode = TarBigNumberMode.STAR;
         private boolean addPaxHeadersForNonAsciiNames;
 
-        private Builder(OutputStream outputStream, boolean owned) {
-            super(outputStream, owned);
+        private final Sink sink;
+
+        private Builder(Sink sink) {
+            this.sink = sink;
         }
 
         /**
@@ -163,10 +106,11 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
          * @since 5.0
          */
         public Builder compression(Compression compression) {
-            if (Objects.requireNonNull(compression, "compression") instanceof Compression.Pack200) {
+            Objects.requireNonNull(compression, "compression");
+            if (compression instanceof Compression.Pack200) {
                 throw new IllegalArgumentException("Pack200 compresses JAR files, not tar streams");
             }
-            if (!Objects.requireNonNull(compression, "compression").canWrite()) {
+            if (!compression.canWrite()) {
                 throw new IllegalArgumentException(compression.getClass().getSimpleName() + " can only be read");
             }
             this.compression = compression;
@@ -252,19 +196,24 @@ public final class TarArchiveCreator extends ArchiveCreator<TarArchiveOutputStre
 
         /** {@inheritDoc} */
         @Override
-        public TarArchiveOutputStream buildArchiveOutputStream() throws IOException {
-            OutputStream compressed = Codecs.compressing(compression, outputStream);
+        public TarArchiveCreator build() throws IOException {
+            Sink.Opened opened = sink.open();
+            try {
+                return new TarArchiveCreator(this, new TarEntryWriter(tarStream(opened.out())));
+            } catch (IOException e) {
+                throw opened.closeIfOwned(e);
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
+            }
+        }
+
+        private TarArchiveOutputStream tarStream(OutputStream target) throws IOException {
+            OutputStream compressed = Codecs.compressing(compression, target);
             TarArchiveOutputStream out = new TarArchiveOutputStream(compressed, blockSize, encoding.name());
             out.setAddPaxHeadersForNonAsciiNames(addPaxHeadersForNonAsciiNames);
             out.setLongFileMode(longFileMode.value);
             out.setBigNumberMode(bigNumberMode.value);
             return out;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public TarArchiveCreator build() throws IOException {
-            return new TarArchiveCreator(this);
         }
     }
 }

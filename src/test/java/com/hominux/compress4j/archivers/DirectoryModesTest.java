@@ -254,7 +254,7 @@ class DirectoryModesTest {
     private static InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder withModes(
             InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder builder,
             ArchiveExtractor.DirectoryModeApplier applier) {
-        ((ArchiveExtractor.ArchiveExtractorBuilder<?, ?, ?>) builder).directoryModeApplier(applier);
+        ((ArchiveExtractor.Builder<?, ?>) builder).directoryModeApplier(applier);
         return builder;
     }
 

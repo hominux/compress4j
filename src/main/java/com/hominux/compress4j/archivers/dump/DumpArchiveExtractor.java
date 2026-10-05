@@ -15,8 +15,9 @@
  */
 package com.hominux.compress4j.archivers.dump;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
+import com.hominux.compress4j.utils.EntryValues;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +38,7 @@ import org.apache.commons.compress.archivers.dump.DumpArchiveInputStream;
  *
  * @since 3.2
  */
-public class DumpArchiveExtractor extends ArchiveExtractor<DumpArchiveInputStream> {
+public class DumpArchiveExtractor extends LegacyArchiveExtractor<DumpArchiveInputStream> {
 
     /**
      * Create a new {@link DumpArchiveExtractor} with the given input stream.
@@ -108,8 +109,10 @@ public class DumpArchiveExtractor extends ArchiveExtractor<DumpArchiveInputStrea
     }
 
     private static Entry toEntry(DumpArchiveEntry entry, Entry.Type type) {
-        return new Entry(entry.getName(), type, entry.getMode())
-                .withMetadata(entry.getLastModifiedDate(), type == Entry.Type.FILE ? entry.getSize() : 0);
+        return EntryValues.withMetadata(
+                new Entry(entry.getName(), type, entry.getMode()),
+                Optional.ofNullable(entry.getLastModifiedDate()),
+                type == Entry.Type.FILE ? entry.getSize() : 0);
     }
 
     /**

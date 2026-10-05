@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.archivers.ar;
 
-import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.LegacyArchiveCreator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,7 +36,7 @@ import org.apache.commons.io.IOUtils;
  *
  * @since 2.2
  */
-public class ArArchiveCreator extends ArchiveCreator<ArArchiveOutputStream> {
+public class ArArchiveCreator extends LegacyArchiveCreator<ArArchiveOutputStream> {
 
     /**
      * Unix {@code S_IFLNK} file-type bits (octal {@code 0120000}). Classic AR's mode field carries permission bits

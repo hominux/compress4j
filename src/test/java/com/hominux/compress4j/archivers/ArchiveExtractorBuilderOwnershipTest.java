@@ -20,18 +20,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor.InMemoryArchiveExtractorBuilder;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ArchiveExtractorBuilderOwnershipTest {
 
     private final IOException failure = new IOException("build failed");
 
-    private InMemoryArchiveExtractorBuilder failingBuilder(InputStream stream, boolean owned) {
-        return new InMemoryArchiveExtractorBuilder(stream, owned) {
+    private ProbeBuilder failingBuilder(InputStream stream, boolean owned) {
+        return new ProbeBuilder(stream, owned) {
             @Override
             public InMemoryArchiveInputStream buildArchiveInputStream() throws IOException {
                 throw failure;
@@ -57,5 +57,46 @@ class ArchiveExtractorBuilderOwnershipTest {
         assertThatThrownBy(builder::build).isSameAs(failure);
 
         verify(stream, never()).close();
+    }
+
+    private static final class Probe extends LegacyArchiveExtractor<InMemoryArchiveInputStream> {
+        private Probe(ProbeBuilder builder) throws IOException {
+            super(builder);
+        }
+
+        @Override
+        protected Optional<Entry> nextEntry() {
+            return Optional.empty();
+        }
+
+        @Override
+        protected InputStream openEntryStream(Entry entry) {
+            return InputStream.nullInputStream();
+        }
+    }
+
+    private static class ProbeBuilder
+            extends LegacyArchiveExtractor.ArchiveExtractorBuilder<InMemoryArchiveInputStream, ProbeBuilder, Probe> {
+        private final InputStream stream;
+
+        private ProbeBuilder(InputStream stream, boolean owned) {
+            super(stream, owned);
+            this.stream = stream;
+        }
+
+        @Override
+        protected ProbeBuilder getThis() {
+            return this;
+        }
+
+        @Override
+        public InMemoryArchiveInputStream buildArchiveInputStream() throws IOException {
+            return new InMemoryArchiveInputStream(stream);
+        }
+
+        @Override
+        public Probe build() throws IOException {
+            return new Probe(this);
+        }
     }
 }

@@ -16,14 +16,21 @@
 package com.hominux.compress4j.archivers.catalog;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
-import com.hominux.compress4j.archivers.ArchiveCreator.ArchiveCreatorBuilder;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.archivers.LegacyArchiveCreator;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 import org.apache.commons.io.function.IOFunction;
 
 /**
@@ -31,7 +38,8 @@ import org.apache.commons.io.function.IOFunction;
  *
  * <p>{@code extractor} and {@code creator} are the production classes whose static builders the row calls;
  * {@code streamFactory} names the extractor's static {@code InputStream} factory. A read-only row names the writable
- * row that produces its test archives in {@code writer}.
+ * row that produces its test archives in {@code writer}. Rows read and write through {@link Reader} and {@link Writer},
+ * which both archive base types satisfy while formats move between them.
  */
 public record ArchiveFormat(
         String name,
@@ -40,12 +48,116 @@ public record ArchiveFormat(
         Optional<Class<?>> creator,
         String streamFactory,
         Optional<String> writer,
-        Optional<IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>>> builderAt,
-        Optional<IOFunction<SeekableByteChannel, ArchiveCreator<?>>> createOnChannel,
-        Optional<IOFunction<OutputStream, ArchiveCreator<?>>> createOnStream,
-        IOFunction<Path, ArchiveExtractor<?>> readAt,
-        Optional<IOFunction<SeekableByteChannel, ArchiveExtractor<?>>> readFromChannel,
-        Optional<IOFunction<InputStream, ArchiveExtractor<?>>> readFromStream) {
+        Optional<FilteredWriter> builderAt,
+        Optional<IOFunction<SeekableByteChannel, Writer>> createOnChannel,
+        Optional<IOFunction<OutputStream, Writer>> createOnStream,
+        IOFunction<Path, Reader> readAt,
+        Optional<IOFunction<SeekableByteChannel, Reader>> readFromChannel,
+        Optional<IOFunction<InputStream, Reader>> readFromStream) {
+
+    /** The reading half of an archive base type. */
+    public interface Reader extends Closeable {
+        Stream<ArchiveItem> stream();
+
+        void extract(Path outputDir) throws IOException;
+    }
+
+    /** The writing half of an archive base type. */
+    public interface Writer extends Closeable {
+        void add(EntrySource source) throws IOException;
+
+        void addAll(Stream<? extends EntrySource> sources) throws IOException;
+
+        void addDirectoryRecursively(Path directory) throws IOException;
+
+        void addFile(Path path) throws IOException;
+    }
+
+    /** Opens a writer at a path that keeps only the sources the filter accepts. */
+    @FunctionalInterface
+    public interface FilteredWriter {
+        Writer open(Path path, Predicate<? super EntrySource> filter) throws IOException;
+    }
+
+    public static Reader reader(LegacyArchiveExtractor<?> e) {
+        return new Reader() {
+            public Stream<ArchiveItem> stream() {
+                return e.stream();
+            }
+
+            public void extract(Path dir) throws IOException {
+                e.extract(dir);
+            }
+
+            public void close() throws IOException {
+                e.close();
+            }
+        };
+    }
+
+    public static Reader reader(ArchiveExtractor e) {
+        return new Reader() {
+            public Stream<ArchiveItem> stream() {
+                return e.stream();
+            }
+
+            public void extract(Path dir) throws IOException {
+                e.extract(dir);
+            }
+
+            public void close() throws IOException {
+                e.close();
+            }
+        };
+    }
+
+    public static Writer writer(LegacyArchiveCreator<?> c) {
+        return new Writer() {
+            public void add(EntrySource source) throws IOException {
+                c.add(source);
+            }
+
+            public void addAll(Stream<? extends EntrySource> sources) throws IOException {
+                c.addAll(sources);
+            }
+
+            public void addDirectoryRecursively(Path directory) throws IOException {
+                c.addDirectoryRecursively(directory);
+            }
+
+            public void addFile(Path path) throws IOException {
+                c.addFile(path);
+            }
+
+            public void close() throws IOException {
+                c.close();
+            }
+        };
+    }
+
+    public static Writer writer(ArchiveCreator c) {
+        return new Writer() {
+            public void add(EntrySource source) throws IOException {
+                c.add(source);
+            }
+
+            public void addAll(Stream<? extends EntrySource> sources) throws IOException {
+                c.addAll(sources);
+            }
+
+            public void addDirectoryRecursively(Path directory) throws IOException {
+                c.addDirectoryRecursively(directory);
+            }
+
+            public void addFile(Path path) throws IOException {
+                c.addFile(path);
+            }
+
+            public void close() throws IOException {
+                c.close();
+            }
+        };
+    }
 
     public boolean has(Capability capability) {
         return capabilities.contains(capability);
@@ -55,8 +167,8 @@ public record ArchiveFormat(
         return builderAt.isPresent();
     }
 
-    public Optional<IOFunction<Path, ArchiveCreator<?>>> createAt() {
-        return builderAt.map(builder -> path -> builder.apply(path).build());
+    public Optional<IOFunction<Path, Writer>> createAt() {
+        return builderAt.map(builder -> path -> builder.open(path, source -> true));
     }
 
     @Override

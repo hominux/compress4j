@@ -20,18 +20,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator.InMemoryArchiveCreatorBuilder;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.attribute.FileTime;
+import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
 
 class ArchiveCreatorBuilderOwnershipTest {
 
     private final IllegalStateException failure = new IllegalStateException("build failed");
 
-    private InMemoryArchiveCreatorBuilder failingBuilder(OutputStream stream, boolean owned) {
-        return new InMemoryArchiveCreatorBuilder(stream, owned) {
+    private ProbeBuilder failingBuilder(OutputStream stream, boolean owned) {
+        return new ProbeBuilder(stream, owned) {
             @Override
             public InMemoryArchiveOutputStream buildArchiveOutputStream() {
                 throw failure;
@@ -57,5 +59,53 @@ class ArchiveCreatorBuilderOwnershipTest {
         assertThatThrownBy(builder::build).isSameAs(failure);
 
         verify(stream, never()).close();
+    }
+
+    private static final class Probe extends LegacyArchiveCreator<InMemoryArchiveOutputStream> {
+        private Probe(ProbeBuilder builder) throws IOException {
+            super(builder);
+        }
+
+        @Override
+        protected void writeDirectory(String name, int mode, FileTime lastModified) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void writeSymlink(String name, String target, int mode, FileTime lastModified) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected boolean requiresSize() {
+            return false;
+        }
+    }
+
+    private static class ProbeBuilder
+            extends LegacyArchiveCreator.ArchiveCreatorBuilder<InMemoryArchiveOutputStream, ProbeBuilder, Probe> {
+        private ProbeBuilder(OutputStream stream, boolean owned) {
+            super(stream, owned);
+        }
+
+        @Override
+        protected ProbeBuilder getThis() {
+            return this;
+        }
+
+        @Override
+        public InMemoryArchiveOutputStream buildArchiveOutputStream() {
+            return new InMemoryArchiveOutputStream(outputStream);
+        }
+
+        @Override
+        public Probe build() throws IOException {
+            return new Probe(this);
+        }
     }
 }

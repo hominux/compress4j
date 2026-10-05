@@ -356,7 +356,7 @@ class UnsupportedEntryTest {
         assertThatThrownBy(() -> builder.unsupportedEntryHandler(null)).isInstanceOf(NullPointerException.class);
     }
 
-    private static void drain(ArchiveExtractor<?> extractor) {
+    private static void drain(ArchiveExtractor extractor) {
         try (var items = extractor.stream()) {
             items.forEach(item -> {});
         }

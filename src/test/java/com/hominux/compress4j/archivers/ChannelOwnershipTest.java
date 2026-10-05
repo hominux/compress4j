@@ -51,7 +51,7 @@ class ChannelOwnershipTest {
         return Arrays.copyOf(channel.array(), (int) channel.size());
     }
 
-    private static String firstContent(ArchiveExtractor<?> extractor) throws IOException {
+    private static String firstContent(ArchiveFormat.Reader extractor) throws IOException {
         var item = extractor.stream().findFirst().orElseThrow();
         return new String(item.content().readAllBytes(), StandardCharsets.UTF_8);
     }

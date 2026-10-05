@@ -15,8 +15,9 @@
  */
 package com.hominux.compress4j.archivers.arj;
 
-import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
+import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
+import com.hominux.compress4j.utils.EntryValues;
 import com.hominux.compress4j.utils.UnixFileType;
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +41,7 @@ import org.apache.commons.compress.archivers.arj.ArjArchiveInputStream;
  *
  * @since 3.2
  */
-public class ArjArchiveExtractor extends ArchiveExtractor<ArjArchiveInputStream> {
+public class ArjArchiveExtractor extends LegacyArchiveExtractor<ArjArchiveInputStream> {
     private Optional<ArjArchiveEntry> current = Optional.empty();
 
     /**
@@ -100,8 +101,10 @@ public class ArjArchiveExtractor extends ArchiveExtractor<ArjArchiveInputStream>
     private static Entry toEntry(ArjArchiveEntry entry, UnixFileType fileType) {
         var type = fileType == UnixFileType.DIRECTORY ? Entry.Type.DIR : Entry.Type.FILE;
         var mode = entry.isHostOsUnix() ? entry.getUnixMode() : 0;
-        return new Entry(entry.getName(), type, mode)
-                .withMetadata(entry.getLastModifiedDate(), type == Entry.Type.FILE ? entry.getSize() : 0);
+        return EntryValues.withMetadata(
+                new Entry(entry.getName(), type, mode),
+                Optional.ofNullable(entry.getLastModifiedDate()),
+                type == Entry.Type.FILE ? entry.getSize() : 0);
     }
 
     /**

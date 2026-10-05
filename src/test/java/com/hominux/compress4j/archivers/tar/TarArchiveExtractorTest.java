@@ -27,12 +27,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import com.hominux.compress4j.internal.codec.Codecs;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -45,11 +47,11 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.archivers.tar.TarConstants;
 import org.junit.jupiter.api.Test;
@@ -66,8 +68,7 @@ class TarArchiveExtractorTest {
     void shouldReturnNextFileEntry() throws IOException {
         // given
         var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
+        var tarArchiveInputStream = spy(new TarArchiveInputStream(mockInputStream));
         TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
         given(mockTarEntry.isCheckSumOK()).willReturn(true);
         given(mockTarEntry.getName()).willReturn("file.txt");
@@ -77,9 +78,9 @@ class TarArchiveExtractorTest {
         given(mockTarEntry.getSize()).willReturn(10L);
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
+        try (var tarDecompressor = new TarEntryReader(tarArchiveInputStream, context())) {
             // when
-            var result = tarDecompressor.nextEntry();
+            var result = tarDecompressor.next();
 
             // then
             Compress4JAssertions.assertThat(result.orElseThrow())
@@ -93,8 +94,7 @@ class TarArchiveExtractorTest {
     void shouldReturnNextSymlinkEntry() throws IOException {
         // given
         var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
+        var tarArchiveInputStream = spy(new TarArchiveInputStream(mockInputStream));
         TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
         given(mockTarEntry.isCheckSumOK()).willReturn(true);
         given(mockTarEntry.getName()).willReturn("file.txt");
@@ -106,9 +106,9 @@ class TarArchiveExtractorTest {
         given(mockTarEntry.getSize()).willReturn(10L);
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
+        try (var tarDecompressor = new TarEntryReader(tarArchiveInputStream, context())) {
             // when
-            var result = tarDecompressor.nextEntry();
+            var result = tarDecompressor.next();
 
             // then
             Compress4JAssertions.assertThat(result.orElseThrow())
@@ -123,8 +123,7 @@ class TarArchiveExtractorTest {
     void shouldReturnNextDirectoryEntry() throws IOException {
         // given
         var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
+        var tarArchiveInputStream = spy(new TarArchiveInputStream(mockInputStream));
         TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
         given(mockTarEntry.isCheckSumOK()).willReturn(true);
         given(mockTarEntry.getName()).willReturn("file.txt");
@@ -136,9 +135,9 @@ class TarArchiveExtractorTest {
         given(mockTarEntry.getSize()).willReturn(10L);
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
+        try (var tarDecompressor = new TarEntryReader(tarArchiveInputStream, context())) {
             // when
-            var result = tarDecompressor.nextEntry();
+            var result = tarDecompressor.next();
 
             // then
             Compress4JAssertions.assertThat(result.orElseThrow())
@@ -153,10 +152,9 @@ class TarArchiveExtractorTest {
         // given
         var mockInputStream = new ByteArrayInputStream(new byte[0]);
 
-        try (TarArchiveExtractor tarDecompressor =
-                TarArchiveExtractor.builder(mockInputStream).build()) {
+        try (var tarDecompressor = new TarEntryReader(new TarArchiveInputStream(mockInputStream), context())) {
             // when
-            var result = tarDecompressor.nextEntry();
+            var result = tarDecompressor.next();
 
             // then
             assertThat(result).isEmpty();
@@ -167,17 +165,16 @@ class TarArchiveExtractorTest {
     void shouldSkipEntryWhenNextEntryIsHardlink() throws IOException {
         // given
         var mockInputStream = new ByteArrayInputStream("test".getBytes());
-        var tarArchiveInputStream =
-                spy(TarArchiveExtractor.builder(mockInputStream).buildArchiveInputStream());
+        var tarArchiveInputStream = spy(new TarArchiveInputStream(mockInputStream));
         TarArchiveEntry mockTarEntry = mock(TarArchiveEntry.class);
         given(mockTarEntry.isCheckSumOK()).willReturn(true);
         given(mockTarEntry.isLink()).willReturn(true);
         given(mockTarEntry.getName()).willReturn("link");
         given(tarArchiveInputStream.getNextEntry()).willReturn(mockTarEntry, (TarArchiveEntry) null);
 
-        try (TarArchiveExtractor tarDecompressor = new TarArchiveExtractor(tarArchiveInputStream)) {
+        try (var tarDecompressor = new TarEntryReader(tarArchiveInputStream, context())) {
             // when
-            var result = tarDecompressor.nextEntry();
+            var result = tarDecompressor.next();
 
             // then
             //noinspection resource
@@ -187,6 +184,10 @@ class TarArchiveExtractorTest {
         }
     }
 
+    private static ReaderContext context() {
+        return new ReaderContext(ExtractionLimits.defaults(), entry -> {});
+    }
+
     static Stream<Compression> explicitCodecs() {
         return Stream.of(Compression.lzma(), Compression.lz4Framed(), Compression.zstd());
     }
@@ -194,14 +195,14 @@ class TarArchiveExtractorTest {
     @SuppressWarnings("OctalInteger")
     private static byte[] archiveOf(Compression compression, String name, byte[] content) throws IOException {
         var bytes = new ByteArrayOutputStream();
-        try (var creator =
-                TarArchiveCreator.builder(bytes).compression(compression).build()) {
-            creator.writeFile(
-                    name,
-                    new ByteArrayInputStream(content),
-                    OptionalLong.of(content.length),
-                    0644,
-                    FileTime.from(Instant.now()));
+        try (var out = new TarArchiveOutputStream(Codecs.compressing(compression, bytes))) {
+            var entry = new TarArchiveEntry(name);
+            entry.setSize(content.length);
+            entry.setModTime(FileTime.from(Instant.now()));
+            entry.setMode(0644);
+            out.putArchiveEntry(entry);
+            out.write(content);
+            out.closeArchiveEntry();
         }
         return bytes.toByteArray();
     }

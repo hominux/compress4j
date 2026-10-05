@@ -38,7 +38,9 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator.InMemoryArchiveCreatorBuilder;
+import com.hominux.compress4j.archivers.memory.InMemoryArchiveCreator.InMemoryEntryWriter;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
+import com.hominux.compress4j.internal.archive.EntryWriter;
 import com.hominux.compress4j.test.util.log.InMemoryLogAppender;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -57,8 +59,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalLong;
-import org.apache.commons.compress.archivers.ArchiveEntry;
-import org.apache.commons.compress.archivers.ArchiveOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,6 +87,8 @@ class ArchiveCreatorTest {
     @Mock
     private OutputStream out;
 
+    private InMemoryEntryWriter writer;
+
     @BeforeEach
     void setup() {
         Logger logger = (Logger) LoggerFactory.getLogger(LOGGER_NAME);
@@ -110,7 +112,7 @@ class ArchiveCreatorTest {
         var path = createFile(tempDir, fileName, "789");
         int fileMode = pinFileMode(path);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // when
             archive.addFile(path);
 
@@ -118,10 +120,10 @@ class ArchiveCreatorTest {
             BasicFileAttributes fileAttrs = Files.readAttributes(path, BasicFileAttributes.class);
             FileTime modTime = fileAttrs.lastModifiedTime();
 
-            InOrder inOrder = inOrder(archive);
+            InOrder inOrder = inOrder(archive, writer);
             inOrder.verify(archive).addFile(path);
             inOrder.verify(archive).add(named(fileName));
-            inOrder.verify(archive)
+            inOrder.verify(writer)
                     .writeFile(
                             eq(fileName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(fileMode), eq(modTime));
         }
@@ -138,7 +140,7 @@ class ArchiveCreatorTest {
             archive.addFile(path);
 
             // then
-            InOrder inOrder = inOrder(archive);
+            InOrder inOrder = inOrder(archive, writer);
             inOrder.verify(archive).addFile(path);
             inOrder.verify(archive).add(named(fileName));
             inOrder.verifyNoMoreInteractions();
@@ -153,7 +155,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
         int fileMode = pinFileMode(path);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // when
             archive.add(EntrySource.file(entryName, path));
 
@@ -161,9 +163,9 @@ class ArchiveCreatorTest {
             BasicFileAttributes fileAttrs = Files.readAttributes(path, BasicFileAttributes.class);
             FileTime modTime = fileAttrs.lastModifiedTime();
 
-            InOrder inOrder = inOrder(archive);
+            InOrder inOrder = inOrder(archive, writer);
             inOrder.verify(archive).add(named(entryName));
-            inOrder.verify(archive)
+            inOrder.verify(writer)
                     .writeFile(
                             eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(fileMode), eq(modTime));
         }
@@ -178,13 +180,13 @@ class ArchiveCreatorTest {
         FileTime modTime = FileTime.from(Instant.now());
         int fileMode = pinFileMode(path);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // when
             archive.add(EntrySource.file(entryName, path).withLastModified(modTime));
 
             // then
             verify(archive).add(named(entryName));
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(fileMode), eq(modTime));
         }
@@ -196,8 +198,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
 
         try (MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+                InMemoryArchiveCreator archive = spyCreator()) {
 
             var mockedInstant = Instant.now();
             mockedStaticInstant.when(Instant::now).thenReturn(mockedInstant);
@@ -209,7 +210,7 @@ class ArchiveCreatorTest {
             // then
             verify(archive).add(named(entryName));
             FileTime modTime = FileTime.from(mockedInstant);
-            verify(archive)
+            verify(writer)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
         }
     }
@@ -226,7 +227,7 @@ class ArchiveCreatorTest {
             archive.add(EntrySource.file(entryName, content));
 
             // then
-            InOrder inOrder = inOrder(archive);
+            InOrder inOrder = inOrder(archive, writer);
             inOrder.verify(archive).add(named(entryName));
             inOrder.verifyNoMoreInteractions();
         }
@@ -238,7 +239,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
         FileTime modTime = FileTime.from(Instant.now());
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             byte[] content = "789".getBytes();
 
@@ -247,7 +248,7 @@ class ArchiveCreatorTest {
 
             // then
             verify(archive).add(named(entryName));
-            verify(archive)
+            verify(writer)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
         }
     }
@@ -258,8 +259,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
 
         try (MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+                InMemoryArchiveCreator archive = spyCreator()) {
 
             var mockedInstant = Instant.now();
             mockedStaticInstant.when(Instant::now).thenReturn(mockedInstant);
@@ -271,7 +271,7 @@ class ArchiveCreatorTest {
 
             // then
             verify(archive).add(named(entryName));
-            verify(archive)
+            verify(writer)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
         }
     }
@@ -288,7 +288,7 @@ class ArchiveCreatorTest {
             archive.add(EntrySource.file(entryName, content, 3));
 
             // then
-            InOrder inOrder = inOrder(archive);
+            InOrder inOrder = inOrder(archive, writer);
             inOrder.verify(archive).add(named(entryName));
             inOrder.verifyNoMoreInteractions();
         }
@@ -300,7 +300,7 @@ class ArchiveCreatorTest {
         String entryName = "additional_name.txt";
         FileTime modTime = FileTime.from(Instant.now());
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             var content = new ByteArrayInputStream("789".getBytes());
 
@@ -309,7 +309,7 @@ class ArchiveCreatorTest {
 
             // then
             verify(archive).add(named(entryName));
-            verify(archive)
+            verify(writer)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(3L)), eq(0), eq(modTime));
         }
     }
@@ -340,8 +340,7 @@ class ArchiveCreatorTest {
         String entryName = "dir_name";
 
         try (MockedStatic<Instant> mockedStaticInstant = mockStatic(Instant.class, CALLS_REAL_METHODS);
-                InMemoryArchiveCreator archive =
-                        spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+                InMemoryArchiveCreator archive = spyCreator()) {
             var mockedInstant = Instant.now();
             mockedStaticInstant.when(Instant::now).thenReturn(mockedInstant);
             FileTime modTime = FileTime.from(mockedInstant);
@@ -351,7 +350,7 @@ class ArchiveCreatorTest {
 
             // then
             verify(archive).add(named(entryName));
-            verify(archive).writeDirectory(entryName, 0, modTime);
+            verify(writer).writeDirectory(entryName, 0, modTime);
         }
     }
 
@@ -365,7 +364,7 @@ class ArchiveCreatorTest {
             archive.add(EntrySource.directory(entryName));
 
             // then
-            InOrder inOrder = inOrder(archive);
+            InOrder inOrder = inOrder(archive, writer);
             inOrder.verify(archive).add(named(entryName));
             inOrder.verifyNoMoreInteractions();
         }
@@ -377,13 +376,13 @@ class ArchiveCreatorTest {
         String entryName = "dir_name";
         FileTime modTime = FileTime.from(Instant.now());
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // when
             archive.add(EntrySource.directory(entryName).withLastModified(modTime));
 
             // then
             verify(archive).add(named(entryName));
-            verify(archive).writeDirectory(entryName, 0, modTime);
+            verify(writer).writeDirectory(entryName, 0, modTime);
         }
     }
 
@@ -392,7 +391,7 @@ class ArchiveCreatorTest {
         var base = tempDir.resolve("base");
         createFile(base, "file1", "1");
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             archive.addDirectoryRecursively("\\top\\inner\\", base);
 
@@ -411,7 +410,7 @@ class ArchiveCreatorTest {
         int file11Mode = pinFileMode(file11);
         int subDir1Mode = pinDirectoryMode(subDir1);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             // when
             archive.addDirectoryRecursively(base);
@@ -420,12 +419,12 @@ class ArchiveCreatorTest {
             verify(archive).addDirectoryRecursively("", base);
             verify(archive).add(named("subDir1"));
             FileTime subDir1ModTime = Files.getLastModifiedTime(subDir1);
-            verify(archive).writeDirectory(eq("subDir1"), eq(subDir1Mode), assertArg(time -> assertThat(
+            verify(writer).writeDirectory(eq("subDir1"), eq(subDir1Mode), assertArg(time -> assertThat(
                             time.toInstant().truncatedTo(ChronoUnit.SECONDS))
                     .isEqualTo(subDir1ModTime.toInstant().truncatedTo(ChronoUnit.SECONDS))));
             verify(archive).add(named("subDir1/file11"));
             FileTime file11ModTime = Files.getLastModifiedTime(file11);
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("subDir1/file11"),
                             any(InputStream.class),
@@ -434,7 +433,7 @@ class ArchiveCreatorTest {
                             eq(file11ModTime));
             verify(archive).add(named("file1"));
             FileTime file1ModTime = Files.getLastModifiedTime(base.resolve("file1"));
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("file1"),
                             any(InputStream.class),
@@ -453,8 +452,8 @@ class ArchiveCreatorTest {
         createFile(subDir1, "file11", "11");
         List<String> offered = new ArrayList<>();
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(
-                new InMemoryArchiveCreatorBuilder(out).filter(s -> offered.add(s.name()) && false)))) {
+        try (InMemoryArchiveCreator archive =
+                spyCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> offered.add(s.name()) && false))) {
 
             // when
             archive.addDirectoryRecursively(base);
@@ -465,7 +464,7 @@ class ArchiveCreatorTest {
             verify(archive, never()).add(named("subDir1/file11"));
             assertThat(offered).containsExactlyInAnyOrder("subDir1", "file1");
             verify(archive).add(named("file1"));
-            verify(archive, never()).writeFile(anyString(), any(), any(OptionalLong.class), anyInt(), any());
+            verify(writer, never()).writeFile(anyString(), any(), any(OptionalLong.class), anyInt(), any());
         }
     }
 
@@ -482,7 +481,7 @@ class ArchiveCreatorTest {
         int baseMode = pinDirectoryMode(base);
         int subDir1Mode = pinDirectoryMode(subDir1);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             // when
             archive.addDirectoryRecursively(top, base);
@@ -490,15 +489,15 @@ class ArchiveCreatorTest {
             // then
             verify(archive).add(named(top));
             FileTime baseModTime = Files.getLastModifiedTime(base);
-            verify(archive).writeDirectory("top", baseMode, baseModTime);
+            verify(writer).writeDirectory("top", baseMode, baseModTime);
             verify(archive).add(named("top/subDir1"));
             FileTime subDir1ModTime = Files.getLastModifiedTime(subDir1);
-            verify(archive).writeDirectory(eq("top/subDir1"), eq(subDir1Mode), assertArg(time -> assertThat(
+            verify(writer).writeDirectory(eq("top/subDir1"), eq(subDir1Mode), assertArg(time -> assertThat(
                             time.toInstant().truncatedTo(ChronoUnit.SECONDS))
                     .isEqualTo(subDir1ModTime.toInstant().truncatedTo(ChronoUnit.SECONDS))));
             verify(archive).add(named("top/subDir1/file11"));
             FileTime file11ModTime = Files.getLastModifiedTime(file11);
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("top/subDir1/file11"),
                             any(InputStream.class),
@@ -507,7 +506,7 @@ class ArchiveCreatorTest {
                             eq(file11ModTime));
             verify(archive).add(named("top/file1"));
             FileTime file1ModTime = Files.getLastModifiedTime(file1);
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("top/file1"),
                             any(InputStream.class),
@@ -529,7 +528,7 @@ class ArchiveCreatorTest {
         int file11Mode = pinFileMode(file11);
         int subDir1Mode = pinDirectoryMode(subDir1);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             // when
             archive.addDirectoryRecursively("", base, modTime);
@@ -537,9 +536,9 @@ class ArchiveCreatorTest {
             // then
             verify(archive).addDirectoryRecursively("", base, modTime);
             verify(archive).add(named("subDir1"));
-            verify(archive).writeDirectory("subDir1", subDir1Mode, modTime);
+            verify(writer).writeDirectory("subDir1", subDir1Mode, modTime);
             verify(archive).add(named("subDir1/file11"));
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("subDir1/file11"),
                             any(InputStream.class),
@@ -547,7 +546,7 @@ class ArchiveCreatorTest {
                             eq(file11Mode),
                             eq(modTime));
             verify(archive).add(named("file1"));
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("file1"), any(InputStream.class), eq(OptionalLong.of(1L)), eq(file11Mode), eq(modTime));
         }
@@ -567,7 +566,7 @@ class ArchiveCreatorTest {
         int baseMode = pinDirectoryMode(base);
         int subDir1Mode = pinDirectoryMode(subDir1);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out)))) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
 
             // when
             archive.addDirectoryRecursively(top, base, modTime);
@@ -575,11 +574,11 @@ class ArchiveCreatorTest {
             // then
             verify(archive).addDirectoryRecursively(top, base, modTime);
             verify(archive).add(named(top));
-            verify(archive).writeDirectory("top", baseMode, modTime);
+            verify(writer).writeDirectory("top", baseMode, modTime);
             verify(archive).add(named("top/subDir1"));
-            verify(archive).writeDirectory("top/subDir1", subDir1Mode, modTime);
+            verify(writer).writeDirectory("top/subDir1", subDir1Mode, modTime);
             verify(archive).add(named("top/subDir1/file11"));
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("top/subDir1/file11"),
                             any(InputStream.class),
@@ -587,27 +586,13 @@ class ArchiveCreatorTest {
                             eq(file11Mode),
                             eq(modTime));
             verify(archive).add(named("top/file1"));
-            verify(archive)
+            verify(writer)
                     .writeFile(
                             eq("top/file1"),
                             any(InputStream.class),
                             eq(OptionalLong.of(1L)),
                             eq(file11Mode),
                             eq(modTime));
-        }
-    }
-
-    @Test
-    void shouldSetOptionOnArchiveOutputStream() throws IOException {
-        // given
-        var builder = new InMemoryArchiveCreatorBuilder(out).withSomeOption(42);
-        try (InMemoryArchiveCreator compressor = new InMemoryArchiveCreator(builder)) {
-
-            // when
-            int actualOption = compressor.archiveOutputStream.getSomeOption();
-
-            // then
-            assertThat(actualOption).isEqualTo(42);
         }
     }
 
@@ -663,77 +648,30 @@ class ArchiveCreatorTest {
     }
 
     @Test
-    void close_shouldCloseUnderlyingArchiveOutputStream() throws IOException {
+    void close_shouldCloseTheWriter() throws IOException {
         // Given
-        @SuppressWarnings("unchecked")
-        ArchiveOutputStream<org.apache.commons.compress.archivers.ArchiveEntry> mockAos =
-                mock(ArchiveOutputStream.class);
-        ArchiveCreator<ArchiveOutputStream<org.apache.commons.compress.archivers.ArchiveEntry>> creator =
-                new ArchiveCreator<>(mockAos) {
-                    @Override
-                    protected void writeDirectory(String name, int mode, FileTime lastModified) {
-                        /* no-op */
-                    }
-
-                    @Override
-                    protected void writeFile(
-                            String name, InputStream content, OptionalLong size, int mode, FileTime lastModified) {
-                        /* no-op */
-                    }
-
-                    @Override
-                    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) {
-                        /* no-op */
-                    }
-
-                    @Override
-                    protected boolean requiresSize() {
-                        return false;
-                    }
-                };
+        EntryWriter mockWriter = mock(EntryWriter.class);
+        ArchiveCreator creator = new ArchiveCreator(new InMemoryArchiveCreatorBuilder(out), mockWriter) {};
 
         // When
         creator.close();
 
         // Then
-        verify(mockAos).close();
+        verify(mockWriter).close();
     }
 
     @Test
-    void close_onClosedArchiveOutputStream_shouldHandleGracefully() throws IOException {
+    void close_onClosedCreator_shouldHandleGracefully() throws IOException {
         // Given
-        @SuppressWarnings("unchecked")
-        ArchiveOutputStream<ArchiveEntry> mockAos = mock(ArchiveOutputStream.class);
-        ArchiveCreator<ArchiveOutputStream<org.apache.commons.compress.archivers.ArchiveEntry>> creator =
-                new ArchiveCreator<>(mockAos) {
-                    @Override
-                    protected void writeDirectory(String name, int mode, FileTime lastModified) {
-                        /* no-op */
-                    }
-
-                    @Override
-                    protected void writeFile(
-                            String name, InputStream content, OptionalLong size, int mode, FileTime lastModified) {
-                        /* no-op */
-                    }
-
-                    @Override
-                    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) {
-                        /* no-op */
-                    }
-
-                    @Override
-                    protected boolean requiresSize() {
-                        return false;
-                    }
-                };
+        EntryWriter mockWriter = mock(EntryWriter.class);
+        ArchiveCreator creator = new ArchiveCreator(new InMemoryArchiveCreatorBuilder(out), mockWriter) {};
 
         // when
         creator.close();
         creator.close();
 
         // then
-        verify(mockAos, times(2)).close();
+        verify(mockWriter, times(2)).close();
     }
 
     @DisabledOnOs(OS.WINDOWS)
@@ -744,14 +682,14 @@ class ArchiveCreatorTest {
         Path symlinkPath = tempDir.resolve("symlink_to_file.txt");
         Files.createSymbolicLink(symlinkPath, actualFile.getFileName());
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.addFile(symlinkPath);
 
             // Then
             verify(archive).addFile(symlinkPath);
             verify(archive).add(named("symlink_to_file.txt"));
-            verify(archive)
+            verify(writer)
                     .writeSymlink(
                             eq("symlink_to_file.txt"),
                             eq(actualFile.getFileName().toString()),
@@ -771,7 +709,7 @@ class ArchiveCreatorTest {
         Path target = Paths.get("target.txt");
         Files.createSymbolicLink(symlinkInDir, target);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.addDirectoryRecursively(base);
 
@@ -781,7 +719,7 @@ class ArchiveCreatorTest {
             BasicFileAttributes linkAttrs =
                     Files.readAttributes(symlinkInDir, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
             verify(archive).add(named("my_link.txt"));
-            verify(archive)
+            verify(writer)
                     .writeSymlink(eq("my_link.txt"), eq(target.toString()), anyInt(), eq(linkAttrs.lastModifiedTime()));
         }
     }
@@ -800,7 +738,7 @@ class ArchiveCreatorTest {
         Path actualDir = Paths.get("actual_dir");
         Files.createSymbolicLink(symlinkToDir, actualDir);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.addDirectoryRecursively(base);
 
@@ -811,7 +749,7 @@ class ArchiveCreatorTest {
             BasicFileAttributes linkAttrs =
                     Files.readAttributes(symlinkToDir, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
             verify(archive).add(named("link_to_actual_dir"));
-            verify(archive)
+            verify(writer)
                     .writeSymlink(
                             eq("link_to_actual_dir"),
                             eq(actualDir.toString()),
@@ -827,14 +765,14 @@ class ArchiveCreatorTest {
         Path emptyBaseDir = tempDir.resolve("empty_base");
         Files.createDirectories(emptyBaseDir);
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.addDirectoryRecursively(emptyBaseDir);
 
             // Then
-            verify(archive, never()).writeDirectory(anyString(), anyInt(), any(FileTime.class));
-            verify(archive, never()).writeSymlink(anyString(), anyString(), anyInt(), any());
-            verify(archive, never()).writeFile(anyString(), any(), any(OptionalLong.class), anyInt(), any());
+            verify(writer, never()).writeDirectory(anyString(), anyInt(), any(FileTime.class));
+            verify(writer, never()).writeSymlink(anyString(), anyString(), anyInt(), any());
+            verify(writer, never()).writeFile(anyString(), any(), any(OptionalLong.class), anyInt(), any());
             Compress4JAssertions.assertThat(inMemoryLogAppender)
                     .contains("dir=" + emptyBaseDir + " topLevelDir=", TRACE);
         }
@@ -847,19 +785,19 @@ class ArchiveCreatorTest {
         Files.createDirectories(emptyBaseDir);
         String topLevelDirName = "myArchiveDir";
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.addDirectoryRecursively(topLevelDirName, emptyBaseDir);
 
             // Then
             FileTime expectedModTime = Files.getLastModifiedTime(emptyBaseDir);
             verify(archive).add(named(topLevelDirName));
-            verify(archive).writeDirectory(eq(topLevelDirName), anyInt(), argThat(ft -> ft.toInstant()
+            verify(writer).writeDirectory(eq(topLevelDirName), anyInt(), argThat(ft -> ft.toInstant()
                     .truncatedTo(ChronoUnit.SECONDS)
                     .equals(expectedModTime.toInstant().truncatedTo(ChronoUnit.SECONDS))));
-            verify(archive, times(1)).writeDirectory(anyString(), anyInt(), any(FileTime.class));
-            verify(archive, never()).writeSymlink(anyString(), anyString(), anyInt(), any());
-            verify(archive, never()).writeFile(anyString(), any(), any(OptionalLong.class), anyInt(), any());
+            verify(writer, times(1)).writeDirectory(anyString(), anyInt(), any(FileTime.class));
+            verify(writer, never()).writeSymlink(anyString(), anyString(), anyInt(), any());
+            verify(writer, never()).writeFile(anyString(), any(), any(OptionalLong.class), anyInt(), any());
         }
     }
 
@@ -872,9 +810,8 @@ class ArchiveCreatorTest {
         createFile(dirToSkip, "file_in_skipped_dir.txt", "secret");
 
         List<String> offered = new ArrayList<>();
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out)
-                .filter(s -> offered.add(s.name()) && !s.name().equals("skip_this_dir"))
-                .build())) {
+        try (InMemoryArchiveCreator archive = spyCreator(new InMemoryArchiveCreatorBuilder(out)
+                .filter(s -> offered.add(s.name()) && !s.name().equals("skip_this_dir")))) {
             // When
             archive.addDirectoryRecursively(base);
 
@@ -894,15 +831,14 @@ class ArchiveCreatorTest {
         createFile(subDir, "allowed_file.txt", "content1");
         createFile(subDir, "denied_file.txt", "content2");
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out)
-                .filter(s -> !s.name().endsWith("denied_file.txt"))
-                .build())) {
+        try (InMemoryArchiveCreator archive = spyCreator(
+                new InMemoryArchiveCreatorBuilder(out).filter(s -> !s.name().endsWith("denied_file.txt")))) {
             // When
             archive.addDirectoryRecursively(base);
             // Then
-            verify(archive).writeDirectory(eq("sub"), anyInt(), any(FileTime.class));
-            verify(archive).writeFile(eq("sub/allowed_file.txt"), any(InputStream.class), any(), anyInt(), any());
-            verify(archive, never())
+            verify(writer).writeDirectory(eq("sub"), anyInt(), any(FileTime.class));
+            verify(writer).writeFile(eq("sub/allowed_file.txt"), any(InputStream.class), any(), anyInt(), any());
+            verify(writer, never())
                     .writeFile(eq("sub/denied_file.txt"), any(InputStream.class), any(), anyInt(), any());
         }
     }
@@ -918,7 +854,7 @@ class ArchiveCreatorTest {
 
         FileTime overrideModTime = FileTime.from(Instant.now().minus(1, ChronoUnit.DAYS));
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.addDirectoryRecursively("", base, overrideModTime);
 
@@ -927,14 +863,14 @@ class ArchiveCreatorTest {
             verify(archive).add(named("file.txt"));
             verify(archive).add(named("subdir/file_in_sub.txt"));
 
-            verify(archive, times(2))
+            verify(writer, times(2))
                     .writeFile(
                             anyString(),
                             any(InputStream.class),
                             any(OptionalLong.class),
                             anyInt(),
                             eq(overrideModTime));
-            verify(archive, times(1)).writeDirectory("subdir", subDirMode, overrideModTime);
+            verify(writer, times(1)).writeDirectory("subdir", subDirMode, overrideModTime);
         }
     }
 
@@ -943,7 +879,7 @@ class ArchiveCreatorTest {
         Path base = tempDir.resolve("visitor_root_test");
         createFile(base, "file.txt", "test");
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             archive.addDirectoryRecursively(base);
 
             verify(archive, never()).add(named(""));
@@ -971,12 +907,12 @@ class ArchiveCreatorTest {
         byte[] emptyContent = new byte[0];
         FileTime modTime = FileTime.from(Instant.now());
 
-        try (InMemoryArchiveCreator archive = spy(new InMemoryArchiveCreatorBuilder(out).build())) {
+        try (InMemoryArchiveCreator archive = spyCreator()) {
             // When
             archive.add(EntrySource.file(entryName, emptyContent).withLastModified(modTime));
 
             // Then
-            verify(archive)
+            verify(writer)
                     .writeFile(eq(entryName), any(InputStream.class), eq(OptionalLong.of(0L)), eq(0), eq(modTime));
         }
     }
@@ -990,8 +926,17 @@ class ArchiveCreatorTest {
                 .hasMessage("predicate");
     }
 
-    private InMemoryArchiveCreator rejectingAll() throws IOException {
-        return spy(new InMemoryArchiveCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> false)));
+    private InMemoryArchiveCreator rejectingAll() {
+        return spyCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> false));
+    }
+
+    private InMemoryArchiveCreator spyCreator() {
+        return spyCreator(new InMemoryArchiveCreatorBuilder(out));
+    }
+
+    private InMemoryArchiveCreator spyCreator(InMemoryArchiveCreatorBuilder builder) {
+        writer = spy(new InMemoryEntryWriter(out));
+        return spy(new InMemoryArchiveCreator(builder, writer));
     }
 
     private static int pinFileMode(Path path) throws IOException {

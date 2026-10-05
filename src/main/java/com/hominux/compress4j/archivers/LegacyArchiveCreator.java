@@ -16,10 +16,11 @@
 package com.hominux.compress4j.archivers;
 
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
-import com.hominux.compress4j.internal.archive.EntryWriter;
+import com.hominux.compress4j.utils.BuildFailureCleanup;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -28,36 +29,99 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveOutputStream;
 
 /**
- * Base of the archive creators that write through an {@code EntryWriter}. Tar is the only such format so far; the
- * others extend {@link LegacyArchiveCreator}.
+ * Transitional base for formats not yet moved onto {@link ArchiveCreator}.
  *
  * <p>A creator is not thread-safe.
  *
+ * @param <A> The type of {@link ArchiveOutputStream} to write entries to.
  * @since 2.2
  */
-public abstract class ArchiveCreator implements Closeable {
+public abstract class LegacyArchiveCreator<A extends ArchiveOutputStream<? extends ArchiveEntry>> implements Closeable {
 
     private final Predicate<? super EntrySource> filter;
 
     private boolean failed;
 
-    private final EntryWriter writer;
+    /** Archive output stream to be used for archiving. */
+    protected final A archiveOutputStream;
 
     /**
-     * Creates a creator over a format writer.
+     * Create a new ArchiveCreator with the given output stream and options.
      *
-     * @param builder the builder holding the creation options
-     * @param writer the format writer, closed by {@link #close()}
+     * @param builder the archive output stream builder
+     * @param <B> The type of {@link ArchiveCreatorBuilder} to build from.
+     * @param <C> The type of the {@link LegacyArchiveCreator} to instantiate.
+     * @throws IOException if an I/O error occurred
      */
-    protected ArchiveCreator(Builder<?, ?> builder, EntryWriter writer) {
-        this.filter = builder.filter;
-        this.writer = writer;
+    protected <B extends ArchiveCreatorBuilder<A, B, C>, C extends LegacyArchiveCreator<A>> LegacyArchiveCreator(
+            B builder) throws IOException {
+        this(BuildFailureCleanup.build(builder.ownedStream, builder::buildArchiveOutputStream), builder.filter);
     }
+
+    /**
+     * Create a new ArchiveCreator.
+     *
+     * @param archiveOutputStream the archive output stream
+     */
+    protected LegacyArchiveCreator(A archiveOutputStream) {
+        this(archiveOutputStream, source -> true);
+    }
+
+    private LegacyArchiveCreator(A archiveOutputStream, Predicate<? super EntrySource> filter) {
+        this.archiveOutputStream = archiveOutputStream;
+        this.filter = filter;
+    }
+
+    /**
+     * Write a directory entry to the archive.
+     *
+     * @param name name of the entry
+     * @param mode Unix permission bits, or {@code 0} when unknown
+     * @param lastModified last modification time of the directory
+     * @throws IOException if an I/O error occurred
+     */
+    protected abstract void writeDirectory(String name, int mode, FileTime lastModified) throws IOException;
+
+    /**
+     * Write a file entry to the archive.
+     *
+     * @param name name of the entry
+     * @param content content of the file
+     * @param size content length in bytes; present whenever {@link #requiresSize()} is true
+     * @param mode Unix permission bits, or {@code 0} when unknown
+     * @param lastModified last modification time of the file
+     * @throws IOException if an I/O error occurred
+     */
+    protected abstract void writeFile(
+            String name, InputStream content, OptionalLong size, int mode, FileTime lastModified) throws IOException;
+
+    /**
+     * Write a symbolic link entry to the archive.
+     *
+     * @param name name of the entry
+     * @param target target of the symbolic link
+     * @param mode Unix permission bits, or {@code 0} when unknown
+     * @param lastModified last modification time of the link
+     * @throws IOException if an I/O error occurred
+     */
+    protected abstract void writeSymlink(String name, String target, int mode, FileTime lastModified)
+            throws IOException;
+
+    /**
+     * Whether {@link #writeFile} needs the size known up front.
+     *
+     * @return {@code true} if {@link #writeFile} requires a known size
+     */
+    protected abstract boolean requiresSize();
 
     /**
      * Writes one entry. The name is sanitised (backslashes become slashes, leading and trailing slashes are removed)
@@ -125,9 +189,9 @@ public abstract class ArchiveCreator implements Closeable {
     private void write(EntrySource source) throws IOException {
         switch (source) {
             case EntrySource.Directory(var name, var mode, var lastModified) ->
-                writer.writeDirectory(name, mode, lastModified);
+                writeDirectory(name, mode, lastModified);
             case EntrySource.Symlink(var name, var target, var mode, var lastModified) ->
-                writer.writeSymlink(name, target, mode, lastModified);
+                writeSymlink(name, target, mode, lastModified);
             case EntrySource.File f -> writeFile(f);
         }
     }
@@ -135,17 +199,17 @@ public abstract class ArchiveCreator implements Closeable {
     private void writeFile(EntrySource.File f) throws IOException {
         try (InputStream in = f.content().get()) {
             if (f.size().isEmpty()) {
-                writer.writeFile(f.name(), in, f.size(), f.mode(), f.lastModified());
+                writeFile(f.name(), in, f.size(), f.mode(), f.lastModified());
                 return;
             }
             var sized = new DeclaredSizeInputStream(in, f.name(), f.size().getAsLong());
-            writer.writeFile(f.name(), sized, f.size(), f.mode(), f.lastModified());
+            writeFile(f.name(), sized, f.size(), f.mode(), f.lastModified());
             sized.requireExhausted();
         }
     }
 
     private void requireSizeIfNeeded(EntrySource source) {
-        if (source instanceof EntrySource.File f && f.size().isEmpty() && writer.requiresSize()) {
+        if (source instanceof EntrySource.File f && f.size().isEmpty() && requiresSize()) {
             throw new IllegalArgumentException("Entry '" + f.name() + "' has no size, which this format"
                     + " records before the content; wrap it with EntrySource.buffered");
         }
@@ -159,14 +223,10 @@ public abstract class ArchiveCreator implements Closeable {
         };
     }
 
-    /**
-     * Finishes the archive and closes its sink.
-     *
-     * @throws IOException if finishing or closing fails
-     */
+    /** {@inheritDoc} */
     @Override
-    public final void close() throws IOException {
-        writer.close();
+    public void close() throws IOException {
+        archiveOutputStream.close();
     }
 
     /**
@@ -236,16 +296,42 @@ public abstract class ArchiveCreator implements Closeable {
     }
 
     /**
-     * Builder for an {@link ArchiveCreator}.
+     * Build and instance of {@link LegacyArchiveCreator}
      *
-     * @param <B> The type of this builder
-     * @param <C> The type of {@link ArchiveCreator} it builds
+     * @param <A> The type of {@link ArchiveOutputStream} to write entries to.
+     * @param <B> The type of {@link ArchiveCreatorBuilder}
+     * @param <C> The type of {@link LegacyArchiveCreator}
      */
-    public abstract static class Builder<B extends Builder<B, C>, C extends ArchiveCreator> {
+    public abstract static class ArchiveCreatorBuilder<
+            A extends ArchiveOutputStream<? extends ArchiveEntry>,
+            B extends ArchiveCreatorBuilder<A, B, C>,
+            C extends LegacyArchiveCreator<A>> {
+        /** Output stream to write the archive to. */
+        protected final OutputStream outputStream;
+
+        final Optional<Closeable> ownedStream;
+
         Predicate<? super EntrySource> filter = source -> true;
 
-        /** Creates a builder that writes every entry. */
-        protected Builder() {}
+        /**
+         * Create a new {@link ArchiveCreatorBuilder} with the given output stream.
+         *
+         * @param outputStream the output stream
+         */
+        protected ArchiveCreatorBuilder(OutputStream outputStream) {
+            this(outputStream, false);
+        }
+
+        /**
+         * Create a new {@link ArchiveCreatorBuilder} with the given output stream.
+         *
+         * @param outputStream the output stream
+         * @param owned whether the builder opened {@code outputStream} itself, so a failed build closes it
+         */
+        protected ArchiveCreatorBuilder(OutputStream outputStream, boolean owned) {
+            this.outputStream = outputStream;
+            this.ownedStream = owned ? Optional.of(outputStream) : Optional.empty();
+        }
 
         /**
          * Sets which entries are written; the predicate sees each entry after its name is sanitised. A rejected
@@ -255,7 +341,7 @@ public abstract class ArchiveCreator implements Closeable {
          * @param predicate the entries to keep
          * @return this builder
          */
-        public final B filter(Predicate<? super EntrySource> predicate) {
+        public B filter(Predicate<? super EntrySource> predicate) {
             this.filter = Objects.requireNonNull(predicate, "predicate");
             return getThis();
         }
@@ -268,10 +354,25 @@ public abstract class ArchiveCreator implements Closeable {
         protected abstract B getThis();
 
         /**
-         * Builds the creator.
+         * Start a new archive. Entries can be included in the archive using the putEntry method, and then the archive
+         * should be closed using its close method. In addition, options can be applied to the underlying stream. E.g.
+         * archiving level.
          *
-         * @return the creator
-         * @throws IOException if the archive cannot be started
+         * <ol>
+         *   <li>Use {@link #outputStream} as underlying output stream to which to write the archive.
+         * </ol>
+         *
+         * @return new archive object for use in putEntry
+         * @throws IOException thrown by the underlying output stream for I/O errors
+         */
+        public abstract A buildArchiveOutputStream() throws IOException;
+
+        /**
+         * Use this method to build an instance of the {@link LegacyArchiveCreator}, use
+         * {@link LegacyArchiveCreator#LegacyArchiveCreator(ArchiveCreatorBuilder)} to pass in instance of this builder
+         *
+         * @return an instance of the {@link LegacyArchiveCreator}
+         * @throws IOException thrown by the underlying output stream for I/O errors
          */
         public abstract C build() throws IOException;
     }

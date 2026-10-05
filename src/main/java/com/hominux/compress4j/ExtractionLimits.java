@@ -22,8 +22,8 @@ import java.util.Objects;
  * {@link com.hominux.compress4j.exceptions.LimitExceededException}, which error handlers cannot suppress.
  *
  * <p>Obtain instances from {@link #defaults()} or {@link #noLimits()} and the {@code with} methods. {@link #maxRatio()}
- * is enforced by {@link com.hominux.compress4j.compressors.Decompressor}; archive readers validate it but do not yet
- * enforce it.
+ * is enforced by {@link com.hominux.compress4j.compressors.Decompressor} and by the tar reader; other archive readers
+ * validate it but do not yet enforce it.
  *
  * @since 5.0
  */
@@ -149,9 +149,8 @@ public final class ExtractionLimits {
     }
 
     /**
-     * Returns the maximum uncompressed-to-compressed ratio, or {@link #UNLIMITED}.
-     * {@link com.hominux.compress4j.compressors.Decompressor} enforces it only after 1 MiB of output; archive readers
-     * validate it but do not yet enforce it.
+     * Returns the maximum uncompressed-to-compressed ratio, or {@link #UNLIMITED}. Enforced by {@code Decompressor} and
+     * the tar reader only after 1 MiB of output; other archive readers do not yet enforce it.
      *
      * @return the maximum ratio, or {@link #UNLIMITED}
      */
