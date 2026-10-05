@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 /**
- * Compression and decompression of single streams; see Compressor and Decompressor.
+ * Compresses and decompresses single streams through {@link com.hominux.compress4j.compressors.Compressor} and
+ * {@link com.hominux.compress4j.compressors.Decompressor}.
  *
  * @since 2.2
  */
-@Nonnull
+@NullMarked
 package com.hominux.compress4j.compressors;
 
-import jakarta.annotation.Nonnull;
+import org.jspecify.annotations.NullMarked;

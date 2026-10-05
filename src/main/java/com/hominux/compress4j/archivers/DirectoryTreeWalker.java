@@ -15,7 +15,6 @@
  */
 package com.hominux.compress4j.archivers;
 
-import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -86,8 +85,7 @@ final class DirectoryTreeWalker extends SimpleFileVisitor<Path> {
     }
 
     @Override
-    @Nonnull
-    public FileVisitResult preVisitDirectory(@Nonnull Path dir, @Nonnull BasicFileAttributes attrs) throws IOException {
+    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
         String name = dir.equals(root) ? prefix : entryName(dir);
         if (name.isEmpty()) {
             return FileVisitResult.CONTINUE;
@@ -102,8 +100,7 @@ final class DirectoryTreeWalker extends SimpleFileVisitor<Path> {
     }
 
     @Override
-    @Nonnull
-    public FileVisitResult visitFile(@Nonnull Path file, @Nonnull BasicFileAttributes attrs) throws IOException {
+    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
         String name = entryName(file);
         LOGGER.atTrace().log("  {} -> {}{}", file, name, attrs.isSymbolicLink() ? " symlink" : " size=" + attrs.size());
         adder.add(PathSources.of(name, file, attrs, modTime.apply(attrs)));

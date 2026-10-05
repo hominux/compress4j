@@ -16,7 +16,7 @@
 package com.hominux.compress4j.internal.codec;
 
 import com.hominux.compress4j.compressors.Compression;
-import com.hominux.compress4j.utils.ArchiverDependencyChecker;
+import com.hominux.compress4j.internal.util.ArchiverDependencyChecker;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

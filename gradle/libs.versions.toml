@@ -1,20 +1,24 @@
 [versions]
 apache-commons-compress = "1.28.0"
+archunit = "1.5.1"
 asm = "9.10.1"
 assertJ = "3.27.7"
 build-health = "3.19.2"
+error-prone-core = "2.50.0"
+errorprone-plugin = "5.1.1"
 foojay = "1.0.0"
 git-hooks = "2.1.25"
 git-version = "6.4.4"
 gradle-develocity = "4.6.0"
 jackson-bom = "2.22.3"
-jakarta-annotation = "3.0.0"
 japicmp = "0.4.6"
 jimfs = "1.3.2"
 jreleaser = "1.26.0"
+jspecify = "1.0.1"
 junit-bom = "6.1.3"
 logback = "1.6.4"
 mockito = "5.24.0"
+nullaway = "0.14.2"
 slf4j = "2.0.20"
 sonarqube = "7.5.0.8588"
 spotless = "8.10.3"
@@ -26,7 +30,9 @@ zstd-jni = "1.5.7-20"
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "apache-commons-compress" }
 commons-io = { module = "commons-io:commons-io", version = "2.22.0" }
 commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.21.0" }
-jakarta-annotation-api = { module = "jakarta.annotation:jakarta.annotation-api", version.ref = "jakarta-annotation" }
+error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "error-prone-core" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
 org-brotli-dec = { module = "org.brotli:dec", version.ref = "brotli-dec" }
 org-tukaani-xz = { module = "org.tukaani:xz", version.ref = "tukaani-xz" }
 com-github-luben-zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstd-jni" }
@@ -34,6 +40,9 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 
 # TEST dependencies
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+archunit-junit5-api = { module = "com.tngtech.archunit:archunit-junit5-api", version.ref = "archunit" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertJ" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations" }
@@ -52,6 +61,7 @@ mockito-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = 
 
 [plugins]
 build-health = { id = "com.autonomousapps.build-health", version.ref = "build-health" }
+errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-plugin" }
 foojay-resolver-convention = { id = "org.gradle.toolchains.foojay-resolver-convention", version.ref = "foojay" }
 git-hooks = { id = "org.danilopianini.gradle-pre-commit-git-hooks", version.ref = "git-hooks" }
 git-version = { id = "me.qoomon.git-versioning", version.ref = "git-version" }

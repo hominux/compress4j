@@ -17,6 +17,7 @@ package com.hominux.compress4j.exceptions;
 
 import java.util.Objects;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Thrown when input exceeds one of the configured extraction limits. Error handlers cannot suppress it, so a handler
@@ -48,7 +49,7 @@ public final class LimitExceededException extends UnsafeInputException {
 
     private final Limit limit;
     private final long maximum;
-    private final String entryName;
+    private final @Nullable String entryName;
 
     /**
      * Creates the exception.

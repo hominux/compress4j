@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 /** Provides read-only extraction of ARJ archives. */
+@NullMarked
 package com.hominux.compress4j.archivers.arj;
+
+import org.jspecify.annotations.NullMarked;

@@ -20,16 +20,16 @@ import static com.hominux.compress4j.archivers.Entry.Type.FILE;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.hominux.compress4j.archivers.Entry.Type;
-import jakarta.annotation.Nullable;
 import java.nio.file.attribute.FileTime;
 import java.util.Date;
 import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.jspecify.annotations.Nullable;
 
 public final class InMemoryArchiveEntry implements ArchiveEntry {
     private final String name;
     private final Date lastModifiedDate;
     private final String content;
-    private final String linkName;
+    private final @Nullable String linkName;
     private final int mode;
     private final long size;
     private final boolean directory;
@@ -98,7 +98,7 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
      *
      * @return This entry's link name.
      */
-    public String getLinkName() {
+    public @Nullable String getLinkName() {
         return linkName;
     }
 
@@ -136,7 +136,7 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
         private String name;
         private Date lastModifiedDate = new Date();
         private String content;
-        private String linkName;
+        private @Nullable String linkName;
         private int mode = 0;
         private long size = 0;
         private Type type = FILE;
@@ -156,7 +156,7 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
             return this;
         }
 
-        public Builder linkName(String linkName) {
+        public Builder linkName(@Nullable String linkName) {
             this.linkName = linkName;
             return this;
         }

@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 /** Provides read-only extraction of UNIX dump archives. */
+@NullMarked
 package com.hominux.compress4j.archivers.dump;
+
+import org.jspecify.annotations.NullMarked;
