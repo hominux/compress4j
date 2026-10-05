@@ -242,19 +242,9 @@ public final class TarArchiveExtractor extends ArchiveExtractor<TarArchiveInputS
         @Override
         public TarArchiveInputStream buildArchiveInputStream() throws IOException {
             InputStream buffered = inputStream.markSupported() ? inputStream : new BufferedInputStream(inputStream);
-            Compression selected = compression.isPresent() ? compression.orElseThrow() : detected(buffered);
+            Compression selected =
+                    compression.isPresent() ? compression.orElseThrow() : Codecs.detectForReading(buffered);
             return new TarArchiveInputStream(Codecs.decompressing(selected, buffered), encoding.name());
-        }
-
-        private static Compression detected(InputStream buffered) throws IOException {
-            return switch (Codecs.detect(buffered)) {
-                case Compression.Pack200 pack200 -> Compression.none();
-                case Compression.Gzip gzip -> gzip.decompressConcatenated(true);
-                case Compression.Bzip2 bzip2 -> bzip2.decompressConcatenated(true);
-                case Compression.Xz xz -> xz.decompressConcatenated(true);
-                case Compression.Lz4Framed lz4 -> lz4.decompressConcatenated(true);
-                case Compression other -> other;
-            };
         }
 
         /** {@inheritDoc} */

@@ -15,9 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.deflate.DeflateCompressionLevel;
-import com.hominux.compress4j.compressors.deflate.DeflateCompressor;
-import com.hominux.compress4j.compressors.deflate.DeflateDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -29,22 +29,20 @@ public class DeflateExamples {
 
     public static void compressor() throws IOException {
         // tag::deflate-compressor[]
-        try (DeflateCompressor deflateCompressor = DeflateCompressor.builder(Path.of("example.deflate"))
-                .compressorOutputStreamBuilder()
-                .setCompressionLevel(DeflateCompressionLevel.BEST_COMPRESSION)
-                .setZlibHeader(true)
-                .parentBuilder()
+        try (Compressor compressor = Compressor.builder(
+                        Path.of("example.deflate"),
+                        Compression.deflate().level(9).zlibHeader(true))
                 .build()) {
-            deflateCompressor.write(Path.of("path/to/file.txt"));
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::deflate-compressor[]
     }
 
     public static void decompressor() throws IOException {
         // tag::deflate-decompressor[]
-        try (DeflateDecompressor gzipDecompressor =
-                DeflateDecompressor.builder(Path.of("example.deflate")).build()) {
-            gzipDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor = Decompressor.builder(Path.of("example.deflate"), Compression.deflate())
+                .build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::deflate-decompressor[]
     }

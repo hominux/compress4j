@@ -26,18 +26,6 @@ import com.hominux.compress4j.archivers.cpio.CpioArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
-import com.hominux.compress4j.compressors.bzip2.BZip2Compressor;
-import com.hominux.compress4j.compressors.bzip2.BZip2Decompressor;
-import com.hominux.compress4j.compressors.deflate.DeflateCompressor;
-import com.hominux.compress4j.compressors.deflate.DeflateDecompressor;
-import com.hominux.compress4j.compressors.gzip.GzipCompressor;
-import com.hominux.compress4j.compressors.gzip.GzipDecompressor;
-import com.hominux.compress4j.compressors.pack200.Pack200Compressor;
-import com.hominux.compress4j.compressors.pack200.Pack200Decompressor;
-import com.hominux.compress4j.compressors.xz.XZCompressor;
-import com.hominux.compress4j.compressors.xz.XZDecompressor;
-import com.hominux.compress4j.compressors.zstd.ZstdCompressor;
-import com.hominux.compress4j.compressors.zstd.ZstdDecompressor;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,18 +72,6 @@ class PathBuilderOwnershipTest {
 
     static Stream<Case> cases() {
         return Stream.of(
-                new Case("BZip2Compressor", BZip2Compressor::builder, () -> BZip2Compressor.builder(out())),
-                new Case("DeflateCompressor", DeflateCompressor::builder, () -> DeflateCompressor.builder(out())),
-                new Case("GzipCompressor", GzipCompressor::builder, () -> GzipCompressor.builder(out())),
-                new Case("Pack200Compressor", Pack200Compressor::builder, () -> Pack200Compressor.builder(out())),
-                new Case("XZCompressor", XZCompressor::builder, () -> XZCompressor.builder(out())),
-                new Case("ZstdCompressor", ZstdCompressor::builder, () -> ZstdCompressor.builder(out())),
-                new Case("BZip2Decompressor", BZip2Decompressor::builder, () -> BZip2Decompressor.builder(in())),
-                new Case("DeflateDecompressor", DeflateDecompressor::builder, () -> DeflateDecompressor.builder(in())),
-                new Case("GzipDecompressor", GzipDecompressor::builder, () -> GzipDecompressor.builder(in())),
-                new Case("Pack200Decompressor", Pack200Decompressor::builder, () -> Pack200Decompressor.builder(in())),
-                new Case("XZDecompressor", XZDecompressor::builder, () -> XZDecompressor.builder(in())),
-                new Case("ZstdDecompressor", ZstdDecompressor::builder, () -> ZstdDecompressor.builder(in())),
                 new Case("TarArchiveCreator", TarArchiveCreator::builder, () -> TarArchiveCreator.builder(out())),
                 new Case("TarArchiveExtractor", TarArchiveExtractor::builder, () -> TarArchiveExtractor.builder(in())),
                 new Case("ArArchiveCreator", ArArchiveCreator::builder, () -> ArArchiveCreator.builder(out())),
@@ -126,17 +102,6 @@ class PathBuilderOwnershipTest {
         var builder = testCase.fromStream().create();
 
         assertThat(builder).extracting("ownedStream", optional(Closeable.class)).isEmpty();
-    }
-
-    @Test
-    void shouldCloseOpenedStreamWhenDecompressorBuildFails() throws IOException {
-        var path = Files.writeString(tempDir.resolve("garbage.gz"), "not gzip");
-        var builder = GzipDecompressor.builder(path);
-
-        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
-
-        assertThatThrownBy(() -> InputStream.class.cast(heldStream(builder)).read())
-                .isInstanceOf(IOException.class);
     }
 
     @Test

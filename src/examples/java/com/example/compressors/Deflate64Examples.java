@@ -15,7 +15,8 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.deflate64.Deflate64Decompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -28,9 +29,9 @@ public class Deflate64Examples {
     /** Example for Deflate64 decompression. */
     public static void decompressor() throws IOException {
         // tag::deflate64-decompressor[]
-        try (Deflate64Decompressor deflate64Decompressor =
-                Deflate64Decompressor.builder(Path.of("example.deflate64")).build()) {
-            deflate64Decompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor = Decompressor.builder(Path.of("example.deflate64"), Compression.deflate64())
+                .build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::deflate64-decompressor[]
     }

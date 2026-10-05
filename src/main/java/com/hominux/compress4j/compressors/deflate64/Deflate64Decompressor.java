@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.deflate64;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,7 +31,7 @@ import org.apache.commons.compress.compressors.deflate64.Deflate64CompressorInpu
  *
  * @since 3.2
  */
-public class Deflate64Decompressor extends Decompressor<Deflate64CompressorInputStream> {
+public class Deflate64Decompressor extends CodecDecompressor<Deflate64CompressorInputStream> {
 
     /**
      * Constructor that takes a Deflate64CompressorInputStream.
@@ -115,7 +115,7 @@ public class Deflate64Decompressor extends Decompressor<Deflate64CompressorInput
 
     /** Builder for creating instances of {@link Deflate64Decompressor}. */
     public static class Deflate64DecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     Deflate64CompressorInputStream, Deflate64Decompressor, Deflate64DecompressorBuilder> {
 
         private final Deflate64DecompressorInputStreamBuilder<Deflate64DecompressorBuilder> inputStreamBuilder;

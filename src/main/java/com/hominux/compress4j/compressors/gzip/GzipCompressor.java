@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.gzip;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -30,7 +30,7 @@ import org.apache.commons.compress.compressors.gzip.GzipParameters;
  *
  * @since 2.2
  */
-public class GzipCompressor extends Compressor<GzipCompressorOutputStream> {
+public class GzipCompressor extends CodecCompressor<GzipCompressorOutputStream> {
 
     /**
      * Constructs a GzipCompressor with the given {@link GzipCompressorOutputStream}.

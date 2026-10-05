@@ -15,8 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.xz.XZCompressor;
-import com.hominux.compress4j.compressors.xz.XZDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -26,28 +27,24 @@ public class XZExamples {
         /* no-op */
     }
 
-    /** Example for XZ compression using builder pattern. */
+    /** Example for XZ compression. */
     public static void compressor() throws IOException {
         // tag::xz-compressor[]
-        try (XZCompressor xzCompressor = XZCompressor.builder(Path.of("example.xz"))
-                .compressorOutputStreamBuilder()
-                .preset(6)
-                .parentBuilder()
+        try (Compressor compressor = Compressor.builder(
+                        Path.of("example.xz"), Compression.xz().preset(6))
                 .build()) {
-            xzCompressor.write(Path.of("path/to/file.txt"));
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::xz-compressor[]
     }
 
-    /** Example for XZ decompression using builder pattern. */
+    /** Example for XZ decompression. */
     public static void decompressor() throws IOException {
         // tag::xz-decompressor[]
-        try (XZDecompressor xzDecompressor = XZDecompressor.builder(Path.of("example.xz"))
-                .compressorInputStreamBuilder()
-                .setDecompressConcatenated(true)
-                .parentBuilder()
-                .build()) {
-            xzDecompressor.write(Path.of("path/to/file.txt"));
+        Compression xz = Compression.xz().decompressConcatenated(true);
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.xz"), xz).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::xz-decompressor[]
     }

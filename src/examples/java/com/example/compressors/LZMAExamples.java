@@ -15,8 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.lzma.LZMACompressor;
-import com.hominux.compress4j.compressors.lzma.LZMADecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -26,25 +27,23 @@ public class LZMAExamples {
         /* no-op */
     }
 
-    /** Example for LZMA compression using builder pattern. */
+    /** Example for LZMA compression. */
     public static void compressor() throws IOException {
         // tag::lzma-compressor[]
-        try (LZMACompressor lzmaCompressor =
-                LZMACompressor.builder(Path.of("example.lzma")).build()) {
-            lzmaCompressor.write(Path.of("path/to/file.txt"));
+        try (Compressor compressor =
+                Compressor.builder(Path.of("example.lzma"), Compression.lzma()).build()) {
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::lzma-compressor[]
     }
 
-    /** Example for LZMA decompression using builder pattern. */
+    /** Example for LZMA decompression. */
     public static void decompressor() throws IOException {
         // tag::lzma-decompressor[]
-        try (LZMADecompressor lzmaDecompressor = LZMADecompressor.builder(Path.of("example.lzma"))
-                .compressorInputStreamBuilder()
-                .setMemoryLimitInKb(65536)
-                .parentBuilder()
-                .build()) {
-            lzmaDecompressor.write(Path.of("path/to/file.txt"));
+        Compression lzma = Compression.lzma().memoryLimitKiB(65536);
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.lzma"), lzma).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::lzma-decompressor[]
     }

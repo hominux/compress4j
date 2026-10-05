@@ -15,10 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.lz4.Lz4BlockCompressor;
-import com.hominux.compress4j.compressors.lz4.Lz4BlockDecompressor;
-import com.hominux.compress4j.compressors.lz4.Lz4FramedCompressor;
-import com.hominux.compress4j.compressors.lz4.Lz4FramedDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -31,9 +30,9 @@ public class Lz4Examples {
     /** Example for framed LZ4 compression. */
     public static void framedCompressor() throws IOException {
         // tag::lz4-framed-compressor[]
-        try (Lz4FramedCompressor lz4Compressor =
-                Lz4FramedCompressor.builder(Path.of("example.lz4")).build()) {
-            lz4Compressor.write(Path.of("path/to/file.txt"));
+        try (Compressor compressor = Compressor.builder(Path.of("example.lz4"), Compression.lz4Framed())
+                .build()) {
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::lz4-framed-compressor[]
     }
@@ -41,12 +40,10 @@ public class Lz4Examples {
     /** Example for framed LZ4 decompression. */
     public static void framedDecompressor() throws IOException {
         // tag::lz4-framed-decompressor[]
-        try (Lz4FramedDecompressor lz4Decompressor = Lz4FramedDecompressor.builder(Path.of("example.lz4"))
-                .compressorInputStreamBuilder()
-                .setDecompressConcatenated(true)
-                .parentBuilder()
-                .build()) {
-            lz4Decompressor.write(Path.of("path/to/file.txt"));
+        Compression lz4 = Compression.lz4Framed().decompressConcatenated(true);
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.lz4"), lz4).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::lz4-framed-decompressor[]
     }
@@ -54,9 +51,9 @@ public class Lz4Examples {
     /** Example for block LZ4 compression. */
     public static void blockCompressor() throws IOException {
         // tag::lz4-block-compressor[]
-        try (Lz4BlockCompressor lz4Compressor =
-                Lz4BlockCompressor.builder(Path.of("example.block_lz4")).build()) {
-            lz4Compressor.write(Path.of("path/to/file.txt"));
+        try (Compressor compressor = Compressor.builder(Path.of("example.block_lz4"), Compression.lz4Block())
+                .build()) {
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::lz4-block-compressor[]
     }
@@ -64,9 +61,9 @@ public class Lz4Examples {
     /** Example for block LZ4 decompression. */
     public static void blockDecompressor() throws IOException {
         // tag::lz4-block-decompressor[]
-        try (Lz4BlockDecompressor lz4Decompressor =
-                Lz4BlockDecompressor.builder(Path.of("example.block_lz4")).build()) {
-            lz4Decompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor = Decompressor.builder(Path.of("example.block_lz4"), Compression.lz4Block())
+                .build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::lz4-block-decompressor[]
     }

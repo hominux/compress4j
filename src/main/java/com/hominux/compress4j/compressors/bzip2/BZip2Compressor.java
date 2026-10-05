@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.bzip2;
 
 import static org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream.MAX_BLOCKSIZE;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -26,7 +26,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 
 /**
  * Provides BZip2 compression functionality that writes to a {@link BZip2CompressorOutputStream}. This class extends the
- * {@link Compressor} base class and supports configurable block sizes for optimal compression performance.
+ * {@link CodecCompressor} base class and supports configurable block sizes for optimal compression performance.
  *
  * <p>Use the builder pattern to configure compression options such as block size before creating instances. Block size
  * affects both compression ratio and memory usage - larger blocks typically provide better compression but use more
@@ -34,7 +34,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
  *
  * @since 2.2
  */
-public class BZip2Compressor extends Compressor<BZip2CompressorOutputStream> {
+public class BZip2Compressor extends CodecCompressor<BZip2CompressorOutputStream> {
     /**
      * Constructor that takes a BZip2CompressorOutputStream.
      *

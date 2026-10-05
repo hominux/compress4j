@@ -1,5 +1,5 @@
 /*
- * Copyright 2025-2026 The Compress4J Project
+ * Copyright 2026 The Compress4J Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,124 +17,178 @@ package com.hominux.compress4j.compressors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
-import com.hominux.compress4j.compressors.memory.InMemoryDecompressor;
-import com.hominux.compress4j.compressors.memory.InMemoryDecompressor.InMemoryDecompressorBuilder;
-import com.hominux.compress4j.compressors.memory.InMemoryDecompressorInputStream;
+import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
 import java.io.ByteArrayInputStream;
-import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.DisplayName;
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class DecompressorTest {
 
-    @Mock
-    private InMemoryDecompressorInputStream mockCompressorInputStream;
-
     @TempDir
-    Path tempDir;
+    Path dir;
 
-    @Test
-    @DisplayName("Should construct Decompressor with a builder")
-    void constructor_WithBuilder_SetsField() throws IOException {
-        // given
-        InMemoryDecompressorBuilder builder = new InMemoryDecompressorBuilder(mockCompressorInputStream);
-
-        // when
-        InMemoryDecompressor inMemoryDecompressor = new InMemoryDecompressor(builder);
-        inMemoryDecompressor.close();
-
-        // then
-        assertThat(inMemoryDecompressor).isNotNull();
+    private Path gzip(byte[] content) throws IOException {
+        Path target = dir.resolve("data.gz");
+        try (var compressor = Compressor.builder(target, Compression.gzip()).build()) {
+            compressor.write(new ByteArrayInputStream(content));
+        }
+        return target;
     }
 
     @Test
-    @DisplayName("Should write all bytes from input stream to a file")
-    void write_ToFile_CopiesBytes() throws IOException {
-        // given
-        Path outputPath = tempDir.resolve("output.txt");
-        byte[] testBytes = "Hello Decompressor".getBytes();
+    void writeRefusesAnExistingTargetByDefault() throws IOException {
+        Path source = gzip("new".getBytes(StandardCharsets.UTF_8));
+        Path target = Files.writeString(dir.resolve("out.txt"), "old");
+        try (var decompressor = Decompressor.builder(source).build()) {
+            assertThatThrownBy(() -> decompressor.write(target)).isInstanceOf(FileAlreadyExistsException.class);
+        }
+        assertThat(target).hasContent("old");
+    }
 
-        try (InMemoryDecompressor decompressor = InMemoryDecompressor.builder(
-                        new InMemoryDecompressorInputStream(new ByteArrayInputStream(testBytes)))
+    @Test
+    void overwriteReplacesTheTarget() throws IOException {
+        Path source = gzip("new".getBytes(StandardCharsets.UTF_8));
+        Path target = Files.writeString(dir.resolve("out.txt"), "old");
+        try (var decompressor = Decompressor.builder(source).overwrite(true).build()) {
+            assertThat(decompressor.write(target)).isEqualTo(3);
+        }
+        assertThat(target).hasContent("new");
+    }
+
+    @Test
+    void ratioLimitStopsBombsAndCanBeRaised() throws IOException {
+        Path bomb = gzip(new byte[3 << 20]);
+        try (var decompressor = Decompressor.builder(bomb).build()) {
+            assertThatThrownBy(() -> decompressor.inputStream().readAllBytes())
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> {
+                        assertThat(e.limit()).isEqualTo(Limit.RATIO);
+                        assertThat(e).hasMessageContaining("maxRatio");
+                    });
+        }
+        try (var decompressor =
+                Decompressor.builder(bomb).maxRatio(ExtractionLimits.UNLIMITED).build()) {
+            assertThat(decompressor.inputStream().readAllBytes()).hasSize(3 << 20);
+        }
+    }
+
+    @Test
+    void failedWriteDeletesThePartialTarget() throws IOException {
+        Path source = gzip(new byte[4096]);
+        Path target = dir.resolve("out.bin");
+        try (var decompressor = Decompressor.builder(source).maxTotalSize(1000).build()) {
+            assertThatThrownBy(() -> decompressor.write(target)).isInstanceOf(LimitExceededException.class);
+        }
+        assertThat(target).doesNotExist();
+    }
+
+    @Test
+    void failedBuildLeavesTheCallersStreamOpen() {
+        AtomicBoolean closed = new AtomicBoolean();
+        InputStream corrupt = new ByteArrayInputStream(new byte[] {1, 2, 3}) {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        };
+        assertThatThrownBy(
+                        () -> Decompressor.builder(corrupt, Compression.gzip()).build())
+                .isInstanceOf(IOException.class);
+        assertThat(closed).isFalse();
+    }
+
+    @Test
+    void detectsTheCodecFromAStream() throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        try (var compressor = Compressor.builder(bytes, Compression.bzip2()).build()) {
+            compressor.write(new ByteArrayInputStream("x".getBytes(StandardCharsets.UTF_8)));
+        }
+        try (var decompressor = Decompressor.builder(new ByteArrayInputStream(bytes.toByteArray()))
                 .build()) {
-
-            // when
-            long bytesWritten = decompressor.write(outputPath.toFile());
-
-            // then
-            assertThat(outputPath).exists().hasContent("Hello Decompressor");
-            assertThat(bytesWritten).isEqualTo(testBytes.length);
+            assertThat(decompressor.inputStream().readAllBytes())
+                    .asString(StandardCharsets.UTF_8)
+                    .isEqualTo("x");
         }
     }
 
     @Test
-    @DisplayName("Should throw IOException when writing to file fails")
-    void write_ToFile_ThrowsIOException_WhenCopyFails() {
-        // given
-        File nonWritableFile = new File("/nonexistent/path/cannot_write.txt");
-
-        try ( // when & then
-        InMemoryDecompressor decompressor = new InMemoryDecompressor(mockCompressorInputStream)) {
-            assertThatThrownBy(() -> decompressor.write(nonWritableFile))
-                    .isInstanceOf(IOException.class)
-                    .hasMessage(nonWritableFile.getPath());
-        } catch (IOException e) {
-            fail("Should throw IOException when writing to file fails");
+    void detectionDecompressesConcatenatedMembers() throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        for (String part : List.of("one", "two")) {
+            try (var compressor = Compressor.builder(bytes, Compression.gzip()).build()) {
+                compressor.write(new ByteArrayInputStream(part.getBytes(StandardCharsets.UTF_8)));
+            }
+        }
+        try (var decompressor = Decompressor.builder(new ByteArrayInputStream(bytes.toByteArray()))
+                .build()) {
+            assertThat(decompressor.inputStream().readAllBytes())
+                    .asString(StandardCharsets.UTF_8)
+                    .isEqualTo("onetwo");
         }
     }
 
     @Test
-    @DisplayName("Should throw IOException when writing to path fails")
-    void write_ToPath_ThrowsIOException_WhenCopyFails() {
-        // given
-        Path nonWritablePath = tempDir.resolve("non_existent_dir/output.txt");
-
-        try ( // when & then
-        InMemoryDecompressor decompressor = new InMemoryDecompressor(mockCompressorInputStream)) {
-            assertThatThrownBy(() -> decompressor.write(nonWritablePath))
-                    .isInstanceOf(IOException.class)
-                    .hasMessage(nonWritablePath.toString());
-        } catch (IOException e) {
-            fail("Should throw IOException when writing to path fails");
+    void detectionNeverSelectsPack200() throws IOException {
+        byte[] pack200 = {(byte) 0xCA, (byte) 0xFE, (byte) 0xD0, 0x0D, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        try (var decompressor =
+                Decompressor.builder(new ByteArrayInputStream(pack200)).build()) {
+            assertThat(decompressor.inputStream().readAllBytes()).isEqualTo(pack200);
         }
     }
 
     @Test
-    @DisplayName("Should close the compressor input stream")
-    void close_ClosesCompressorInputStream() throws IOException {
-        // given
-        InMemoryDecompressor decompressor = new InMemoryDecompressor(mockCompressorInputStream);
-
-        // when
-        decompressor.close();
-
-        // then
-        verify(mockCompressorInputStream, times(1)).close();
+    void plainInputIsDetectedAsNone() throws IOException {
+        byte[] plain = "just text, no signature".getBytes(StandardCharsets.UTF_8);
+        try (var decompressor =
+                Decompressor.builder(new ByteArrayInputStream(plain)).build()) {
+            assertThat(decompressor.inputStream().readAllBytes()).isEqualTo(plain);
+        }
     }
 
     @Test
-    @DisplayName("Should throw IOException when closing compressor input stream fails")
-    void close_ThrowsIOException_WhenCompressorInputStreamCloseFails() throws IOException {
-        // given
-        doThrow(new IOException("Failed to close stream"))
-                .when(mockCompressorInputStream)
-                .close();
-        InMemoryDecompressor decompressor = new InMemoryDecompressor(mockCompressorInputStream);
+    void writeTwiceRefusesTheSecondTargetOnlyWhenItExists() throws IOException {
+        Path source = gzip("data".getBytes(StandardCharsets.UTF_8));
+        Path first = dir.resolve("first.txt");
+        Path second = dir.resolve("second.txt");
+        try (var decompressor = Decompressor.builder(source).build()) {
+            assertThat(decompressor.write(first)).isEqualTo(4);
+            assertThat(decompressor.write(second)).isZero();
+        }
+        assertThat(second).hasContent("");
+    }
 
-        // when & then
-        assertThatThrownBy(decompressor::close).isInstanceOf(IOException.class).hasMessage("Failed to close stream");
-        verify(mockCompressorInputStream, times(1)).close();
+    @Test
+    void failedWriteKeepsAnExistingTargetWhenOverwriteIsOff() throws IOException {
+        Path source = gzip(new byte[4096]);
+        Path target = Files.writeString(dir.resolve("out.bin"), "old");
+        try (var decompressor = Decompressor.builder(source).maxTotalSize(1000).build()) {
+            assertThatThrownBy(() -> decompressor.write(target)).isInstanceOf(FileAlreadyExistsException.class);
+        }
+        assertThat(target).hasContent("old");
+    }
+
+    @Test
+    void readsFromAChannelWithAnExplicitCodec() throws IOException {
+        Path source = gzip("chan".getBytes(StandardCharsets.UTF_8));
+        try (SeekableByteChannel channel = Files.newByteChannel(source, StandardOpenOption.READ);
+                var decompressor =
+                        Decompressor.builder(channel, Compression.gzip()).build()) {
+            assertThat(decompressor.inputStream().readAllBytes())
+                    .asString(StandardCharsets.UTF_8)
+                    .isEqualTo("chan");
+        }
     }
 }

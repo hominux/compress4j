@@ -64,8 +64,7 @@ class ExtractionLimitsTest {
                 .isNotEqualTo(ExtractionLimits.defaults().withMaxEntries(2).withMaxTotalSize(10))
                 .isNotEqualTo(ExtractionLimits.defaults().withMaxEntrySize(2).withMaxTotalSize(10))
                 .isNotEqualTo(ExtractionLimits.defaults().withMaxRatio(2).withMaxTotalSize(10))
-                .isNotEqualTo("limits");
-        assertThat(limits)
+                .isNotEqualTo("limits")
                 .hasToString("ExtractionLimits[maxEntries=1000000, maxEntrySize=-1, maxTotalSize=10, maxRatio=100]");
     }
 

@@ -15,11 +15,11 @@
  */
 package com.hominux.compress4j.compressors.memory;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class InMemoryCompressor extends Compressor<InMemoryCompressorOutputStream> {
+public class InMemoryCompressor extends CodecCompressor<InMemoryCompressorOutputStream> {
     public InMemoryCompressor(InMemoryCompressorOutputStream compressorOutputStream) {
         super(compressorOutputStream);
     }

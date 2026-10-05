@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.xz;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,14 +26,14 @@ import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 
 /**
  * Provides XZ decompression functionality that reads from an {@link XZCompressorInputStream}. This class extends the
- * {@link Decompressor} base class and supports decompressing XZ-compressed data with optional support for concatenated
- * streams and memory limits.
+ * {@link CodecDecompressor} base class and supports decompressing XZ-compressed data with optional support for
+ * concatenated streams and memory limits.
  *
  * <p>Use the builder pattern to configure and create instances with custom decompression options.
  *
  * @since 2.2
  */
-public class XZDecompressor extends Decompressor<XZCompressorInputStream> {
+public class XZDecompressor extends CodecDecompressor<XZCompressorInputStream> {
 
     /**
      * Constructor that takes an XZCompressorInputStream.
@@ -157,7 +157,8 @@ public class XZDecompressor extends Decompressor<XZCompressorInputStream> {
      * @since 2.3
      */
     public static class XZDecompressorBuilder
-            extends Decompressor.DecompressorBuilder<XZCompressorInputStream, XZDecompressor, XZDecompressorBuilder> {
+            extends CodecDecompressor.DecompressorBuilder<
+                    XZCompressorInputStream, XZDecompressor, XZDecompressorBuilder> {
 
         private final XZDecompressorInputStreamBuilder<XZDecompressorBuilder> inputStreamBuilder;
         /**

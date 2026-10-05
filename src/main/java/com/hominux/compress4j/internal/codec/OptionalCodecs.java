@@ -35,7 +35,7 @@ import org.tukaani.xz.LZMA2Options;
 /** Codecs that need optional libraries; loaded only on use so a missing library fails at use, not at class load. */
 final class OptionalCodecs {
 
-    private static final int NO_LIMIT = -1;
+    static final int DEFAULT_MEMORY_LIMIT_KIB = 256 * 1024;
 
     private OptionalCodecs() {}
 
@@ -44,7 +44,7 @@ final class OptionalCodecs {
         return XZCompressorInputStream.builder()
                 .setInputStream(in)
                 .setDecompressConcatenated(x.decompressConcatenated())
-                .setMemoryLimitKiB(x.memoryLimitKiB().orElse(NO_LIMIT))
+                .setMemoryLimitKiB(x.memoryLimitKiB().orElse(DEFAULT_MEMORY_LIMIT_KIB))
                 .get();
     }
 
@@ -60,7 +60,7 @@ final class OptionalCodecs {
         ArchiverDependencyChecker.checkLZMA();
         return LZMACompressorInputStream.builder()
                 .setInputStream(in)
-                .setMemoryLimitKiB(l.memoryLimitKiB().orElse(NO_LIMIT))
+                .setMemoryLimitKiB(l.memoryLimitKiB().orElse(DEFAULT_MEMORY_LIMIT_KIB))
                 .get();
     }
 

@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.pack200;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -27,7 +27,7 @@ import org.apache.commons.compress.compressors.pack200.Pack200Strategy;
 
 /**
  * Provides Pack200 compression functionality that writes to a {@link Pack200CompressorOutputStream}. This class extends
- * the {@link Compressor} base class and supports Pack200 compression for JAR files.
+ * the {@link CodecCompressor} base class and supports Pack200 compression for JAR files.
  *
  * <p>Pack200 is a compression format specifically designed for Java Archive (JAR) files. It can achieve better
  * compression ratios than general-purpose compression algorithms when compressing JAR files.
@@ -36,7 +36,7 @@ import org.apache.commons.compress.compressors.pack200.Pack200Strategy;
  *
  * @since 2.2
  */
-public class Pack200Compressor extends Compressor<Pack200CompressorOutputStream> {
+public class Pack200Compressor extends CodecCompressor<Pack200CompressorOutputStream> {
     /**
      * Constructor that takes a Pack200CompressorOutputStream.
      *

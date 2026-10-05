@@ -15,7 +15,8 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.z.ZDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -28,9 +29,9 @@ public class ZExamples {
     /** Example for Unix compress (.Z) decompression. */
     public static void decompressor() throws IOException {
         // tag::z-decompressor[]
-        try (ZDecompressor zDecompressor =
-                ZDecompressor.builder(Path.of("example.Z")).build()) {
-            zDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.Z"), Compression.unixZ()).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::z-decompressor[]
     }

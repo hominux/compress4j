@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.lzma;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import com.hominux.compress4j.utils.ArchiverDependencyChecker;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,7 +29,7 @@ import org.apache.commons.compress.compressors.lzma.LZMACompressorOutputStream;
  *
  * @since 3.2
  */
-public class LZMACompressor extends Compressor<LZMACompressorOutputStream> {
+public class LZMACompressor extends CodecCompressor<LZMACompressorOutputStream> {
 
     /**
      * Constructor that takes a LZMACompressorOutputStream.

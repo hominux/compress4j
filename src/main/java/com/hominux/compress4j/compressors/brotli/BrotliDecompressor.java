@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.brotli;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import com.hominux.compress4j.utils.ArchiverDependencyChecker;
 import java.io.File;
 import java.io.IOException;
@@ -33,7 +33,7 @@ import org.apache.commons.compress.compressors.brotli.BrotliCompressorInputStrea
  *
  * @since 3.2
  */
-public class BrotliDecompressor extends Decompressor<BrotliCompressorInputStream> {
+public class BrotliDecompressor extends CodecDecompressor<BrotliCompressorInputStream> {
 
     /**
      * Constructor that takes a BrotliCompressorInputStream.
@@ -120,7 +120,7 @@ public class BrotliDecompressor extends Decompressor<BrotliCompressorInputStream
 
     /** Builder for creating instances of {@link BrotliDecompressor}. */
     public static class BrotliDecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     BrotliCompressorInputStream, BrotliDecompressor, BrotliDecompressorBuilder> {
 
         private final BrotliDecompressorInputStreamBuilder<BrotliDecompressorBuilder> inputStreamBuilder;

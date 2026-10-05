@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.gzip;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,14 +29,14 @@ import org.apache.commons.io.function.IOConsumer;
 
 /**
  * Provides Gzip decompression functionality that reads from a {@link GzipCompressorInputStream}. This class extends the
- * {@link Decompressor} base class and supports decompressing Gzip-compressed data with configurable options for
+ * {@link CodecDecompressor} base class and supports decompressing Gzip-compressed data with configurable options for
  * character encoding and header processing.
  *
  * <p>Use the builder pattern to configure decompression options such as character encoding before creating instances.
  *
  * @since 2.2
  */
-public class GzipDecompressor extends Decompressor<GzipCompressorInputStream> {
+public class GzipDecompressor extends CodecDecompressor<GzipCompressorInputStream> {
 
     /**
      * Constructs a GzipDecompressor using the provided {@link GzipDecompressorBuilder}.
@@ -189,7 +189,7 @@ public class GzipDecompressor extends Decompressor<GzipCompressorInputStream> {
      * @since 2.2
      */
     public static class GzipDecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     GzipCompressorInputStream, GzipDecompressor, GzipDecompressorBuilder> {
 
         private final GzipDecompressorInputStreamBuilder inputStreamBuilder;
