@@ -49,6 +49,9 @@ import org.apache.commons.compress.compressors.z.ZCompressorInputStream;
 /** Maps {@link Compression} values to commons-compress streams. */
 public final class Codecs {
 
+    /** Rejects a .Z header whose code table would need more memory; compress(1) itself stops at 16-bit codes. */
+    private static final int Z_MEMORY_LIMIT_KIB = 64 * 1024;
+
     private static final int SIGNATURE_LENGTH = 12;
     private static final int BZIP2_HEADER_LENGTH = 10;
     private static final int[] BZIP2_BLOCK_MAGIC = {0x31, 0x41, 0x59, 0x26, 0x53, 0x59};
@@ -85,7 +88,7 @@ public final class Codecs {
             case Compression.SnappyRaw raw -> new SnappyCompressorInputStream(in);
             case Compression.SnappyFramed framed -> new FramedSnappyCompressorInputStream(in);
             case Compression.Brotli brotli -> OptionalCodecs.brotliInput(in);
-            case Compression.UnixZ z -> new ZCompressorInputStream(in);
+            case Compression.UnixZ z -> new ZCompressorInputStream(in, Z_MEMORY_LIMIT_KIB);
             case Compression.Pack200 p ->
                 new Pack200CompressorInputStream(new PlainInputStream(in), strategy(p), p.properties());
         };

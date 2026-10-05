@@ -20,6 +20,7 @@ import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.codec.Codecs;
 import com.hominux.compress4j.internal.io.CountingInputStream;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.io.Source;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -159,9 +160,12 @@ public final class TarArchiveExtractor extends ArchiveExtractor {
 
         private TarArchiveInputStream tarStream(CountingInputStream in) throws IOException {
             InputStream buffered = in.markSupported() ? in : new BufferedInputStream(in);
-            Compression selected =
-                    compression.isPresent() ? compression.orElseThrow() : Codecs.detectForReading(buffered);
-            return new TarArchiveInputStream(Codecs.decompressing(selected, buffered), encoding.name());
+            Compression selected = compression.isPresent()
+                    ? compression.orElseThrow()
+                    : ParserFailures.call(() -> Codecs.detectForReading(buffered), ParserFailures.ARCHIVE);
+            InputStream decoded =
+                    ParserFailures.call(() -> Codecs.decompressing(selected, buffered), ParserFailures.ARCHIVE);
+            return new TarArchiveInputStream(decoded, encoding.name());
         }
     }
 }

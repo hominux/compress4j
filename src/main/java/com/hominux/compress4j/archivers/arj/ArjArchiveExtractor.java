@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.arj;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.io.InputStream;
@@ -114,7 +115,8 @@ public final class ArjArchiveExtractor extends ArchiveExtractor {
         public ArjArchiveExtractor build() throws IOException {
             Source.Opened opened = source.open();
             try {
-                ArjEntryReader reader = new ArjEntryReader(archiveStream(opened), readerContext());
+                ArjEntryReader reader = new ArjEntryReader(
+                        ParserFailures.call(() -> archiveStream(opened), ParserFailures.ARCHIVE), readerContext());
                 return new ArjArchiveExtractor(this, reader, opened.in()::count);
             } catch (IOException e) {
                 throw opened.closeIfOwned(e);

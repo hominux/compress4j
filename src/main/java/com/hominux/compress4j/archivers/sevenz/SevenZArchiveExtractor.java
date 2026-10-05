@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers.sevenz;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
@@ -110,7 +111,7 @@ public final class SevenZArchiveExtractor extends ArchiveExtractor {
             Source.OpenedChannel opened = source.openChannel();
             try {
                 opened.channel().position(0);
-                SevenZFile file = open(opened);
+                SevenZFile file = ParserFailures.call(() -> open(opened), ParserFailures.ARCHIVE);
                 opened.built();
                 EntryReader reader = new SevenZEntryReader(file, readerContext());
                 return new SevenZArchiveExtractor(this, reader, opened.channel()::count);

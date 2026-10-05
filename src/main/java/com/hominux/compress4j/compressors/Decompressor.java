@@ -17,6 +17,7 @@ package com.hominux.compress4j.compressors;
 
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.internal.codec.Codecs;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.io.Source;
 import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.BufferedInputStream;
@@ -35,6 +36,8 @@ import java.util.Optional;
  * Decompresses one compressed stream and enforces {@link ExtractionLimits}. Only {@code maxTotalSize} and
  * {@code maxRatio} apply; {@code maxEntries} and {@code maxEntrySize} are ignored. The ratio is enforced only after 1
  * MiB of output ({@code ExpansionMeter.RATIO_GRACE_BYTES}).
+ *
+ * <p>Corrupt compressed data fails with {@link IOException}, never a parser RuntimeException.
  *
  * <p>Closing it or {@link #inputStream()} also closes a caller-supplied stream or channel. It is not thread-safe.
  * Detection decompresses concatenated members and never selects Pack200. An explicitly chosen Pack200 decodes eagerly
@@ -122,7 +125,7 @@ public final class Decompressor implements Closeable {
      * @param target the file to write
      * @return the number of bytes written
      * @throws FileAlreadyExistsException if the file exists and overwrite is off; the file is left untouched
-     * @throws IOException if reading, writing or a limit fails
+     * @throws IOException if reading, writing, a limit or corrupt compressed data fails
      */
     public long write(Path target) throws IOException {
         try {
@@ -224,7 +227,7 @@ public final class Decompressor implements Closeable {
          * this builder opened is closed; a caller's channel or stream is left open.
          *
          * @return the decompressor
-         * @throws IOException if the source cannot be opened or the codec cannot start
+         * @throws IOException if the source cannot be opened, the codec cannot start or the header is corrupt
          */
         public Decompressor build() throws IOException {
             Source.Opened opened = source.open();
@@ -239,9 +242,13 @@ public final class Decompressor implements Closeable {
 
         private InputStream decode(Source.Opened opened) throws IOException {
             InputStream buffered = new BufferedInputStream(opened.in());
-            Compression codec = compression.isPresent() ? compression.orElseThrow() : Codecs.detectForReading(buffered);
-            InputStream decoded = Codecs.decompressing(codec, buffered);
-            return new ExpansionMeter(limits, opened.in()::count).meter(decoded, Optional.empty());
+            Compression codec = compression.isPresent()
+                    ? compression.orElseThrow()
+                    : ParserFailures.call(() -> Codecs.detectForReading(buffered), ParserFailures.COMPRESSED_DATA);
+            InputStream decoded =
+                    ParserFailures.call(() -> Codecs.decompressing(codec, buffered), ParserFailures.COMPRESSED_DATA);
+            InputStream parsed = ParserFailures.wrap(decoded, ParserFailures.COMPRESSED_DATA);
+            return new ExpansionMeter(limits, opened.in()::count).meter(parsed, Optional.empty());
         }
     }
 }

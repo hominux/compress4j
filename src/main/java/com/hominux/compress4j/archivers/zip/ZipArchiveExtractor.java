@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers.zip;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.io.InputStream;
@@ -162,7 +163,7 @@ public final class ZipArchiveExtractor extends ArchiveExtractor {
         public ZipArchiveExtractor build() throws IOException {
             Source.OpenedChannel opened = source.openChannel();
             try {
-                ZipFile file = openFile(opened.channel());
+                ZipFile file = ParserFailures.call(() -> openFile(opened.channel()), ParserFailures.ARCHIVE);
                 opened.built();
                 EntryReader reader = new ZipEntryReader(file, readerContext());
                 return new ZipArchiveExtractor(this, reader, opened.channel()::count);

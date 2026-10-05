@@ -17,8 +17,10 @@ package com.hominux.compress4j.archivers;
 
 import static com.hominux.compress4j.internal.util.FileUtils.checkValidPath;
 
+import com.hominux.compress4j.internal.io.ParserFailures;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -37,12 +39,21 @@ final class EntryPaths {
      * @param outputDir the directory to extract the archive to
      * @param entryName the name of the entry
      * @return the path to the extracted entry
-     * @throws IOException if an I/O error occurs or a path traversal vulnerability is detected
+     * @throws IOException if an I/O error occurs, a path traversal vulnerability is detected or the name is invalid
      */
     static Path entryFile(Path outputDir, String entryName) throws IOException {
-        Path destinationFile = outputDir.resolve(StringUtils.stripStart(entryName, "/"));
+        Path destinationFile = resolveName(outputDir, entryName);
         checkValidPath(destinationFile, outputDir);
         return destinationFile;
+    }
+
+    private static Path resolveName(Path outputDir, String entryName) throws IOException {
+        try {
+            return outputDir.resolve(StringUtils.stripStart(entryName, "/"));
+        } catch (InvalidPathException e) {
+            throw new IOException(
+                    "Corrupt archive entry: invalid name '" + ParserFailures.printable(entryName) + "'", e);
+        }
     }
 
     /**
