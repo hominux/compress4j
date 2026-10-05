@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers;
 
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,10 +50,19 @@ final class EntryPipeline {
             Predicate<Entry> filter,
             ExtractionLimits limits,
             LongSupplier compressedBytes) {
+        this(reader, stripComponents, filter, limits, new ExpansionMeter(limits, compressedBytes));
+    }
+
+    EntryPipeline(
+            EntryReader reader,
+            int stripComponents,
+            Predicate<Entry> filter,
+            ExtractionLimits limits,
+            ExpansionMeter meter) {
         this.reader = reader;
         this.stripComponents = stripComponents;
         this.filter = filter;
-        this.budget = new ExtractionBudget(limits, compressedBytes);
+        this.budget = new ExtractionBudget(limits, meter);
     }
 
     Stream<ArchiveItem> stream() {

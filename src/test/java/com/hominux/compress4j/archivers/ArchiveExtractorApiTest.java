@@ -18,7 +18,6 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
@@ -30,15 +29,6 @@ class ArchiveExtractorApiTest {
                         .filter(m -> m.getDeclaringClass() == ArchiveExtractor.class)
                         .map(Method::getName))
                 .noneMatch(name -> name.startsWith("set"));
-    }
-
-    @Test
-    void spiIsProtected() throws NoSuchMethodException {
-        Method next = LegacyArchiveExtractor.class.getDeclaredMethod("nextEntry");
-        Method open = LegacyArchiveExtractor.class.getDeclaredMethod("openEntryStream", Entry.class);
-
-        assertThat(Modifier.isProtected(next.getModifiers())).isTrue();
-        assertThat(Modifier.isProtected(open.getModifiers())).isTrue();
     }
 
     @Test

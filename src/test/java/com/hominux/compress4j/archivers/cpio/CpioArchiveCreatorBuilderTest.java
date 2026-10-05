@@ -22,10 +22,11 @@ import com.hominux.compress4j.archivers.EntrySource;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream;
-import org.apache.commons.compress.archivers.cpio.CpioConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -40,7 +41,7 @@ class CpioArchiveCreatorBuilderTest {
         Path testFile = tempDir.resolve("test.txt");
         Files.write(testFile, "Test content".getBytes());
 
-        CpioArchiveCreator.CpioArchiveCreatorBuilder builder = CpioArchiveCreator.builder(archivePath);
+        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(archivePath);
         assertThat(builder).isNotNull();
 
         try (CpioArchiveCreator creator = builder.build()) {
@@ -57,7 +58,7 @@ class CpioArchiveCreatorBuilderTest {
         Path testFile = tempDir.resolve("test.txt");
         Files.write(testFile, "Test content".getBytes());
 
-        CpioArchiveCreator.CpioArchiveCreatorBuilder builder = CpioArchiveCreator.builder(outputStream);
+        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream);
         assertThat(builder).isNotNull();
 
         try (CpioArchiveCreator creator = builder.build()) {
@@ -94,11 +95,9 @@ class CpioArchiveCreatorBuilderTest {
         Path testFile = tempDir.resolve("test.txt");
         Files.write(testFile, "Test content".getBytes());
 
-        try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_NEW)
-                .and()
-                .build()) {
+        try (CpioArchiveCreator creator =
+                CpioArchiveCreator.builder(outputStream).format(CpioFormat.NEW).build()) {
+
             creator.add(EntrySource.file("test.txt", testFile));
         }
 
@@ -119,9 +118,7 @@ class CpioArchiveCreatorBuilderTest {
         Files.write(testFile, "Test content".getBytes());
 
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_OLD_ASCII)
-                .and()
+                .format(CpioFormat.OLD_ASCII)
                 .build()) {
             creator.add(EntrySource.file("test.txt", testFile));
         }
@@ -143,9 +140,7 @@ class CpioArchiveCreatorBuilderTest {
         Files.write(testFile, "Test content".getBytes());
 
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_OLD_BINARY)
-                .and()
+                .format(CpioFormat.OLD_BINARY)
                 .build()) {
             creator.add(EntrySource.file("test.txt", testFile));
         }
@@ -166,11 +161,9 @@ class CpioArchiveCreatorBuilderTest {
         Path testFile = tempDir.resolve("test.txt");
         Files.write(testFile, "Test content".getBytes());
 
-        try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .blockSize(1024)
-                .and()
-                .build()) {
+        try (CpioArchiveCreator creator =
+                CpioArchiveCreator.builder(outputStream).blockSize(1024).build()) {
+
             creator.add(EntrySource.file("test.txt", testFile));
         }
 
@@ -191,9 +184,7 @@ class CpioArchiveCreatorBuilderTest {
         Files.write(testFile, "Test content with special chars".getBytes());
 
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             creator.add(EntrySource.file("test-äöü.txt", testFile));
         }
@@ -215,11 +206,9 @@ class CpioArchiveCreatorBuilderTest {
         Files.write(testFile, "Complete configuration test".getBytes());
 
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_NEW)
+                .format(CpioFormat.NEW)
                 .blockSize(2048)
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             creator.add(EntrySource.file("test-complete.txt", testFile));
         }
@@ -239,12 +228,10 @@ class CpioArchiveCreatorBuilderTest {
     void testBuilderChaining() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-        CpioArchiveCreator.CpioArchiveCreatorBuilder builder = CpioArchiveCreator.builder(outputStream)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_NEW)
+        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream)
+                .format(CpioFormat.NEW)
                 .blockSize(1024)
-                .encoding("UTF-8")
-                .and();
+                .encoding(StandardCharsets.UTF_8);
 
         assertThat(builder).isNotNull();
 
@@ -257,7 +244,8 @@ class CpioArchiveCreatorBuilderTest {
     void testBuilderWithInvalidPath() {
         Path invalidPath = tempDir.resolve("nonexistent/invalid.cpio");
 
-        assertThatThrownBy(() -> CpioArchiveCreator.builder(invalidPath)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> CpioArchiveCreator.builder(invalidPath).build())
+                .isInstanceOf(IOException.class);
     }
 
     @Test
@@ -274,7 +262,7 @@ class CpioArchiveCreatorBuilderTest {
     @Test
     void testMultipleBuildsFromSameBuilder() throws IOException {
         ByteArrayOutputStream outputStream1 = new ByteArrayOutputStream();
-        CpioArchiveCreator.CpioArchiveCreatorBuilder builder = CpioArchiveCreator.builder(outputStream1);
+        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream1);
 
         try (CpioArchiveCreator creator1 = builder.build()) {
             assertThat(creator1).isNotNull();
@@ -290,15 +278,12 @@ class CpioArchiveCreatorBuilderTest {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         var builderInstance = CpioArchiveCreator.builder(outputStream);
-        var cpioOutputStreamBuilder = builderInstance.cpioOutputStream();
+        var cpioOutputStreamBuilder = builderInstance;
 
         assertThat(cpioOutputStreamBuilder).isNotNull();
 
-        var configuredBuilder = cpioOutputStreamBuilder
-                .format(CpioConstants.FORMAT_NEW)
-                .blockSize(1024)
-                .encoding("UTF-8")
-                .and();
+        var configuredBuilder =
+                cpioOutputStreamBuilder.format(CpioFormat.NEW).blockSize(1024).encoding(StandardCharsets.UTF_8);
 
         assertThat(configuredBuilder).isSameAs(builderInstance);
 
@@ -310,7 +295,7 @@ class CpioArchiveCreatorBuilderTest {
     @Test
     void testBuilderGetThis() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        CpioArchiveCreator.CpioArchiveCreatorBuilder builder = CpioArchiveCreator.builder(outputStream);
+        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream);
 
         try (CpioArchiveCreator creator = builder.build()) {
             assertThat(creator).isNotNull();
@@ -328,9 +313,7 @@ class CpioArchiveCreatorBuilderTest {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
             try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                    .cpioOutputStream()
                     .blockSize(blockSize)
-                    .and()
                     .build()) {
                 creator.add(EntrySource.file("test.txt", testFile));
             }
@@ -357,9 +340,7 @@ class CpioArchiveCreatorBuilderTest {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
             try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                    .cpioOutputStream()
-                    .encoding(encoding)
-                    .and()
+                    .encoding(Charset.forName(encoding))
                     .build()) {
                 creator.add(EntrySource.file("test-encoding.txt", testFile));
             }

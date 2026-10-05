@@ -15,105 +15,40 @@
  */
 package com.hominux.compress4j.archivers.cpio;
 
-import com.hominux.compress4j.archivers.Entry;
-import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
-import com.hominux.compress4j.utils.EntryValues;
-import com.hominux.compress4j.utils.UnixFileType;
-import java.io.File;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
-import org.apache.commons.compress.archivers.cpio.CpioArchiveEntry;
+import java.util.Objects;
+import java.util.function.LongSupplier;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream;
+import org.apache.commons.compress.archivers.cpio.CpioConstants;
 
 /**
- * The CPIO archive extractor.
+ * Reads CPIO archives. Regular files, directories and symbolic links are extracted; every other entry type is reported
+ * through the unsupported-entry handler and skipped. The expansion ratio is measured against the bytes consumed from
+ * the source.
  *
  * @since 2.2
  */
-public class CpioArchiveExtractor extends LegacyArchiveExtractor<CpioArchiveInputStream> {
+public final class CpioArchiveExtractor extends ArchiveExtractor {
 
-    /**
-     * Create a new CpioArchiveExtractor with the given input stream.
-     *
-     * @param cpioArchiveInputStream the input CPIO Archive Input Stream
-     */
-    public CpioArchiveExtractor(CpioArchiveInputStream cpioArchiveInputStream) {
-        super(cpioArchiveInputStream);
+    private CpioArchiveExtractor(Builder builder, CpioEntryReader reader, LongSupplier compressedBytes) {
+        super(builder, reader, compressedBytes);
     }
 
     /**
-     * Create a new CpioArchiveExtractor with the given input stream and options.
-     *
-     * @param builder the archive input stream builder
-     * @throws IOException if an I/O error occurred
-     */
-    public CpioArchiveExtractor(CpioArchiveExtractorBuilder builder) throws IOException {
-        super(builder);
-    }
-
-    private String readSymlinkTargetStoredAsContent(CpioArchiveEntry entry) throws IOException {
-        byte[] targetBytes = readEntryContent(entry.getName(), archiveInputStream, entry.getSize());
-        return new String(targetBytes, StandardCharsets.UTF_8);
-    }
-
-    @Override
-    protected InputStream openEntryStream(Entry entry) {
-        return archiveInputStream;
-    }
-
-    @Override
-    protected Optional<Entry> nextEntry() throws IOException {
-        CpioArchiveEntry cpioEntry;
-        while ((cpioEntry = archiveInputStream.getNextEntry()) != null && !"TRAILER!!!".equals(cpioEntry.getName())) {
-            int mode = (int) cpioEntry.getMode();
-            UnixFileType fileType = UnixFileType.of(mode);
-            Entry entry;
-            switch (fileType) {
-                case SYMLINK -> {
-                    String target = readSymlinkTargetStoredAsContent(cpioEntry);
-                    entry = new Entry(cpioEntry.getName(), Entry.Type.SYMLINK, mode).withLinkTarget(target);
-                }
-                case DIRECTORY -> entry = new Entry(cpioEntry.getName(), Entry.Type.DIR, mode);
-                case FILE -> entry = new Entry(cpioEntry.getName(), Entry.Type.FILE, mode);
-                default -> {
-                    reportUnsupported(cpioEntry.getName(), fileType.kind());
-                    continue;
-                }
-            }
-            return Optional.of(EntryValues.withMetadata(
-                    entry,
-                    Optional.ofNullable(cpioEntry.getLastModifiedDate()),
-                    entry.type() == Entry.Type.FILE ? cpioEntry.getSize() : 0));
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * Helper static method to create an instance of the {@link CpioArchiveExtractorBuilder}
+     * Creates a builder reading the archive at the given path.
      *
      * @param path the path to read the archive from
-     * @return a new instance of {@link CpioArchiveExtractorBuilder}
-     * @throws IOException if an I/O error occurs opening the file
+     * @return the builder
      */
-    public static CpioArchiveExtractorBuilder builder(Path path) throws IOException {
-        return new CpioArchiveExtractorBuilder(path);
-    }
-
-    /**
-     * Helper static method to create an instance of the {@link CpioArchiveExtractorBuilder}
-     *
-     * @param file the file to read the archive from
-     * @return a new instance of {@link CpioArchiveExtractorBuilder}
-     * @throws IOException if an I/O error occurs opening the file
-     */
-    public static CpioArchiveExtractorBuilder builder(File file) throws IOException {
-        return builder(file.toPath());
+    public static Builder builder(Path path) {
+        return new Builder(new Source.OfPath(path));
     }
 
     /**
@@ -124,143 +59,77 @@ public class CpioArchiveExtractor extends LegacyArchiveExtractor<CpioArchiveInpu
      * @return the builder
      * @since 5.0
      */
-    public static CpioArchiveExtractorBuilder builder(SeekableByteChannel channel) {
-        return builder(Channels.newInputStream(channel));
+    public static Builder builder(SeekableByteChannel channel) {
+        return new Builder(new Source.OfChannel(channel));
     }
 
     /**
-     * Helper static method to create an instance of the {@link CpioArchiveExtractorBuilder}
+     * Creates a builder reading the archive from the given stream. The extractor closes the stream when it is closed; a
+     * failed {@code build()} leaves it open.
      *
      * @param inputStream the input stream to read the archive from
-     * @return a new instance of {@link CpioArchiveExtractorBuilder}
+     * @return the builder
      */
-    public static CpioArchiveExtractorBuilder builder(InputStream inputStream) {
-        return new CpioArchiveExtractorBuilder(inputStream);
+    public static Builder builder(InputStream inputStream) {
+        return new Builder(new Source.OfStream(inputStream));
     }
 
     /**
-     * Builder for configuring and creating a {@link CpioArchiveInputStream}.
+     * Builder for {@link CpioArchiveExtractor}.
      *
-     * @param <P> the type of the parent builder
-     * @since 2.2
+     * @since 5.0
      */
-    public static class CpioArchiveInputStreamBuilder<P> {
-        /** The input stream to read the archive from. */
-        protected final InputStream inputStream;
+    public static final class Builder extends ArchiveExtractor.Builder<Builder, CpioArchiveExtractor> {
+        private final Source source;
+        private int blockSize = CpioConstants.BLOCK_SIZE;
+        private Charset encoding = StandardCharsets.UTF_8;
 
-        private final P parent;
-        private int blockSize = 512;
-        private String encoding = "UTF-8";
-
-        /**
-         * Constructs a builder for a CPIO input stream.
-         *
-         * @param parent the parent builder
-         * @param inputStream the input stream to read the archive from
-         */
-        public CpioArchiveInputStreamBuilder(P parent, InputStream inputStream) {
-            this.parent = parent;
-            this.inputStream = inputStream;
+        private Builder(Source source) {
+            this.source = source;
         }
 
         /**
-         * Sets the block size for reading the CPIO archive.
+         * Sets the block size. Defaults to 512 bytes.
          *
          * @param blockSize the block size in bytes
-         * @return this builder instance
+         * @return this builder
+         * @throws IllegalArgumentException if the block size is not positive
+         * @since 5.0
          */
-        public CpioArchiveInputStreamBuilder<P> blockSize(int blockSize) {
-            this.blockSize = blockSize;
+        public Builder blockSize(int blockSize) {
+            this.blockSize = CpioFormat.requireBlockSize(blockSize);
             return this;
         }
 
         /**
-         * Sets the character encoding for file names.
+         * Sets the encoding of entry names. Defaults to UTF-8.
          *
-         * @param encoding the character encoding
-         * @return this builder instance
+         * @param encoding the encoding
+         * @return this builder
+         * @throws NullPointerException if the encoding is null
+         * @since 5.0
          */
-        public CpioArchiveInputStreamBuilder<P> encoding(String encoding) {
-            this.encoding = encoding;
+        public Builder encoding(Charset encoding) {
+            this.encoding = Objects.requireNonNull(encoding, "encoding");
             return this;
         }
 
-        /**
-         * Returns the parent builder.
-         *
-         * @return the parent builder
-         */
-        public P and() {
-            return parent;
-        }
-
-        /**
-         * Builds the {@link CpioArchiveInputStream} with the configured options.
-         *
-         * @return a new CPIO archive input stream
-         * @throws IOException if an I/O error occurs during stream creation
-         */
-        public CpioArchiveInputStream build() throws IOException {
-            return new CpioArchiveInputStream(inputStream, blockSize, encoding);
-        }
-    }
-
-    /**
-     * Builder for configuring and creating {@link CpioArchiveExtractor} instances.
-     *
-     * @since 2.2
-     */
-    public static class CpioArchiveExtractorBuilder
-            extends ArchiveExtractorBuilder<CpioArchiveInputStream, CpioArchiveExtractorBuilder, CpioArchiveExtractor> {
-
-        private final CpioArchiveInputStreamBuilder<CpioArchiveExtractorBuilder> cpioInputStreamBuilder;
-
-        /**
-         * Constructs a CpioArchiveExtractorBuilder with the given file path.
-         *
-         * @param path the file path to read the archive from
-         * @throws IOException if an I/O error occurs opening the file
-         */
-        public CpioArchiveExtractorBuilder(Path path) throws IOException {
-            this(Files.newInputStream(path), true);
-        }
-
-        /**
-         * Constructs a CpioArchiveExtractorBuilder with the given input stream.
-         *
-         * @param inputStream the input stream to read the archive from
-         */
-        public CpioArchiveExtractorBuilder(InputStream inputStream) {
-            this(inputStream, false);
-        }
-
-        private CpioArchiveExtractorBuilder(InputStream inputStream, boolean owned) {
-            super(inputStream, owned);
-            this.cpioInputStreamBuilder = new CpioArchiveInputStreamBuilder<>(this, inputStream);
-        }
-
-        /**
-         * Access the CPIO input stream builder for configuration.
-         *
-         * @return the CPIO input stream builder
-         */
-        public CpioArchiveInputStreamBuilder<CpioArchiveExtractorBuilder> cpioInputStream() {
-            return cpioInputStreamBuilder;
-        }
-
+        /** {@inheritDoc} */
         @Override
-        protected CpioArchiveExtractorBuilder getThis() {
+        protected Builder getThis() {
             return this;
         }
 
-        @Override
-        public CpioArchiveInputStream buildArchiveInputStream() throws IOException {
-            return cpioInputStreamBuilder.build();
-        }
-
+        /** {@inheritDoc} */
         @Override
         public CpioArchiveExtractor build() throws IOException {
-            return new CpioArchiveExtractor(this);
+            Source.Opened opened = source.open();
+            try {
+                CpioArchiveInputStream cpio = new CpioArchiveInputStream(opened.in(), blockSize, encoding.name());
+                return new CpioArchiveExtractor(this, new CpioEntryReader(cpio, readerContext()), opened.in()::count);
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
+            }
         }
     }
 }

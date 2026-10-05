@@ -15,126 +15,42 @@
  */
 package com.hominux.compress4j.archivers.dump;
 
-import com.hominux.compress4j.archivers.Entry;
-import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
-import com.hominux.compress4j.utils.EntryValues;
-import java.io.File;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.file.Files;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Optional;
+import java.util.Objects;
+import java.util.function.LongSupplier;
 import org.apache.commons.compress.archivers.ArchiveException;
-import org.apache.commons.compress.archivers.dump.DumpArchiveEntry;
 import org.apache.commons.compress.archivers.dump.DumpArchiveInputStream;
 
 /**
  * Read-only: Compress4J provides no creator for this format.
  *
  * <p>Extracts UNIX dump archives. The unnamed root directory entry is skipped. Directory and regular file entries are
- * extracted; every other entry type is skipped and reported to the builder's {@code unsupportedEntryHandler}.
+ * extracted; every other entry type is reported through the unsupported-entry handler and skipped. The expansion ratio
+ * is measured against the bytes consumed from the source.
  *
  * @since 3.2
  */
-public class DumpArchiveExtractor extends LegacyArchiveExtractor<DumpArchiveInputStream> {
+public final class DumpArchiveExtractor extends ArchiveExtractor {
 
-    /**
-     * Create a new {@link DumpArchiveExtractor} with the given input stream.
-     *
-     * @param archiveInputStream the dump archive input stream
-     */
-    protected DumpArchiveExtractor(DumpArchiveInputStream archiveInputStream) {
-        super(archiveInputStream);
-    }
-
-    /**
-     * Create a new {@link DumpArchiveExtractor} with the given builder.
-     *
-     * @param builder the extractor builder
-     * @throws IOException if an I/O error occurred
-     */
-    public DumpArchiveExtractor(DumpArchiveExtractorBuilder builder) throws IOException {
-        super(builder);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected Optional<Entry> nextEntry() throws IOException {
-        while (true) {
-            DumpArchiveEntry entry = archiveInputStream.getNextEntry();
-            if (entry == null) {
-                return Optional.empty();
-            }
-            if (isUnnamedDirectory(entry)) {
-                continue;
-            }
-            Optional<Entry.Type> type = typeOf(entry.getType());
-            if (type.isPresent()) {
-                return Optional.of(toEntry(entry, type.orElseThrow()));
-            }
-            reportUnsupported(entry.getName(), kindOf(entry.getType()));
-        }
-    }
-
-    static Optional<Entry.Type> typeOf(DumpArchiveEntry.TYPE type) {
-        return switch (type) {
-            case FILE -> Optional.of(Entry.Type.FILE);
-            case DIRECTORY -> Optional.of(Entry.Type.DIR);
-            default -> Optional.empty();
-        };
-    }
-
-    static String kindOf(DumpArchiveEntry.TYPE type) {
-        return switch (type) {
-            case LINK -> "symbolic link";
-            case CHRDEV -> "character device";
-            case BLKDEV -> "block device";
-            case FIFO -> "fifo";
-            case SOCKET -> "socket";
-            case WHITEOUT -> "whiteout";
-            default -> "unknown type";
-        };
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected InputStream openEntryStream(Entry entry) {
-        return archiveInputStream;
-    }
-
-    private static boolean isUnnamedDirectory(DumpArchiveEntry entry) {
-        return entry.getName().isEmpty() && entry.getType() == DumpArchiveEntry.TYPE.DIRECTORY;
-    }
-
-    private static Entry toEntry(DumpArchiveEntry entry, Entry.Type type) {
-        return EntryValues.withMetadata(
-                new Entry(entry.getName(), type, entry.getMode()),
-                Optional.ofNullable(entry.getLastModifiedDate()),
-                type == Entry.Type.FILE ? entry.getSize() : 0);
+    private DumpArchiveExtractor(Builder builder, DumpEntryReader reader, LongSupplier compressedBytes) {
+        super(builder, reader, compressedBytes);
     }
 
     /**
      * Creates a builder reading the archive at the given path.
      *
      * @param path the path to the archive
-     * @return a new {@link DumpArchiveExtractorBuilder}
-     * @throws IOException if an I/O error occurred
+     * @return the builder
      */
-    public static DumpArchiveExtractorBuilder builder(Path path) throws IOException {
-        return new DumpArchiveExtractorBuilder(path);
-    }
-
-    /**
-     * Creates a builder reading the archive at the given file.
-     *
-     * @param file the archive file
-     * @return a new {@link DumpArchiveExtractorBuilder}
-     * @throws IOException if an I/O error occurred
-     */
-    public static DumpArchiveExtractorBuilder builder(File file) throws IOException {
-        return builder(file.toPath());
+    public static Builder builder(Path path) {
+        return new Builder(new Source.OfPath(path));
     }
 
     /**
@@ -145,82 +61,73 @@ public class DumpArchiveExtractor extends LegacyArchiveExtractor<DumpArchiveInpu
      * @return the builder
      * @since 5.0
      */
-    public static DumpArchiveExtractorBuilder builder(SeekableByteChannel channel) {
-        return builder(Channels.newInputStream(channel));
+    public static Builder builder(SeekableByteChannel channel) {
+        return new Builder(new Source.OfChannel(channel));
     }
 
     /**
-     * Creates a builder reading the archive from the given stream.
+     * Creates a builder reading the archive from the given stream. The extractor closes the stream when it is closed; a
+     * failed {@code build()} leaves it open.
      *
      * @param inputStream the archive stream
-     * @return a new {@link DumpArchiveExtractorBuilder}
+     * @return the builder
      */
-    public static DumpArchiveExtractorBuilder builder(InputStream inputStream) {
-        return new DumpArchiveExtractorBuilder(inputStream);
+    public static Builder builder(InputStream inputStream) {
+        return new Builder(new Source.OfStream(inputStream));
     }
 
-    /** Builder for creating a {@link DumpArchiveExtractor}. */
-    public static class DumpArchiveExtractorBuilder
-            extends ArchiveExtractorBuilder<DumpArchiveInputStream, DumpArchiveExtractorBuilder, DumpArchiveExtractor> {
+    /**
+     * Builder for {@link DumpArchiveExtractor}.
+     *
+     * @since 5.0
+     */
+    public static final class Builder extends ArchiveExtractor.Builder<Builder, DumpArchiveExtractor> {
+        private final Source source;
+        private Charset encoding = StandardCharsets.UTF_8;
 
-        private final InputStream inputStream;
-        private String encoding = "UTF-8";
-
-        /**
-         * Create a new builder reading the archive at the given path.
-         *
-         * @param path the path to the archive
-         * @throws IOException if an I/O error occurred
-         */
-        public DumpArchiveExtractorBuilder(Path path) throws IOException {
-            this(Files.newInputStream(path), true);
+        private Builder(Source source) {
+            this.source = source;
         }
 
         /**
-         * Create a new builder reading the archive from the given stream.
+         * Sets the encoding of entry names. Defaults to UTF-8.
          *
-         * @param inputStream the archive stream
-         */
-        public DumpArchiveExtractorBuilder(InputStream inputStream) {
-            this(inputStream, false);
-        }
-
-        private DumpArchiveExtractorBuilder(InputStream inputStream, boolean owned) {
-            super(inputStream, owned);
-            this.inputStream = inputStream;
-        }
-
-        /**
-         * Sets the character encoding of entry names.
-         *
-         * @param encoding the encoding name
+         * @param encoding the encoding
          * @return this builder
+         * @throws NullPointerException if the encoding is null
+         * @since 5.0
          */
-        public DumpArchiveExtractorBuilder encoding(String encoding) {
-            this.encoding = encoding;
+        public Builder encoding(Charset encoding) {
+            this.encoding = Objects.requireNonNull(encoding, "encoding");
             return this;
         }
 
         /** {@inheritDoc} */
         @Override
-        public DumpArchiveExtractorBuilder getThis() {
+        protected Builder getThis() {
             return this;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public DumpArchiveInputStream buildArchiveInputStream() throws IOException {
-            try {
-                return new DumpArchiveInputStream(inputStream, encoding);
-            } catch (ArchiveException e) {
-                throw new IOException(e.getMessage(), e);
-            }
         }
 
         /** {@inheritDoc} */
         @Override
         public DumpArchiveExtractor build() throws IOException {
-            return new DumpArchiveExtractor(this);
+            Source.Opened opened = source.open();
+            try {
+                DumpEntryReader reader = new DumpEntryReader(archiveStream(opened), readerContext());
+                return new DumpArchiveExtractor(this, reader, opened.in()::count);
+            } catch (IOException e) {
+                throw opened.closeIfOwned(e);
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
+            }
+        }
+
+        private DumpArchiveInputStream archiveStream(Source.Opened opened) throws IOException {
+            try {
+                return new DumpArchiveInputStream(opened.in(), encoding.name());
+            } catch (ArchiveException e) {
+                throw new IOException(e.getMessage(), e);
+            }
         }
     }
 }

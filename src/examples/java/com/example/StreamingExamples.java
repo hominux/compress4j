@@ -29,12 +29,12 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
-import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 
 @SuppressWarnings("unused")
 public final class StreamingExamples {
@@ -118,10 +118,16 @@ public final class StreamingExamples {
 
     public static void sevenZFromStream(InputStream download, Path outputDir) throws IOException {
         // tag::sevenz-from-stream[]
-        byte[] bytes = download.readAllBytes(); // 7z needs random access; this holds the archive in memory
-        try (var extractor = SevenZArchiveExtractor.builder(new SeekableInMemoryByteChannel(bytes))
-                .build()) {
-            extractor.extract(outputDir);
+        Files.createDirectories(outputDir);
+        Path spool = Files.createTempFile(
+                outputDir, "archive", ".7z"); // 7z needs random access, so spool the stream to disk
+        try {
+            Files.copy(download, spool, StandardCopyOption.REPLACE_EXISTING);
+            try (var extractor = SevenZArchiveExtractor.builder(spool).build()) {
+                extractor.extract(outputDir);
+            }
+        } finally {
+            Files.deleteIfExists(spool);
         }
         // end::sevenz-from-stream[]
     }

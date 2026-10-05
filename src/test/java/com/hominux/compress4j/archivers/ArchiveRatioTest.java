@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat;
+import com.hominux.compress4j.archivers.catalog.FormatCatalog;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveCreator;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveExtractor;
 import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
@@ -37,6 +39,8 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ArchiveRatioTest {
 
@@ -213,6 +217,21 @@ class ArchiveRatioTest {
                 .maxRatio(ExtractionLimits.UNLIMITED)
                 .build()) {
             assertDoesNotThrow(() -> drain(extractor, delivered));
+        }
+        assertThat(delivered.get()).isEqualTo(ZEROS);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ar", "cpio"})
+    void storedFormatsNeverTripTheDefaultRatio(String name) throws IOException {
+        ArchiveFormat format = FormatCatalog.named(name);
+        Path archive = dir.resolve("stored." + name);
+        try (var creator = format.createAt().orElseThrow().apply(archive)) {
+            creator.add(EntrySource.file("zeros", new byte[ZEROS]));
+        }
+        var delivered = new AtomicLong();
+        try (var reader = format.readAt().apply(archive)) {
+            assertDoesNotThrow(() -> reader.stream().forEach(item -> read(item, delivered)));
         }
         assertThat(delivered.get()).isEqualTo(ZEROS);
     }

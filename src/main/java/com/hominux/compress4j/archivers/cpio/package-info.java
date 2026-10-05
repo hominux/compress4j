@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 /**
- * This package provides support for CPIO archive format.
- *
- * <p>CPIO archive support includes both archive creation and extraction capabilities with configurable options for
- * different CPIO formats and compatibility.
+ * Reads and writes CPIO archives in the {@link com.hominux.compress4j.archivers.cpio.CpioFormat} header formats.
  *
  * @since 2.2
  */

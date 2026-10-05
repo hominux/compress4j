@@ -37,11 +37,11 @@ public abstract class AbstractArchiverIntegrationTest {
     @TempDir
     protected Path tempDir;
 
-    protected LegacyArchiveCreator<?> archiveCreatorBuilder(Path archivePath) throws IOException {
+    protected ArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
         throw new UnsupportedOperationException("override writerAt or archiveCreatorBuilder");
     }
 
-    protected LegacyArchiveExtractor<?> archiveExtractorBuilder(Path archivePath) throws IOException {
+    protected ArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
         throw new UnsupportedOperationException("override readerAt or archiveExtractorBuilder");
     }
 

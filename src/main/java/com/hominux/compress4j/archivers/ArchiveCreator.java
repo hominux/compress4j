@@ -33,8 +33,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
- * Base of the archive creators that write through an {@code EntryWriter}; formats not yet migrated extend
- * {@link LegacyArchiveCreator}.
+ * Base of the archive creators. Subclasses add the builder for one format.
  *
  * <p>A creator is not thread-safe.
  *

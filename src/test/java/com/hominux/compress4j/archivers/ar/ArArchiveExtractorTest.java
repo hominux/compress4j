@@ -18,7 +18,9 @@ package com.hominux.compress4j.archivers.ar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,6 +28,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream;
 import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream;
 import org.junit.jupiter.api.Test;
@@ -39,15 +42,13 @@ class ArArchiveExtractorTest {
         var outputStream = new ByteArrayOutputStream();
         var content = "Hello, AR Archive!";
 
-        try (var archiveOutputStream = new ArArchiveOutputStream(outputStream);
-                var creator = new ArArchiveCreator(archiveOutputStream)) {
+        try (var creator = ArArchiveCreator.builder(outputStream).build()) {
             creator.add(EntrySource.file("test.txt", content.getBytes(StandardCharsets.UTF_8)));
         }
 
         // when
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
-        try (var archiveInputStream = new ArArchiveInputStream(bais);
-                var extractor = new ArArchiveExtractor(archiveInputStream)) {
+        try (var extractor = ArArchiveExtractor.builder(bais).build()) {
             extractor.extract(tempDir);
         }
 
@@ -243,10 +244,26 @@ class ArArchiveExtractorTest {
     }
 
     @Test
+    void symlinkTargetAboveTheCapIsRejected() throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        try (var writer = new ArEntryWriter(new ArArchiveOutputStream(bytes))) {
+            writer.writeSymlink("link", "t".repeat(4097), 0, FileTime.fromMillis(0));
+        }
+        var context = new ReaderContext(ExtractionLimits.defaults(), unsupported -> {});
+
+        try (var reader =
+                new ArEntryReader(new ArArchiveInputStream(new ByteArrayInputStream(bytes.toByteArray())), context)) {
+            assertThatThrownBy(reader::next).isInstanceOf(IOException.class).hasMessageContaining("4096");
+        }
+    }
+
+    @Test
     void nextEntryShouldBeEmptyForEmptyArchive() throws IOException {
         var emptyArchive = "!<arch>\n".getBytes(StandardCharsets.US_ASCII);
-        try (var extractor = new ArArchiveExtractor(new ArArchiveInputStream(new ByteArrayInputStream(emptyArchive)))) {
-            assertThat(extractor.nextEntry()).isEmpty();
+        var context = new ReaderContext(ExtractionLimits.defaults(), unsupported -> {});
+        try (var reader =
+                new ArEntryReader(new ArArchiveInputStream(new ByteArrayInputStream(emptyArchive)), context)) {
+            assertThat(reader.next()).isEmpty();
         }
     }
 }

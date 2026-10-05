@@ -49,8 +49,7 @@ class CpioArchiveCreatorTest {
 
         // when
         var archiveOutput = new ByteArrayOutputStream();
-        try (var archiveOutputStream = new CpioArchiveOutputStream(archiveOutput);
-                var creator = new CpioArchiveCreator(archiveOutputStream)) {
+        try (var creator = CpioArchiveCreator.builder(archiveOutput).build()) {
             creator.add(EntrySource.file("test1.txt", testFile1));
             creator.add(EntrySource.file("test2.txt", testFile2));
         }
@@ -115,11 +114,9 @@ class CpioArchiveCreatorTest {
 
         // when
         try (var creator = CpioArchiveCreator.builder(archiveOutput)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_NEW)
+                .format(CpioFormat.NEW)
                 .blockSize(512)
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
 
             var testFile = tempDir.resolve("config-test.txt");
@@ -138,11 +135,9 @@ class CpioArchiveCreatorTest {
 
         // when
         try (var creator = CpioArchiveCreator.builder(archiveOutput)
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_OLD_ASCII)
+                .format(CpioFormat.OLD_ASCII)
                 .blockSize(1024)
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
 
             var testFile = tempDir.resolve("old-format-test.txt");
@@ -233,7 +228,8 @@ class CpioArchiveCreatorTest {
         var invalidPath = tempDir.resolve("nonexistent/invalid.cpio");
 
         // when & then
-        assertThatThrownBy(() -> CpioArchiveCreator.builder(invalidPath)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> CpioArchiveCreator.builder(invalidPath).build())
+                .isInstanceOf(IOException.class);
     }
 
     @Test
@@ -245,9 +241,7 @@ class CpioArchiveCreatorTest {
         // when
         var archiveOutput = new ByteArrayOutputStream();
         try (var creator = CpioArchiveCreator.builder(archiveOutput)
-                .cpioOutputStream()
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             creator.add(EntrySource.file("special-chars äöü.txt", specialFile));
         }
@@ -270,9 +264,8 @@ class CpioArchiveCreatorTest {
         var modTime = FileTime.from(Instant.parse("2023-01-01T00:00:00Z"));
 
         // when
-        try (CpioArchiveCreator creator =
-                CpioArchiveCreator.builder(outputStream).build()) {
-            creator.writeSymlink("link", "target.txt", 0, modTime);
+        try (var writer = new CpioEntryWriter(new CpioArchiveOutputStream(outputStream), CpioConstants.FORMAT_NEW)) {
+            writer.writeSymlink("link", "target.txt", 0, modTime);
         }
 
         // then

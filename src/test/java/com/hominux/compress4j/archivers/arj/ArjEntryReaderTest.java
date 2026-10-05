@@ -22,19 +22,25 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.UnsupportedEntry;
+import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
 import org.apache.commons.compress.archivers.arj.ArjArchiveEntry;
 import org.apache.commons.compress.archivers.arj.ArjArchiveInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class ArjArchiveExtractorTest {
+class ArjEntryReaderTest {
 
     private static ArjArchiveInputStream streamOf(ArjArchiveEntry entry) throws IOException {
         var in = mock(ArjArchiveInputStream.class);
@@ -44,8 +50,8 @@ class ArjArchiveExtractorTest {
 
     @Test
     void shouldReturnEmptyWhenNoMoreEntries() throws IOException {
-        try (var extractor = new ArjArchiveExtractor(mock(ArjArchiveInputStream.class))) {
-            assertThat(extractor.nextEntry()).isEmpty();
+        try (var reader = readerOver(mock(ArjArchiveInputStream.class))) {
+            assertThat(reader.next()).isEmpty();
         }
     }
 
@@ -55,8 +61,8 @@ class ArjArchiveExtractorTest {
         when(entry.getName()).thenReturn("dir");
         when(entry.isDirectory()).thenReturn(true);
 
-        try (var extractor = new ArjArchiveExtractor(streamOf(entry))) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(streamOf(entry))) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
         }
     }
@@ -68,8 +74,8 @@ class ArjArchiveExtractorTest {
         when(entry.isHostOsUnix()).thenReturn(true);
         when(entry.getUnixMode()).thenReturn(0100640);
 
-        try (var extractor = new ArjArchiveExtractor(streamOf(entry))) {
-            assertThat(extractor.nextEntry()).hasValueSatisfying(e -> {
+        try (var reader = readerOver(streamOf(entry))) {
+            assertThat(reader.next()).hasValueSatisfying(e -> {
                 assertThat(e.type()).isEqualTo(Entry.Type.FILE);
                 assertThat(e.mode()).isEqualTo(0100640);
             });
@@ -83,12 +89,21 @@ class ArjArchiveExtractorTest {
         var in = streamOf(entry);
         when(in.canReadEntryData(entry)).thenReturn(false);
 
-        try (var extractor = new ArjArchiveExtractor(in)) {
-            var mapped = extractor.nextEntry().orElseThrow();
+        try (var reader = readerOver(in)) {
+            var mapped = reader.next().orElseThrow();
 
-            assertThatThrownBy(() -> extractor.openEntryStream(mapped))
+            assertThatThrownBy(() -> reader.open(mapped))
                     .isInstanceOf(IOException.class)
                     .hasMessage("Cannot read ARJ entry data (encrypted or unsupported method): secret.txt");
+        }
+    }
+
+    @Test
+    void shouldRejectOpenBeforeNext() throws IOException {
+        var entry = new Entry("a", Entry.Type.FILE, 0);
+
+        try (var reader = readerOver(mock(ArjArchiveInputStream.class))) {
+            assertThatThrownBy(() -> reader.open(entry)).isInstanceOf(IllegalStateException.class);
         }
     }
 
@@ -98,11 +113,12 @@ class ArjArchiveExtractorTest {
         when(entry.getName()).thenReturn("ok.txt");
         var in = streamOf(entry);
         when(in.canReadEntryData(entry)).thenReturn(true);
+        when(in.read()).thenReturn(7);
 
-        try (var extractor = new ArjArchiveExtractor(in)) {
-            var mapped = extractor.nextEntry().orElseThrow();
+        try (var reader = readerOver(in)) {
+            var mapped = reader.next().orElseThrow();
 
-            assertThat(extractor.openEntryStream(mapped)).isSameAs(in);
+            assertThat(reader.open(mapped).read()).isEqualTo(7);
         }
     }
 
@@ -117,13 +133,18 @@ class ArjArchiveExtractorTest {
         return entry;
     }
 
-    private static ArjArchiveExtractor.ArjArchiveExtractorBuilder builderOver(ArjArchiveInputStream in) {
-        return new ArjArchiveExtractor.ArjArchiveExtractorBuilder(InputStream.nullInputStream()) {
-            @Override
-            public ArjArchiveInputStream buildArchiveInputStream() {
-                return in;
-            }
-        };
+    private static ArjEntryReader readerOver(ArjArchiveInputStream in) {
+        return readerOver(in, unsupported -> {});
+    }
+
+    private static ArjEntryReader readerOver(ArjArchiveInputStream in, Consumer<UnsupportedEntry> unsupported) {
+        return new ArjEntryReader(in, new ReaderContext(ExtractionLimits.defaults(), unsupported));
+    }
+
+    private static ArchiveExtractor extractorOver(ArjArchiveInputStream in) throws IOException {
+        return InMemoryArchiveExtractor.builder(List.of())
+                .readerDecorator(ignored -> readerOver(in))
+                .build();
     }
 
     private static ArjArchiveInputStream streamOfAll(ArjArchiveEntry... entries) throws IOException {
@@ -138,13 +159,15 @@ class ArjArchiveExtractorTest {
     }
 
     @Test
-    void shouldReportUnixSymlinkAndDeviceToTheUnsupportedEntryHandlerAndCreateNothing() throws IOException {
+    void shouldReportUnixSymlinkAndDeviceToTheUnsupportedEntryHandler() throws IOException {
         var in = streamOfAll(unixEntry("link", 0120777), unixEntry("tty", 0020644), unixEntry("pipe", 0010644), null);
         var reported = new ArrayList<UnsupportedEntry>();
 
-        try (var extractor =
-                builderOver(in).unsupportedEntryHandler(reported::add).build()) {
-            extractor.extract(tempDir);
+        try (var reader = readerOver(in, reported::add)) {
+            Optional<Entry> next;
+            do {
+                next = reader.next();
+            } while (next.isPresent());
         }
 
         assertThat(reported)
@@ -152,17 +175,16 @@ class ArjArchiveExtractorTest {
                         new UnsupportedEntry("link", "symbolic link"),
                         new UnsupportedEntry("tty", "character device"),
                         new UnsupportedEntry("pipe", "fifo"));
-        assertThat(tempDir).isEmptyDirectory();
     }
 
     @Test
     void shouldClassifyUnixDirectoryAndModeWithoutTypeBits() throws IOException {
         var in = streamOfAll(unixEntry("d", 040755), unixEntry("f", 0644), null);
 
-        try (var extractor = builderOver(in).build()) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(in)) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
-            assertThat(extractor.nextEntry())
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.FILE));
         }
     }
@@ -173,10 +195,8 @@ class ArjArchiveExtractorTest {
         when(entry.isDirectory()).thenReturn(true);
         var reported = new ArrayList<UnsupportedEntry>();
 
-        try (var extractor = builderOver(streamOfAll(entry, null))
-                .unsupportedEntryHandler(reported::add)
-                .build()) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(streamOfAll(entry, null), reported::add)) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
         }
         assertThat(reported).isEmpty();
@@ -189,8 +209,8 @@ class ArjArchiveExtractorTest {
         when(entry.isHostOsUnix()).thenReturn(false);
         when(entry.getUnixMode()).thenReturn(0020644);
 
-        try (var extractor = builderOver(streamOfAll(entry, null)).build()) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(streamOfAll(entry, null))) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.FILE));
         }
     }
@@ -204,7 +224,7 @@ class ArjArchiveExtractorTest {
         when(in.canReadEntryData(entry)).thenReturn(true);
         var target = Files.createDirectory(tempDir.resolve("target"));
 
-        try (var extractor = new ArjArchiveExtractor(in)) {
+        try (var extractor = extractorOver(in)) {
             assertThatThrownBy(() -> extractor.extract(target)).isInstanceOf(IOException.class);
         }
 

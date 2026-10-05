@@ -19,8 +19,6 @@ import com.hominux.compress4j.archivers.ArchiveCreator;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.ArchiveItem;
 import com.hominux.compress4j.archivers.EntrySource;
-import com.hominux.compress4j.archivers.LegacyArchiveCreator;
-import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,21 +46,21 @@ public record ArchiveFormat(
         Optional<Class<?>> creator,
         String streamFactory,
         Optional<String> writer,
-        Optional<FilteredWriter> builderAt,
+        Optional<BuilderAt> builderAt,
         Optional<IOFunction<SeekableByteChannel, Writer>> createOnChannel,
         Optional<IOFunction<OutputStream, Writer>> createOnStream,
         IOFunction<Path, Reader> readAt,
         Optional<IOFunction<SeekableByteChannel, Reader>> readFromChannel,
         Optional<IOFunction<InputStream, Reader>> readFromStream) {
 
-    /** The reading half of an archive base type. */
+    /** The reading half of an archive extractor. */
     public interface Reader extends Closeable {
         Stream<ArchiveItem> stream();
 
         void extract(Path outputDir) throws IOException;
     }
 
-    /** The writing half of an archive base type. */
+    /** The writing half of an archive creator. */
     public interface Writer extends Closeable {
         void add(EntrySource source) throws IOException;
 
@@ -73,26 +71,14 @@ public record ArchiveFormat(
         void addFile(Path path) throws IOException;
     }
 
-    /** Opens a writer at a path that keeps only the sources the filter accepts. */
+    /** Creates the unbuilt creator builder for a path. */
     @FunctionalInterface
-    public interface FilteredWriter {
-        Writer open(Path path, Predicate<? super EntrySource> filter) throws IOException;
-    }
+    public interface BuilderAt {
+        ArchiveCreator.Builder<?, ?> builder(Path path);
 
-    public static Reader reader(LegacyArchiveExtractor<?> e) {
-        return new Reader() {
-            public Stream<ArchiveItem> stream() {
-                return e.stream();
-            }
-
-            public void extract(Path dir) throws IOException {
-                e.extract(dir);
-            }
-
-            public void close() throws IOException {
-                e.close();
-            }
-        };
+        default Writer open(Path path, Predicate<? super EntrySource> filter) throws IOException {
+            return writer(builder(path).filter(filter).build());
+        }
     }
 
     public static Reader reader(ArchiveExtractor e) {
@@ -107,30 +93,6 @@ public record ArchiveFormat(
 
             public void close() throws IOException {
                 e.close();
-            }
-        };
-    }
-
-    public static Writer writer(LegacyArchiveCreator<?> c) {
-        return new Writer() {
-            public void add(EntrySource source) throws IOException {
-                c.add(source);
-            }
-
-            public void addAll(Stream<? extends EntrySource> sources) throws IOException {
-                c.addAll(sources);
-            }
-
-            public void addDirectoryRecursively(Path directory) throws IOException {
-                c.addDirectoryRecursively(directory);
-            }
-
-            public void addFile(Path path) throws IOException {
-                c.addFile(path);
-            }
-
-            public void close() throws IOException {
-                c.close();
             }
         };
     }

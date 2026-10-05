@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream;
-import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
@@ -134,20 +133,6 @@ class ArArchiveCreatorBuilderTest {
     }
 
     @Test
-    void testBuildArchiveOutputStream() throws IOException {
-        // given
-        var outputStream = new ByteArrayOutputStream();
-        var builder = ArArchiveCreator.builder(outputStream);
-
-        // when
-        ArArchiveOutputStream archiveOutputStream = builder.buildArchiveOutputStream();
-
-        // then
-        assertThat(archiveOutputStream).isNotNull();
-        archiveOutputStream.close();
-    }
-
-    @Test
     void testBuilderReturnsThis() {
         // given
         var outputStream = new ByteArrayOutputStream();
@@ -190,24 +175,18 @@ class ArArchiveCreatorBuilderTest {
 
         try {
             // when & then
-            assertThatThrownBy(() -> ArArchiveCreator.builder(unwritablePath)).isInstanceOf(IOException.class);
+            assertThatThrownBy(() -> ArArchiveCreator.builder(unwritablePath).build())
+                    .isInstanceOf(IOException.class);
         } finally {
             Files.setPosixFilePermissions(readOnlyDir, PosixFilePermissions.fromString("rwxrwxrwx"));
         }
     }
 
-    @SuppressWarnings("java:S5778")
     @Test
     void testBuilderWithNullOutputStream() {
         // given
-        var builder = ArArchiveCreator.builder((OutputStream) null);
-
         // when & then
-        assertThatThrownBy(() -> {
-                    try (ArArchiveCreator creator = builder.build()) {
-                        creator.add(EntrySource.file("test.txt", "test".getBytes()));
-                    }
-                })
+        assertThatThrownBy(() -> ArArchiveCreator.builder((OutputStream) null))
                 .isInstanceOf(NullPointerException.class);
     }
 

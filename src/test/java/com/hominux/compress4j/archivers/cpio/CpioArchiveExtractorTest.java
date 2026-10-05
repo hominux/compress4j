@@ -20,16 +20,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveEntry;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream;
+import org.apache.commons.compress.archivers.cpio.CpioArchiveOutputStream;
+import org.apache.commons.compress.archivers.cpio.CpioConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
@@ -58,8 +63,7 @@ class CpioArchiveExtractorTest {
 
         // when
         var archiveInput = new ByteArrayInputStream(sampleArchive);
-        try (var archiveInputStream = new CpioArchiveInputStream(archiveInput);
-                var extractor = new CpioArchiveExtractor(archiveInputStream)) {
+        try (var extractor = CpioArchiveExtractor.builder(archiveInput).build()) {
             extractor.extract(extractDir);
         }
 
@@ -146,7 +150,7 @@ class CpioArchiveExtractorTest {
         Files.createDirectories(extractDir);
 
         // when
-        try (var extractor = CpioArchiveExtractor.builder(archiveFile.toFile()).build()) {
+        try (var extractor = CpioArchiveExtractor.builder(archiveFile).build()) {
             extractor.extract(extractDir);
         }
 
@@ -164,10 +168,8 @@ class CpioArchiveExtractorTest {
         // when
         var archiveInput = new ByteArrayInputStream(sampleArchive);
         try (var extractor = CpioArchiveExtractor.builder(archiveInput)
-                .cpioInputStream()
                 .blockSize(1024)
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             extractor.extract(extractDir);
         }
@@ -226,9 +228,7 @@ class CpioArchiveExtractorTest {
 
         ByteArrayOutputStream archiveOutput = new ByteArrayOutputStream();
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(archiveOutput)
-                .cpioOutputStream()
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             creator.add(EntrySource.file("special-äöü.txt", specialFile));
         }
@@ -239,9 +239,7 @@ class CpioArchiveExtractorTest {
 
         var archiveInput = new ByteArrayInputStream(archiveOutput.toByteArray());
         try (var extractor = CpioArchiveExtractor.builder(archiveInput)
-                .cpioInputStream()
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             extractor.extract(extractDir);
         }
@@ -256,7 +254,8 @@ class CpioArchiveExtractorTest {
         var nonExistentFile = tempDir.resolve("does-not-exist.cpio");
 
         // when & then
-        assertThatThrownBy(() -> CpioArchiveExtractor.builder(nonExistentFile)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> CpioArchiveExtractor.builder(nonExistentFile).build())
+                .isInstanceOf(IOException.class);
     }
 
     @Test
@@ -307,11 +306,24 @@ class CpioArchiveExtractorTest {
     }
 
     @Test
+    void symlinkTargetAboveTheCapIsRejected() throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        try (var writer = new CpioEntryWriter(new CpioArchiveOutputStream(bytes), CpioConstants.FORMAT_NEW)) {
+            writer.writeSymlink("link", "t".repeat(4097), 0, FileTime.fromMillis(0));
+        }
+
+        try (var reader = new CpioEntryReader(
+                new CpioArchiveInputStream(new ByteArrayInputStream(bytes.toByteArray())), context())) {
+            assertThatThrownBy(reader::next).isInstanceOf(IOException.class).hasMessageContaining("4096");
+        }
+    }
+
+    @Test
     void nextEntryShouldBeEmptyWhenStreamEndsWithoutTrailer() throws IOException {
         var stream = mock(CpioArchiveInputStream.class);
         given(stream.getNextEntry()).willReturn(null);
-        try (var extractor = new CpioArchiveExtractor(stream)) {
-            assertThat(extractor.nextEntry()).isEmpty();
+        try (var reader = new CpioEntryReader(stream, context())) {
+            assertThat(reader.next()).isEmpty();
         }
     }
 
@@ -319,9 +331,13 @@ class CpioArchiveExtractorTest {
     void nextEntryShouldBeEmptyAtTrailerEntry() throws IOException {
         var stream = mock(CpioArchiveInputStream.class);
         given(stream.getNextEntry()).willReturn(new CpioArchiveEntry("TRAILER!!!"));
-        try (var extractor = new CpioArchiveExtractor(stream)) {
-            assertThat(extractor.nextEntry()).isEmpty();
+        try (var reader = new CpioEntryReader(stream, context())) {
+            assertThat(reader.next()).isEmpty();
         }
+    }
+
+    private static ReaderContext context() {
+        return new ReaderContext(ExtractionLimits.defaults(), unsupported -> {});
     }
 
     private byte[] createSampleArchive() throws IOException {

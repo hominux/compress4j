@@ -23,9 +23,9 @@ import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveCreator;
 import com.hominux.compress4j.archivers.cpio.CpioArchiveExtractor;
+import com.hominux.compress4j.archivers.cpio.CpioFormat;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.apache.commons.compress.archivers.cpio.CpioConstants;
 
 @SuppressWarnings({"java:S1192", "unused"})
 public class CpioExamples {
@@ -37,11 +37,9 @@ public class CpioExamples {
     public static void cpioCreator() throws IOException {
         // tag::cpio-creator[]
         try (CpioArchiveCreator cpioCreator = CpioArchiveCreator.builder(Path.of("example.cpio"))
-                .cpioOutputStream()
-                .format(CpioConstants.FORMAT_NEW)
+                .format(CpioFormat.NEW)
                 .blockSize(1024)
-                .encoding(UTF_8.name())
-                .and()
+                .encoding(UTF_8)
                 .filter(s -> !s.name().endsWith("temp.txt"))
                 .build()) {
 
@@ -57,10 +55,8 @@ public class CpioExamples {
     public static void cpioExtractor() throws IOException {
         // tag::cpio-extractor[]
         try (CpioArchiveExtractor cpioExtractor = CpioArchiveExtractor.builder(Path.of("example.cpio"))
-                .cpioInputStream()
                 .blockSize(1024)
-                .encoding(UTF_8.name())
-                .and()
+                .encoding(UTF_8)
                 .filter(entry -> !entry.name().startsWith("temp"))
                 .errorHandler((entry, failure) -> entry.name().endsWith(".tmp") ? SKIP : ABORT)
                 .escapingSymlinkPolicy(EscapingSymlinkPolicy.DISALLOW)

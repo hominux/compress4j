@@ -15,6 +15,9 @@
  */
 package com.hominux.compress4j.utils;
 
+import com.hominux.compress4j.archivers.Entry;
+import java.util.Optional;
+
 /** The file type encoded in the {@code S_IFMT} bits of a Unix mode; a mode without type bits is a regular file. */
 public enum UnixFileType {
     FILE("regular file"),
@@ -54,5 +57,15 @@ public enum UnixFileType {
     /** Returns the human-readable name of this type, as reported to the unsupported-entry handler. */
     public String kind() {
         return kind;
+    }
+
+    /** Returns the entry type that extraction supports for this file type, or empty for every other type. */
+    public Optional<Entry.Type> entryType() {
+        return switch (this) {
+            case FILE -> Optional.of(Entry.Type.FILE);
+            case DIRECTORY -> Optional.of(Entry.Type.DIR);
+            case SYMLINK -> Optional.of(Entry.Type.SYMLINK);
+            default -> Optional.empty();
+        };
     }
 }

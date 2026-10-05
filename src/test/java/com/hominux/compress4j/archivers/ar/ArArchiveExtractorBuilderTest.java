@@ -30,7 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import org.apache.commons.compress.archivers.ar.ArArchiveInputStream;
+import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -220,7 +220,7 @@ class ArArchiveExtractorBuilderTest {
     }
 
     @Test
-    void testBuildArchiveInputStream() throws IOException {
+    void testBuildReadsEntries() throws IOException {
         // given
         var outputStream = new ByteArrayOutputStream();
         try (var creator = ArArchiveCreator.builder(outputStream).build()) {
@@ -229,13 +229,9 @@ class ArArchiveExtractorBuilderTest {
 
         // when
         var bais = new ByteArrayInputStream(outputStream.toByteArray());
-        var builder = ArArchiveExtractor.builder(bais);
-        ArArchiveInputStream archiveInputStream = builder.buildArchiveInputStream();
-
-        // then
-        assertThat(archiveInputStream).isNotNull();
-        assertThat(archiveInputStream.getNextEntry()).isNotNull();
-        archiveInputStream.close();
+        try (var extractor = ArArchiveExtractor.builder(bais).build()) {
+            assertThat(extractor.stream().map(item -> item.entry().name())).containsExactly("stream-test.txt");
+        }
     }
 
     @Test
@@ -259,22 +255,15 @@ class ArArchiveExtractorBuilderTest {
         var nonExistentPath = Path.of("/this/path/does/not/exist.ar");
 
         // when & then
-        assertThatThrownBy(() -> ArArchiveExtractor.builder(nonExistentPath)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> ArArchiveExtractor.builder(nonExistentPath).build())
+                .isInstanceOf(IOException.class);
     }
 
-    @SuppressWarnings("java:S5778")
     @Test
     void testBuilderWithNullInputStream() {
         // given
-        var builder = ArArchiveExtractor.builder((InputStream) null);
-
         // when & then
-        assertThatThrownBy(() -> {
-                    try (var extractor = builder.build()) {
-                        Path tempDir = Path.of(System.getProperty("java.io.tmpdir"));
-                        extractor.extract(tempDir);
-                    }
-                })
+        assertThatThrownBy(() -> ArArchiveExtractor.builder((InputStream) null))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -308,7 +297,7 @@ class ArArchiveExtractorBuilderTest {
     void testBuilderWithEscapingSymlinkPolicyRejectsEscapingTarget(@TempDir Path tempDir) throws IOException {
         // given
         var outputStream = new ByteArrayOutputStream();
-        try (var creator = ArArchiveCreator.builder(outputStream).build()) {
+        try (var creator = new ArEntryWriter(new ArArchiveOutputStream(outputStream))) {
             creator.writeSymlink("escape-link", "../../etc/passwd", 0, FileTime.from(Instant.now()));
         }
 
