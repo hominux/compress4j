@@ -95,7 +95,7 @@ testing {
                 implementation(libs.mockito.core)
                 implementation(libs.mockito.jupiter)
                 implementation(libs.jimfs)
-                implementation(libs.org.tukaani.xz)
+                runtimeOnly(libs.org.tukaani.xz)
                 runtimeOnly(libs.com.github.luben.zstd.jni)
                 runtimeOnly(libs.org.brotli.dec)
             }
