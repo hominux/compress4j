@@ -17,189 +17,184 @@ package com.hominux.compress4j.archivers.zip;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-import com.hominux.compress4j.utils.BuildGatedChannel;
+import com.hominux.compress4j.archivers.ArchiveItem;
+import com.hominux.compress4j.archivers.EntrySource;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import org.apache.commons.compress.archivers.zip.ZipFile;
-import org.apache.commons.io.function.IOFunction;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.CRC32;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ZipMethod;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream;
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class ZipArchiveExtractorBuilderTest {
 
+    private static final byte[] NOT_A_ZIP =
+            "this is not a zip archive".repeat(8).getBytes(StandardCharsets.UTF_8);
+
     @TempDir
-    Path tempPath;
+    Path dir;
 
-    private Path archivePath;
-
-    @Mock
-    private ZipFile.Builder mockZipFileBuilder;
-
-    @Mock
-    private ZipFile mockZipFile;
-
-    @Mock
-    private SeekableByteChannel mockChannel;
-
-    @Mock
-    private IOFunction<InputStream, InputStream> mockFactory;
-
-    private MockedStatic<ZipFile> zipFileMockedStatic;
-
-    @BeforeEach
-    void setUp() {
-        archivePath = tempPath.resolve("test.zip");
-
-        zipFileMockedStatic = mockStatic(ZipFile.class);
-        zipFileMockedStatic.when(ZipFile::builder).thenReturn(mockZipFileBuilder);
-    }
-
-    /**
-     * Helper method to stub all fluent setters on the mock builder. Call this only from tests that build an extractor
-     * or stream.
-     */
-    private void stubFluentSetters() {
-        when(mockZipFileBuilder.setIgnoreLocalFileHeader(any(boolean.class))).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.setMaxNumberOfDisks(any(long.class))).thenReturn(mockZipFileBuilder);
-        lenient()
-                .when(mockZipFileBuilder.setSeekableByteChannel(nullable(SeekableByteChannel.class)))
-                .thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.setUseUnicodeExtraFields(any(boolean.class))).thenReturn(mockZipFileBuilder);
-        lenient().when(mockZipFileBuilder.setPath(any(Path.class))).thenReturn(mockZipFileBuilder);
-    }
-
-    @AfterEach
-    void tearDown() {
-        zipFileMockedStatic.close();
+    private Path zipWithOneFile() throws IOException {
+        Path zip = dir.resolve("a.zip");
+        try (var creator = ZipArchiveCreator.builder(zip).build()) {
+            creator.add(EntrySource.file("a.txt", "hello".getBytes(StandardCharsets.UTF_8)));
+        }
+        return zip;
     }
 
     @Test
-    @DisplayName("Static builder(Path) method creates a builder")
-    void testStaticBuilder() throws IOException {
-        // When
-        var builder = ZipArchiveExtractor.builder(archivePath);
+    void unbuiltPathBuilderHoldsNothingOpen() throws IOException {
+        Path zip = zipWithOneFile();
 
-        // Then
-        assertThat(builder).isNotNull();
+        ZipArchiveExtractor.builder(zip).ignoreLocalFileHeader(true).maxNumberOfDisks(2);
+
+        assertDoesNotThrow(() -> Files.delete(zip));
     }
 
     @Test
-    @DisplayName("build() should configure ZipFile.Builder with all setters and build an extractor")
-    void testBuild_WithAllSetters() throws IOException {
-        stubFluentSetters();
-        when(mockZipFileBuilder.setZstdInputStreamFactory(any())).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.get()).thenReturn(mockZipFile);
+    void missingPathFailsOnlyInBuild() {
+        var builder = ZipArchiveExtractor.builder(dir.resolve("missing.zip"));
 
-        // Given
-        var builder = ZipArchiveExtractor.builder(mockChannel)
-                .setIgnoreLocalFileHeader(true)
-                .setMaxNumberOfDisks(10)
-                .setUseUnicodeExtraFields(false)
-                .setZstdInputStreamFactory(mockFactory);
-
-        // When
-        var extractor = builder.build();
-
-        // Then
-        assertThat(extractor).isNotNull();
-
-        zipFileMockedStatic.verify(ZipFile::builder);
-
-        verify(mockZipFileBuilder).setIgnoreLocalFileHeader(true);
-        verify(mockZipFileBuilder).setMaxNumberOfDisks(10);
-        verify(mockZipFileBuilder).setSeekableByteChannel(any(BuildGatedChannel.class));
-        verify(mockZipFileBuilder).setUseUnicodeExtraFields(false);
-        verify(mockZipFileBuilder).setZstdInputStreamFactory(mockFactory);
-        verify(mockZipFileBuilder, never()).setPath(any(Path.class));
-
-        verify(mockZipFileBuilder).get();
+        assertThatThrownBy(builder::build).isInstanceOf(NoSuchFileException.class);
     }
 
     @Test
-    @DisplayName("buildArchiveInputStream() should configure with default values")
-    void testBuildArchiveInputStream_Defaults() throws IOException {
-        // Given
-        stubFluentSetters();
-        when(mockZipFileBuilder.setZstdInputStreamFactory(isNull())).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.get()).thenReturn(mockZipFile);
+    void corruptPathFailsInBuildAndReleasesTheFile() throws IOException {
+        Path zip = Files.write(dir.resolve("corrupt.zip"), NOT_A_ZIP);
+        var builder = ZipArchiveExtractor.builder(zip);
 
-        var builder = ZipArchiveExtractor.builder(archivePath);
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
 
-        // When
-        var inputStream = builder.buildArchiveInputStream();
-
-        // Then
-        assertThat(inputStream).isNotNull();
-
-        zipFileMockedStatic.verify(ZipFile::builder);
-        verify(mockZipFileBuilder).setIgnoreLocalFileHeader(false);
-        verify(mockZipFileBuilder).setMaxNumberOfDisks(1);
-        verify(mockZipFileBuilder).setUseUnicodeExtraFields(true);
-        verify(mockZipFileBuilder).setPath(archivePath);
-        verify(mockZipFileBuilder, never()).setSeekableByteChannel(any(SeekableByteChannel.class));
-        verify(mockZipFileBuilder).setZstdInputStreamFactory(null);
-        verify(mockZipFileBuilder).get();
+        assertDoesNotThrow(() -> Files.delete(zip));
     }
 
     @Test
-    @DisplayName("getThis() should return the builder instance")
-    void testGetThis() throws IOException {
-        // Given
-        var builder = ZipArchiveExtractor.builder(archivePath);
+    void corruptChannelFailsInBuildAndStaysOpen() {
+        SeekableByteChannel channel = new SeekableInMemoryByteChannel(NOT_A_ZIP);
+        var builder = ZipArchiveExtractor.builder(channel);
 
-        // When
-        var self = builder.getThis();
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
 
-        // Then
-        assertThat(self).isSameAs(builder);
+        assertThat(channel.isOpen()).isTrue();
     }
 
     @Test
-    @DisplayName("build() should propagate IOException from ZipFile.builder().get()")
-    void testBuild_PropagatesIOException() throws IOException {
-        stubFluentSetters();
-        when(mockZipFileBuilder.setZstdInputStreamFactory(isNull())).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.get()).thenThrow(new IOException("Test build error"));
+    void builtExtractorClosesItsChannel() throws IOException {
+        SeekableByteChannel channel = new SeekableInMemoryByteChannel(Files.readAllBytes(zipWithOneFile()));
 
-        // Given
-        var builder = ZipArchiveExtractor.builder(archivePath);
+        ZipArchiveExtractor.builder(channel).build().close();
 
-        // When & Then
-        assertThatThrownBy(builder::build).isInstanceOf(IOException.class).hasMessage("Test build error");
+        assertThat(channel.isOpen()).isFalse();
     }
 
     @Test
-    @DisplayName("buildArchiveInputStream() should propagate IOException from ZipFile.builder().get()")
-    void testBuildArchiveInputStream_PropagatesIOException() throws IOException {
-        stubFluentSetters();
-        when(mockZipFileBuilder.setZstdInputStreamFactory(isNull())).thenReturn(mockZipFileBuilder);
-        when(mockZipFileBuilder.get()).thenThrow(new IOException("Test build error"));
+    void useUnicodeExtraFieldsDecidesWhichNameIsRead() throws IOException {
+        Path zip = dir.resolve("unicode.zip");
+        try (var creator = ZipArchiveCreator.builder(zip)
+                .encoding(StandardCharsets.US_ASCII)
+                .createUnicodeExtraFields(ZipUnicodeExtraFields.ALWAYS)
+                .build()) {
+            creator.add(EntrySource.file("caf\u00e9.txt", NOT_A_ZIP));
+        }
 
-        // Given
-        var builder = ZipArchiveExtractor.builder(archivePath);
+        assertThat(namesRead(zip, true)).containsExactly("caf\u00e9.txt");
+        assertThat(namesRead(zip, false)).doesNotContain("caf\u00e9.txt");
+    }
 
-        // When & Then
-        assertThatThrownBy(builder::buildArchiveInputStream)
-                .isInstanceOf(IOException.class)
-                .hasMessage("Test build error");
+    private static List<String> namesRead(Path zip, boolean useUnicodeExtraFields) throws IOException {
+        try (var extractor = ZipArchiveExtractor.builder(zip)
+                .useUnicodeExtraFields(useUnicodeExtraFields)
+                .build()) {
+            return extractor.stream().map(item -> item.entry().name()).toList();
+        }
+    }
+
+    @Test
+    void maxNumberOfDisksIsAccepted() throws IOException {
+        try (var extractor = ZipArchiveExtractor.builder(zipWithOneFile())
+                .ignoreLocalFileHeader(true)
+                .maxNumberOfDisks(1)
+                .build()) {
+            assertThat(extractor.stream().map(item -> item.entry().name())).containsExactly("a.txt");
+        }
+    }
+
+    @Test
+    void zstdFactoryReadsZstdEntries() throws IOException {
+        byte[] content = "zstd content".repeat(20).getBytes(StandardCharsets.UTF_8);
+        var calls = new AtomicInteger();
+        var bytes = zstdZip(content);
+
+        try (var extractor = ZipArchiveExtractor.builder(new SeekableInMemoryByteChannel(bytes))
+                .zstdInputStreamFactory(in -> {
+                    calls.incrementAndGet();
+                    return new ZstdCompressorInputStream(in);
+                })
+                .build()) {
+            var item = extractor.stream().findFirst().orElseThrow();
+            assertThat(item.content().readAllBytes()).isEqualTo(content);
+        }
+
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void nullZstdFactoryIsRejected() {
+        var builder = ZipArchiveExtractor.builder(dir.resolve("a.zip"));
+
+        assertThatThrownBy(() -> builder.zstdInputStreamFactory(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    private static byte[] zstdZip(byte[] content) throws IOException {
+        var compressed = new ByteArrayOutputStream();
+        try (var zstd = new ZstdCompressorOutputStream(compressed)) {
+            zstd.write(content);
+        }
+        var crc = new CRC32();
+        crc.update(content);
+        var entry = new ZipArchiveEntry("z.txt");
+        entry.setMethod(ZipMethod.ZSTD.getCode());
+        entry.setCrc(crc.getValue());
+        entry.setSize(content.length);
+        entry.setCompressedSize(compressed.size());
+        var archive = new SeekableInMemoryByteChannel();
+        try (var out = new ZipArchiveOutputStream(archive)) {
+            out.addRawArchiveEntry(entry, new ByteArrayInputStream(compressed.toByteArray()));
+        }
+        return Arrays.copyOf(archive.array(), (int) archive.size());
+    }
+
+    @Test
+    void streamingBuilderLeavesTheCallerStreamOpenUntilTheExtractorCloses() throws IOException {
+        var closed = new boolean[1];
+        var in = new ByteArrayInputStream(Files.readAllBytes(zipWithOneFile())) {
+            @Override
+            public void close() {
+                closed[0] = true;
+            }
+        };
+
+        try (var extractor = ZipArchiveExtractor.streaming(in).build()) {
+            assertThat(extractor.stream().map(ArchiveItem::entry)).hasSize(1);
+            assertThat(closed[0]).isFalse();
+        }
+
+        assertThat(closed[0]).isTrue();
     }
 }

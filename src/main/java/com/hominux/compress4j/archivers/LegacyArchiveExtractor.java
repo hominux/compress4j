@@ -600,7 +600,7 @@ public abstract class LegacyArchiveExtractor<A extends ArchiveInputStream<? exte
 
         /**
          * Sets the maximum expansion ratio (uncompressed bytes per compressed byte read). Defaults to 100. Not yet
-         * enforced for this format.
+         * enforced by this reader.
          *
          * @param maxRatio the maximum, at least 1, or {@link ExtractionLimits#UNLIMITED}
          * @return this builder

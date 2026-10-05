@@ -17,16 +17,20 @@ package com.hominux.compress4j.internal.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -155,5 +159,49 @@ class SourceAndSinkTest {
     void streamSinkIsNotOwned() throws IOException {
         assertThat(new Sink.OfStream(new ByteArrayOutputStream()).open().owned())
                 .isFalse();
+    }
+
+    @Test
+    void pathSourceOpensAnOwnedCountingChannel() throws IOException {
+        Path file = Files.write(dir.resolve("seek"), new byte[] {1, 2, 3});
+        Source.OpenedChannel opened = new Source.OfPath(file).openChannel();
+        try (SeekableByteChannel channel = opened.channel()) {
+            channel.read(ByteBuffer.allocate(8));
+            assertThat(opened.gate()).isEmpty();
+            assertThat(opened.channel().count()).isEqualTo(3);
+        }
+    }
+
+    @Test
+    void closeIfOwnedClosesAnOwnedChannel() throws IOException {
+        Source.OpenedChannel opened = new Source.OfPath(Files.write(dir.resolve("seek"), new byte[1])).openChannel();
+        opened.closeIfOwned(new IOException("boom"));
+        assertThat(opened.channel().isOpen()).isFalse();
+    }
+
+    @Test
+    void callerChannelStaysOpenUntilBuilt() throws IOException {
+        Path file = Files.write(dir.resolve("seek"), new byte[1]);
+        try (SeekableByteChannel channel = Files.newByteChannel(file)) {
+            Source.OpenedChannel opened = new Source.OfChannel(channel).openChannel();
+            opened.closeIfOwned(new IOException("boom"));
+            opened.channel().close();
+            assertThat(channel.isOpen()).isTrue();
+            opened.built();
+            opened.channel().close();
+            assertThat(channel.isOpen()).isFalse();
+        }
+    }
+
+    @Test
+    void closeFailureOfAnOwnedChannelIsSuppressed() throws IOException {
+        IOException closeFailure = new IOException("close");
+        SeekableByteChannel failing = mock(SeekableByteChannel.class);
+        doThrow(closeFailure).when(failing).close();
+        var opened = new Source.OpenedChannel(new CountingSeekableByteChannel(failing), Optional.empty());
+
+        IOException failure = opened.closeIfOwned(new IOException("boom"));
+
+        assertThat(failure).hasMessage("boom").hasSuppressedException(closeFailure);
     }
 }

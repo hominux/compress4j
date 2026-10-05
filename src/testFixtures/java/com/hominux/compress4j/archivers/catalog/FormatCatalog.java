@@ -24,6 +24,8 @@ import static com.hominux.compress4j.archivers.catalog.Capability.STREAM_INPUT;
 import static com.hominux.compress4j.archivers.catalog.Capability.STREAM_OUTPUT;
 import static com.hominux.compress4j.archivers.catalog.Capability.SYMLINKS;
 
+import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.LegacyArchiveCreator;
 import com.hominux.compress4j.archivers.LegacyArchiveCreator.ArchiveCreatorBuilder;
 import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
@@ -104,13 +106,14 @@ public final class FormatCatalog {
                         Optional.of(ZipArchiveCreator.class),
                         "builder",
                         Optional.empty(),
-                        Optional.of(lb(ZipArchiveCreator::builder)),
-                        Optional.of(lw((SeekableByteChannel ch) ->
+                        Optional.of((path, filter) -> ArchiveFormat.writer(
+                                ZipArchiveCreator.builder(path).filter(filter).build())),
+                        Optional.of(nw((SeekableByteChannel ch) ->
                                 ZipArchiveCreator.builder(ch).build())),
-                        Optional.of(lw(
+                        Optional.of(nw(
                                 (OutputStream o) -> ZipArchiveCreator.builder(o).build())),
-                        lr((Path p) -> ZipArchiveExtractor.builder(p).build()),
-                        Optional.of(lr((SeekableByteChannel ch) ->
+                        nr((Path p) -> ZipArchiveExtractor.builder(p).build()),
+                        Optional.of(nr((SeekableByteChannel ch) ->
                                 ZipArchiveExtractor.builder(ch).build())),
                         Optional.empty()),
                 new ArchiveFormat(
@@ -123,10 +126,10 @@ public final class FormatCatalog {
                         Optional.empty(),
                         Optional.empty(),
                         Optional.empty(),
-                        lr((Path p) -> ZipArchiveExtractor.streaming(Files.newInputStream(p))
+                        nr((Path p) -> ZipArchiveExtractor.streaming(Files.newInputStream(p))
                                 .build()),
                         Optional.empty(),
-                        Optional.of(lr((InputStream i) ->
+                        Optional.of(nr((InputStream i) ->
                                 ZipArchiveExtractor.streaming(i).build()))),
                 new ArchiveFormat(
                         "7z",
@@ -135,12 +138,14 @@ public final class FormatCatalog {
                         Optional.of(SevenZArchiveCreator.class),
                         "builder",
                         Optional.empty(),
-                        Optional.of(lb(SevenZArchiveCreator::builder)),
-                        Optional.of(lw((SeekableByteChannel ch) ->
+                        Optional.of((path, filter) -> ArchiveFormat.writer(SevenZArchiveCreator.builder(path)
+                                .filter(filter)
+                                .build())),
+                        Optional.of(nw((SeekableByteChannel ch) ->
                                 SevenZArchiveCreator.builder(ch).build())),
                         Optional.empty(),
-                        lr((Path p) -> SevenZArchiveExtractor.builder(p).build()),
-                        Optional.of(lr((SeekableByteChannel ch) ->
+                        nr((Path p) -> SevenZArchiveExtractor.builder(p).build()),
+                        Optional.of(nr((SeekableByteChannel ch) ->
                                 SevenZArchiveExtractor.builder(ch).build())),
                         Optional.empty()));
     }
@@ -236,6 +241,14 @@ public final class FormatCatalog {
     }
 
     private static <T> IOFunction<T, ArchiveFormat.Reader> lr(IOFunction<T, ? extends LegacyArchiveExtractor<?>> f) {
+        return t -> ArchiveFormat.reader(f.apply(t));
+    }
+
+    private static <T> IOFunction<T, ArchiveFormat.Writer> nw(IOFunction<T, ? extends ArchiveCreator> f) {
+        return t -> ArchiveFormat.writer(f.apply(t));
+    }
+
+    private static <T> IOFunction<T, ArchiveFormat.Reader> nr(IOFunction<T, ? extends ArchiveExtractor> f) {
         return t -> ArchiveFormat.reader(f.apply(t));
     }
 }

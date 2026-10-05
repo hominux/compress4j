@@ -20,14 +20,17 @@ import static com.hominux.compress4j.archivers.Entry.Type.FILE;
 import static com.hominux.compress4j.archivers.Entry.Type.SYMLINK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.ArchiveItem;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.exceptions.LimitExceededException;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
-import java.util.Optional;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
@@ -124,7 +126,7 @@ class SevenZArchiveTest {
             SevenZArchiveEntry entry = file.getNextEntry();
             assertThat(entry.isDirectory()).isTrue();
             assertThat(entry.getWindowsAttributes() >>> 16).isEqualTo(0750);
-            assertThat(entry.getWindowsAttributes() & SevenZArchiveExtractor.UNIX_EXTENSION)
+            assertThat(entry.getWindowsAttributes() & SevenZEntryReader.UNIX_EXTENSION)
                     .isNotZero();
         }
     }
@@ -221,8 +223,8 @@ class SevenZArchiveTest {
     }
 
     private static void extract(Path archive, char[] password, Path out) throws IOException {
-        try (var extractor =
-                SevenZArchiveExtractor.builder(archive).password(password).build()) {
+        var builder = SevenZArchiveExtractor.builder(archive);
+        try (var extractor = (password == null ? builder : builder.password(password)).build()) {
             extractor.extract(out);
         }
     }
@@ -250,12 +252,12 @@ class SevenZArchiveTest {
     void entryMapping() throws IOException {
         Path archive = tmp.resolve("mapped.7z");
         try (SevenZOutputFile out = new SevenZOutputFile(archive.toFile())) {
-            put(out, "dir", true, SevenZArchiveExtractor.UNIX_EXTENSION | (0755 << 16), "");
+            put(out, "dir", true, SevenZEntryReader.UNIX_EXTENSION | (0755 << 16), "");
             put(
                     out,
                     "link",
                     false,
-                    SevenZArchiveExtractor.UNIX_EXTENSION | ((0777 | SevenZArchiveExtractor.S_IFLNK) << 16),
+                    SevenZEntryReader.UNIX_EXTENSION | ((0777 | SevenZEntryReader.S_IFLNK) << 16),
                     "target");
             put(out, "plain", false, -1, "p");
         }
@@ -290,8 +292,8 @@ class SevenZArchiveTest {
     void creatorSymlinkEntry() throws IOException {
         Path archive = tmp.resolve("links.7z");
         try (var creator = SevenZArchiveCreator.builder(archive).build()) {
-            creator.writeSymlink("a", "t1", 0, FileTime.fromMillis(0));
-            creator.writeSymlink("b", "t2", 0644, FileTime.fromMillis(0));
+            creator.add(new EntrySource.Symlink("a", "t1", 0, FileTime.fromMillis(0)));
+            creator.add(new EntrySource.Symlink("b", "t2", 0644, FileTime.fromMillis(0)));
         }
 
         try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
@@ -316,14 +318,20 @@ class SevenZArchiveTest {
         assertThat(out.resolve("c.txt")).hasContent("chan");
     }
 
+    private SevenZEntryReader readerOf(Path archive) throws IOException {
+        return new SevenZEntryReader(
+                SevenZFile.builder().setPath(archive).get(),
+                new ReaderContext(ExtractionLimits.defaults(), e -> {}),
+                () -> Long.MAX_VALUE);
+    }
+
     @Test
-    @DisplayName("Input stream reads single bytes, honours zero length and reports end of entry")
-    void inputStreamReads() throws IOException {
+    @DisplayName("Entry stream reads single bytes, honours zero length and reports end of entry")
+    void entryStreamReads() throws IOException {
         Path archive = craft("one.txt", "xy", null);
 
-        try (var in = new SevenZFileArchiveInputStream(
-                SevenZFile.builder().setPath(archive).get())) {
-            in.getNextEntry();
+        try (var reader = readerOf(archive)) {
+            var in = reader.open(reader.next().orElseThrow());
 
             assertThat(in.read(new byte[1], 0, 0)).isZero();
             assertThat(in.read()).isEqualTo('x');
@@ -334,32 +342,12 @@ class SevenZArchiveTest {
     }
 
     @Test
-    @DisplayName("Output stream writes single bytes and creates entries from files")
-    void outputStreamWrites() throws IOException {
-        Path archive = tmp.resolve("raw.7z");
-        Path source = Files.writeString(tmp.resolve("src.txt"), "z");
-
-        try (var out = new SevenZFileArchiveOutputStream(new SevenZOutputFile(archive.toFile()))) {
-            SevenZArchiveEntry entry = out.createArchiveEntry(source.toFile(), "named.txt");
-            out.putArchiveEntry(entry);
-            out.write('z');
-            out.closeArchiveEntry();
-            out.finish();
-        }
-
-        Path extracted = tmp.resolve("raw");
-        extract(archive, null, extracted);
-        assertThat(extracted.resolve("named.txt")).hasContent("z");
-    }
-
-    @Test
     @DisplayName("Skip consumes entry content and reports what it skipped")
-    void inputStreamSkips() throws IOException {
+    void entryStreamSkips() throws IOException {
         Path archive = craft("skip.txt", "abcd", null);
 
-        try (var in = new SevenZFileArchiveInputStream(
-                SevenZFile.builder().setPath(archive).get())) {
-            in.getNextEntry();
+        try (var reader = readerOf(archive)) {
+            var in = reader.open(reader.next().orElseThrow());
 
             assertThat(in.skip(0)).isZero();
             assertThat(in.skip(-1)).isZero();
@@ -375,31 +363,23 @@ class SevenZArchiveTest {
     void oversizedSymlinkTarget() throws IOException {
         Path archive = tmp.resolve("big-link.7z");
         try (SevenZOutputFile out = new SevenZOutputFile(archive.toFile())) {
-            int attributes = SevenZArchiveExtractor.UNIX_EXTENSION | ((0777 | SevenZArchiveExtractor.S_IFLNK) << 16);
+            int attributes = SevenZEntryReader.UNIX_EXTENSION | ((0777 | SevenZEntryReader.S_IFLNK) << 16);
             put(out, "link", false, attributes, "x".repeat(5000));
         }
 
-        try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
-            assertThatThrownBy(extractor::nextEntry)
-                    .isInstanceOf(IOException.class)
-                    .hasMessageContaining("exceeds");
+        try (var reader = readerOf(archive)) {
+            assertThatThrownBy(reader::next).isInstanceOf(IOException.class).hasMessageContaining("exceeds");
         }
     }
 
     @Test
     @DisplayName("Reports an entry without a name instead of failing obscurely")
     void unnamedEntryIsRejected() throws IOException {
-        var stream = mock(SevenZFileArchiveInputStream.class);
-        when(stream.getNextEntry()).thenReturn(new SevenZArchiveEntry());
+        var file = mock(SevenZFile.class);
+        when(file.getNextEntry()).thenReturn(new SevenZArchiveEntry());
+        var reader = new SevenZEntryReader(file, new ReaderContext(ExtractionLimits.defaults(), e -> {}), () -> 1);
 
-        var extractor = new SevenZArchiveExtractor.SevenZArchiveExtractorBuilder(Optional.empty(), Optional.empty()) {
-            @Override
-            public SevenZFileArchiveInputStream buildArchiveInputStream() {
-                return stream;
-            }
-        }.build();
-
-        assertThatThrownBy(extractor::nextEntry)
+        assertThatThrownBy(reader::next)
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("7z entry has no name");
     }
@@ -451,5 +431,104 @@ class SevenZArchiveTest {
                         .filter(m -> m.getName().equals("builder"))
                         .flatMap(m -> Arrays.stream(m.getParameterTypes())))
                 .doesNotContain(OutputStream.class);
+    }
+
+    @Test
+    void unbuiltPathBuilderCreatesNoFile() {
+        Path archive = tmp.resolve("never.7z");
+
+        SevenZArchiveCreator.builder(archive).contentCompression(SevenZMethod.COPY);
+
+        assertThat(archive).doesNotExist();
+    }
+
+    @Test
+    void corruptChannelFailsInBuildAndStaysOpen() {
+        SeekableByteChannel channel =
+                new SeekableInMemoryByteChannel("not a 7z archive".repeat(8).getBytes());
+        var builder = SevenZArchiveExtractor.builder(channel);
+
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
+
+        assertThat(channel.isOpen()).isTrue();
+    }
+
+    @Test
+    void corruptPathFailsInBuildAndReleasesTheFile() throws IOException {
+        Path archive = Files.writeString(tmp.resolve("corrupt.7z"), "not a 7z archive".repeat(8));
+        var builder = SevenZArchiveExtractor.builder(archive);
+
+        assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
+
+        assertDoesNotThrow(() -> Files.delete(archive));
+    }
+
+    @Test
+    void nullOptionsAreRejected() {
+        var creator = SevenZArchiveCreator.builder(new SeekableInMemoryByteChannel());
+        var extractor = SevenZArchiveExtractor.builder(new SeekableInMemoryByteChannel());
+
+        assertThatThrownBy(() -> creator.contentCompression(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> extractor.password(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void contentCompressionSelectsTheMethod() throws IOException {
+        for (SevenZMethod method : SevenZMethod.values()) {
+            Path archive = tmp.resolve(method + ".7z");
+            try (var creator = SevenZArchiveCreator.builder(archive)
+                    .contentCompression(method)
+                    .build()) {
+                creator.add(EntrySource.file("a.txt", "alpha".repeat(100).getBytes(StandardCharsets.UTF_8)));
+            }
+
+            try (SevenZFile file = SevenZFile.builder().setPath(archive).get()) {
+                var configured =
+                        file.getNextEntry().getContentMethods().iterator().next();
+                assertThat(configured.getMethod().name()).isEqualTo(method.name());
+            }
+        }
+    }
+
+    @Test
+    void builtExtractorClosesACallerChannel() throws IOException {
+        SeekableByteChannel channel = new SeekableInMemoryByteChannel(Files.readAllBytes(craft("c.txt", "chan", null)));
+
+        SevenZArchiveExtractor.builder(channel).build().close();
+
+        assertThat(channel.isOpen()).isFalse();
+    }
+
+    @Test
+    void skippedUnsupportedEntryInASolidBlockCountsAgainstTheRatio() throws IOException {
+        Path archive = tmp.resolve("solid.7z");
+        try (SevenZOutputFile out = new SevenZOutputFile(archive.toFile())) {
+            put(out, "fifo", false, SevenZEntryReader.UNIX_EXTENSION | (0010644 << 16), "\0".repeat(16 << 20));
+            put(out, "plain", false, -1, "p");
+        }
+
+        try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
+            var items = extractor.stream();
+            assertThatThrownBy(items::toList)
+                    .hasCauseInstanceOf(LimitExceededException.class)
+                    .cause()
+                    .satisfies(e -> assertThat(((LimitExceededException) e).limit())
+                            .isEqualTo(LimitExceededException.Limit.RATIO));
+        }
+    }
+
+    @Test
+    void sevenZRatioStopsExtractToPath() throws IOException {
+        Path archive = tmp.resolve("bomb.7z");
+        try (var creator = SevenZArchiveCreator.builder(archive).build()) {
+            creator.add(EntrySource.file("zeros", new byte[16 << 20]));
+        }
+        Path out = Files.createDirectory(tmp.resolve("bomb-out"));
+
+        try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
+            assertThatThrownBy(() -> extractor.extract(out))
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                            .isEqualTo(LimitExceededException.Limit.RATIO));
+        }
     }
 }

@@ -46,8 +46,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Base of the archive extractors that read through an {@code EntryReader}. Tar is the only such format so far; the
- * others extend {@link LegacyArchiveExtractor}.
+ * Base of the archive extractors that read through an {@code EntryReader}; formats not yet migrated extend
+ * {@link LegacyArchiveExtractor}.
  *
  * <p>An extractor is not thread-safe.
  *

@@ -21,6 +21,9 @@ import static java.util.zip.ZipEntry.STORED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.archivers.AbstractArchiverIntegrationTest;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Reader;
+import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Writer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,13 +35,13 @@ import org.junit.jupiter.api.condition.OS;
 class ZipArchiveCreatorIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Override
-    protected ZipArchiveCreator archiveCreatorBuilder(Path archivePath) throws IOException {
-        return ZipArchiveCreator.builder(archivePath).build();
+    protected Writer writerAt(Path archivePath) throws IOException {
+        return ArchiveFormat.writer(ZipArchiveCreator.builder(archivePath).build());
     }
 
     @Override
-    protected ZipArchiveExtractor archiveExtractorBuilder(Path archivePath) throws IOException {
-        return ZipArchiveExtractor.builder(archivePath).build();
+    protected Reader readerAt(Path archivePath) throws IOException {
+        return ArchiveFormat.reader(ZipArchiveExtractor.builder(archivePath).build());
     }
 
     @Override
@@ -56,13 +59,13 @@ class ZipArchiveCreatorIntegrationTest extends AbstractArchiverIntegrationTest {
         Files.createDirectories(extractDir);
 
         try (var creator = ZipArchiveCreator.builder(archiveStoredPath)
-                .compressionMethod(STORED)
+                .compressionMethod(ZipCompressionMethod.STORED)
                 .build()) {
             creator.addFile(sourceFile);
         }
 
         try (var creator = ZipArchiveCreator.builder(archiveDeflatedPath)
-                .compressionMethod(DEFLATED)
+                .compressionMethod(ZipCompressionMethod.DEFLATED)
                 .compressionLevel(9)
                 .build()) {
             creator.addFile(sourceFile);
@@ -72,13 +75,13 @@ class ZipArchiveCreatorIntegrationTest extends AbstractArchiverIntegrationTest {
         long deflatedSize = Files.size(archiveDeflatedPath);
         assertThat(storedSize).isGreaterThan(deflatedSize);
 
-        try (var extractor = archiveExtractorBuilder(archiveDeflatedPath)) {
+        try (var extractor = readerAt(archiveDeflatedPath)) {
             extractor.extract(extractDir);
         }
         assertThat(extractDir.resolve("file.txt")).exists().hasSameTextualContentAs(sourceFile);
 
         Files.delete(extractDir.resolve("file.txt"));
-        try (var extractor = archiveExtractorBuilder(archiveStoredPath)) {
+        try (var extractor = readerAt(archiveStoredPath)) {
             extractor.extract(extractDir);
         }
         assertThat(extractDir.resolve("file.txt")).exists().hasSameTextualContentAs(sourceFile);
@@ -103,12 +106,12 @@ class ZipArchiveCreatorIntegrationTest extends AbstractArchiverIntegrationTest {
         var extractDir = tempDir.resolve("extracted");
         Files.createDirectories(extractDir);
 
-        try (var creator = archiveCreatorBuilder(archivePath)) {
+        try (var creator = writerAt(archivePath)) {
             creator.addFile(sourceFile);
             creator.addFile(symlink);
         }
 
-        try (var extractor = archiveExtractorBuilder(archivePath)) {
+        try (var extractor = readerAt(archivePath)) {
             extractor.extract(extractDir);
         }
 
