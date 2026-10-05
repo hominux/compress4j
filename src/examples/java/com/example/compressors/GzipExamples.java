@@ -15,11 +15,10 @@
  */
 package com.example.compressors;
 
-import static java.util.zip.Deflater.BEST_COMPRESSION;
-import static java.util.zip.Deflater.HUFFMAN_ONLY;
-
-import com.hominux.compress4j.compressors.gzip.GzipCompressor;
-import com.hominux.compress4j.compressors.gzip.GzipDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.DeflateStrategy;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -31,25 +30,24 @@ public class GzipExamples {
 
     public static void compressor() throws IOException {
         // tag::gzip-compressor[]
-        try (GzipCompressor gzipCompressor = GzipCompressor.builder(Path.of("example.gz"))
-                .compressorOutputStreamBuilder()
+        Compression gzip = Compression.gzip()
                 .bufferSize(1024)
-                .compressionLevel(BEST_COMPRESSION)
+                .level(9)
                 .comment("comment")
-                .deflateStrategy(HUFFMAN_ONLY)
-                .operatingSystem(0)
-                .parentBuilder()
-                .build()) {
-            gzipCompressor.write(Path.of("path/to/file.txt"));
+                .deflateStrategy(DeflateStrategy.HUFFMAN_ONLY)
+                .operatingSystem(0);
+        try (Compressor compressor =
+                Compressor.builder(Path.of("example.gz"), gzip).build()) {
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::gzip-compressor[]
     }
 
     public static void decompressor() throws IOException {
         // tag::gzip-decompressor[]
-        try (GzipDecompressor gzipDecompressor =
-                GzipDecompressor.builder(Path.of("example.gz")).build()) {
-            gzipDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.gz")).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::gzip-decompressor[]
     }

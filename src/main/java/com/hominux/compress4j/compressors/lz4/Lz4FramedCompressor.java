@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.lz4;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -27,7 +27,7 @@ import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStre
  *
  * @since 3.2
  */
-public class Lz4FramedCompressor extends Compressor<FramedLZ4CompressorOutputStream> {
+public class Lz4FramedCompressor extends CodecCompressor<FramedLZ4CompressorOutputStream> {
 
     /**
      * Constructor that takes a FramedLZ4CompressorOutputStream.

@@ -17,6 +17,7 @@ package com.hominux.compress4j.internal.codec;
 
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.compressors.DeflateStrategy;
+import com.hominux.compress4j.internal.io.PlainInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -85,7 +86,8 @@ public final class Codecs {
             case Compression.SnappyFramed framed -> new FramedSnappyCompressorInputStream(in);
             case Compression.Brotli brotli -> OptionalCodecs.brotliInput(in);
             case Compression.UnixZ z -> new ZCompressorInputStream(in);
-            case Compression.Pack200 p -> new Pack200CompressorInputStream(in, strategy(p), p.properties());
+            case Compression.Pack200 p ->
+                new Pack200CompressorInputStream(new PlainInputStream(in), strategy(p), p.properties());
         };
     }
 
@@ -111,18 +113,53 @@ public final class Codecs {
             case Compression.Zstd z -> OptionalCodecs.zstdOutput(out, z.level());
             case Compression.Deflate d -> new DeflateCompressorOutputStream(out, deflateParameters(d));
             case Compression.SnappyRaw raw ->
-                new SnappyCompressorOutputStream(
-                        out,
-                        raw.uncompressedSize()
-                                .orElseThrow(
-                                        () -> new IllegalArgumentException("Raw Snappy needs the uncompressed size;"
-                                                + " set Compression.snappyRaw().uncompressedSize(...)")));
+                new SnappyCompressorOutputStream(out, raw.uncompressedSize().orElseThrow(Codecs::snappyRawNeedsSize));
             case Compression.SnappyFramed framed -> new FramedSnappyCompressorOutputStream(out);
             case Compression.Pack200 p -> OptionalCodecs.pack200Output(out, strategy(p), p.properties());
             case Compression.Deflate64 d64 -> throw readOnly(compression);
             case Compression.Brotli brotli -> throw readOnly(compression);
             case Compression.UnixZ z -> throw readOnly(compression);
         };
+    }
+
+    /**
+     * Detects the codec for reading untrusted input: concatenated members are decompressed, and Pack200, which decodes
+     * eagerly, is never selected.
+     *
+     * @param in a stream that supports mark
+     * @return the codec to read with, or none when no strong signature matches
+     * @throws IOException if reading or resetting the stream fails
+     * @throws IllegalArgumentException if the stream does not support mark
+     */
+    public static Compression detectForReading(InputStream in) throws IOException {
+        return switch (detect(in)) {
+            case Compression.Pack200 pack200 -> Compression.none();
+            case Compression.Gzip gzip -> gzip.decompressConcatenated(true);
+            case Compression.Bzip2 bzip2 -> bzip2.decompressConcatenated(true);
+            case Compression.Xz xz -> xz.decompressConcatenated(true);
+            case Compression.Lz4Framed lz4 -> lz4.decompressConcatenated(true);
+            case Compression other -> other;
+        };
+    }
+
+    /**
+     * Checks that the codec can write, without touching any stream.
+     *
+     * @param compression the codec to write
+     * @throws IllegalArgumentException if the codec is read-only or lacks a required option
+     */
+    public static void requireWritable(Compression compression) {
+        if (!compression.canWrite()) {
+            throw readOnly(compression);
+        }
+        if (compression instanceof Compression.SnappyRaw raw) {
+            raw.uncompressedSize().orElseThrow(Codecs::snappyRawNeedsSize);
+        }
+    }
+
+    private static IllegalArgumentException snappyRawNeedsSize() {
+        return new IllegalArgumentException(
+                "Raw Snappy needs the uncompressed size; set Compression.snappyRaw().uncompressedSize(...)");
     }
 
     /**

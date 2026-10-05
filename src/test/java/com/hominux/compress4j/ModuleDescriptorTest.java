@@ -115,7 +115,8 @@ class ModuleDescriptorTest {
 
         assertThat(descriptor.packages()).containsAll(exported);
         assertThat(descriptor.packages().stream().filter(p -> !exported.contains(p)))
-                .containsExactlyInAnyOrder(BASE + "utils", BASE + "internal.codec");
+                .containsExactlyInAnyOrder(
+                        BASE + "utils", BASE + "internal.codec", BASE + "internal.io", BASE + "internal.limits");
     }
 
     @Test

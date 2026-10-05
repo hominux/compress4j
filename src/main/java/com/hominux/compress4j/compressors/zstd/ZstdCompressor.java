@@ -16,7 +16,7 @@
 package com.hominux.compress4j.compressors.zstd;
 
 import com.github.luben.zstd.Zstd;
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import com.hominux.compress4j.utils.ArchiverDependencyChecker;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -30,7 +30,7 @@ import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStr
  *
  * @since 3.2
  */
-public class ZstdCompressor extends Compressor<ZstdCompressorOutputStream> {
+public class ZstdCompressor extends CodecCompressor<ZstdCompressorOutputStream> {
 
     /**
      * Constructor that takes a ZstdCompressorOutputStream.

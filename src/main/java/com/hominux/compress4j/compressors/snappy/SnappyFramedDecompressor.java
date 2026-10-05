@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.snappy;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +29,7 @@ import org.apache.commons.compress.compressors.snappy.FramedSnappyCompressorInpu
  *
  * @since 3.2
  */
-public class SnappyFramedDecompressor extends Decompressor<FramedSnappyCompressorInputStream> {
+public class SnappyFramedDecompressor extends CodecDecompressor<FramedSnappyCompressorInputStream> {
 
     /**
      * Constructor that takes a FramedSnappyCompressorInputStream.
@@ -113,7 +113,7 @@ public class SnappyFramedDecompressor extends Decompressor<FramedSnappyCompresso
 
     /** Builder for creating instances of {@link SnappyFramedDecompressor}. */
     public static class SnappyFramedDecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     FramedSnappyCompressorInputStream, SnappyFramedDecompressor, SnappyFramedDecompressorBuilder> {
 
         private final SnappyFramedDecompressorInputStreamBuilder<SnappyFramedDecompressorBuilder> inputStreamBuilder;

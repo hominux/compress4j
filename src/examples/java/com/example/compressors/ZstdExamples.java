@@ -15,8 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.zstd.ZstdCompressor;
-import com.hominux.compress4j.compressors.zstd.ZstdDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -26,25 +27,23 @@ public class ZstdExamples {
         /* no-op */
     }
 
-    /** Example for Zstandard compression using builder pattern. */
+    /** Example for Zstandard compression. */
     public static void compressor() throws IOException {
         // tag::zstd-compressor[]
-        try (ZstdCompressor zstdCompressor = ZstdCompressor.builder(Path.of("example.zst"))
-                .compressorOutputStreamBuilder()
-                .level(6)
-                .parentBuilder()
+        try (Compressor compressor = Compressor.builder(
+                        Path.of("example.zst"), Compression.zstd().level(6))
                 .build()) {
-            zstdCompressor.write(Path.of("path/to/file.txt"));
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::zstd-compressor[]
     }
 
-    /** Example for Zstandard decompression using builder pattern. */
+    /** Example for Zstandard decompression. */
     public static void decompressor() throws IOException {
         // tag::zstd-decompressor[]
-        try (ZstdDecompressor zstdDecompressor =
-                ZstdDecompressor.builder(Path.of("example.zst")).build()) {
-            zstdDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.zst")).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::zstd-decompressor[]
     }

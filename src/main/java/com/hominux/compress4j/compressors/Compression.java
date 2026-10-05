@@ -25,9 +25,9 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 
 /**
- * A compression codec and its options, used by the tar archivers. Each option type is an immutable final class created
- * by a factory on this interface; its withers return a changed copy. Read-only codecs report {@link #canWrite()}
- * {@code false}.
+ * A compression codec and its options, used by Compressor, Decompressor and the tar archivers. Each option type is an
+ * immutable final class created by a factory on this interface; its withers return a changed copy. Read-only codecs
+ * report {@link #canWrite()} {@code false}.
  *
  * <p>New codecs may be added in minor releases; a switch over Compression needs a default branch.
  *
@@ -93,7 +93,7 @@ public sealed interface Compression
     }
 
     /**
-     * Returns xz with preset 6 and no memory limit.
+     * Returns xz with preset 6 and the default 256 MiB reading memory limit.
      *
      * @return the default xz options
      */
@@ -102,7 +102,8 @@ public sealed interface Compression
     }
 
     /**
-     * Returns LZMA with no memory limit; LZMA streams have no magic number, so readers never detect it.
+     * Returns LZMA with the default 256 MiB reading memory limit; LZMA streams have no magic number, so readers never
+     * detect it.
      *
      * @return the default LZMA options
      */
@@ -192,7 +193,8 @@ public sealed interface Compression
     }
 
     /**
-     * Returns Pack200 buffering in memory.
+     * Returns Pack200 buffering in memory. Decompressor never detects Pack200, and its decode is not bounded by
+     * extraction limits; select it explicitly only for trusted input.
      *
      * @return the default Pack200 options
      */
@@ -627,18 +629,20 @@ public sealed interface Compression
         }
 
         /**
-         * Returns the memory limit for reading in KiB, empty for no limit.
+         * Returns the memory limit for reading in KiB; empty means 256 MiB; {@link Integer#MAX_VALUE} KiB (about 2 TiB)
+         * lifts it.
          *
-         * @return the memory limit for reading in KiB, empty for no limit
+         * @return the memory limit for reading in KiB, or empty for the default
          */
         public OptionalInt memoryLimitKiB() {
             return memoryLimitKiB;
         }
 
         /**
-         * Returns a copy with the memory limit for reading in KiB, empty for no limit.
+         * Returns a copy with the memory limit for reading in KiB; empty means 256 MiB; {@link Integer#MAX_VALUE} KiB
+         * (about 2 TiB) lifts it.
          *
-         * @param value the memory limit for reading in KiB, empty for no limit
+         * @param value the memory limit for reading in KiB, or empty for the default
          * @return the changed copy
          * @throws IllegalArgumentException if a present value is not above 0
          * @throws NullPointerException if the value is null
@@ -711,18 +715,20 @@ public sealed interface Compression
         }
 
         /**
-         * Returns the memory limit for reading in KiB, empty for no limit.
+         * Returns the memory limit for reading in KiB; empty means 256 MiB; {@link Integer#MAX_VALUE} KiB (about 2 TiB)
+         * lifts it.
          *
-         * @return the memory limit for reading in KiB, empty for no limit
+         * @return the memory limit for reading in KiB, or empty for the default
          */
         public OptionalInt memoryLimitKiB() {
             return memoryLimitKiB;
         }
 
         /**
-         * Returns a copy with the memory limit for reading in KiB, empty for no limit.
+         * Returns a copy with the memory limit for reading in KiB; empty means 256 MiB; {@link Integer#MAX_VALUE} KiB
+         * (about 2 TiB) lifts it.
          *
-         * @param value the memory limit for reading in KiB, empty for no limit
+         * @param value the memory limit for reading in KiB, or empty for the default
          * @return the changed copy
          * @throws IllegalArgumentException if a present value is not above 0
          * @throws NullPointerException if the value is null
@@ -1097,8 +1103,8 @@ public sealed interface Compression
     /**
      * Pack200. Obtain the default with {@link Compression#pack200()}.
      *
-     * <p>Only a raw {@code 0xCAFED00D} stream is detected as Pack200. The packer loses the content of deflated streamed
-     * JAR entries: write entries STORED with size and CRC.
+     * <p>Pack200 is never selected by detection in Decompressor; select it explicitly. The packer loses the content of
+     * deflated streamed JAR entries: write entries STORED with size and CRC.
      */
     final class Pack200 implements Compression {
         /** Where Pack200 buffers data. */

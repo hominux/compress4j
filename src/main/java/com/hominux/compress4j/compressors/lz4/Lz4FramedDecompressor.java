@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.lz4;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +29,7 @@ import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStrea
  *
  * @since 3.2
  */
-public class Lz4FramedDecompressor extends Decompressor<FramedLZ4CompressorInputStream> {
+public class Lz4FramedDecompressor extends CodecDecompressor<FramedLZ4CompressorInputStream> {
 
     /**
      * Constructor that takes a FramedLZ4CompressorInputStream.
@@ -125,7 +125,7 @@ public class Lz4FramedDecompressor extends Decompressor<FramedLZ4CompressorInput
 
     /** Builder for creating instances of {@link Lz4FramedDecompressor}. */
     public static class Lz4FramedDecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     FramedLZ4CompressorInputStream, Lz4FramedDecompressor, Lz4FramedDecompressorBuilder> {
 
         private final Lz4FramedDecompressorInputStreamBuilder<Lz4FramedDecompressorBuilder> inputStreamBuilder;

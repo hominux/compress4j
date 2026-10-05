@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.bzip2;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,14 +26,14 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
 /**
  * Provides BZip2 decompression functionality that reads from a {@link BZip2CompressorInputStream}. This class extends
- * the {@link Decompressor} base class and supports decompressing BZip2-compressed data with optional support for
+ * the {@link CodecDecompressor} base class and supports decompressing BZip2-compressed data with optional support for
  * concatenated streams.
  *
  * <p>Use the builder pattern to configure and create instances with custom decompression options.
  *
  * @since 2.2
  */
-public class BZip2Decompressor extends Decompressor<BZip2CompressorInputStream> {
+public class BZip2Decompressor extends CodecDecompressor<BZip2CompressorInputStream> {
 
     /**
      * Constructor that takes a BZip2CompressorInputStream.
@@ -135,7 +135,7 @@ public class BZip2Decompressor extends Decompressor<BZip2CompressorInputStream> 
      * @since 2.2
      */
     public static class BZip2DecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     BZip2CompressorInputStream, BZip2Decompressor, BZip2DecompressorBuilder> {
 
         private final BZip2DecompressorInputStreamBuilder<BZip2DecompressorBuilder> inputStreamBuilder;

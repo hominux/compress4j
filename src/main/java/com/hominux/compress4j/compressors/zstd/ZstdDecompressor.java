@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.zstd;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import com.hominux.compress4j.utils.ArchiverDependencyChecker;
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +31,7 @@ import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStre
  *
  * @since 3.2
  */
-public class ZstdDecompressor extends Decompressor<ZstdCompressorInputStream> {
+public class ZstdDecompressor extends CodecDecompressor<ZstdCompressorInputStream> {
 
     /**
      * Constructor that takes a ZstdCompressorInputStream.
@@ -117,7 +117,7 @@ public class ZstdDecompressor extends Decompressor<ZstdCompressorInputStream> {
 
     /** Builder for creating instances of {@link ZstdDecompressor}. */
     public static class ZstdDecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     ZstdCompressorInputStream, ZstdDecompressor, ZstdDecompressorBuilder> {
 
         private final ZstdDecompressorInputStreamBuilder<ZstdDecompressorBuilder> inputStreamBuilder;

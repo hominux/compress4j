@@ -15,10 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.snappy.SnappyFramedCompressor;
-import com.hominux.compress4j.compressors.snappy.SnappyFramedDecompressor;
-import com.hominux.compress4j.compressors.snappy.SnappyRawCompressor;
-import com.hominux.compress4j.compressors.snappy.SnappyRawDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,9 +31,9 @@ public class SnappyExamples {
     /** Example for framed Snappy compression. */
     public static void framedCompressor() throws IOException {
         // tag::snappy-framed-compressor[]
-        try (SnappyFramedCompressor snappyCompressor =
-                SnappyFramedCompressor.builder(Path.of("example.sz")).build()) {
-            snappyCompressor.write(Path.of("path/to/file.txt"));
+        try (Compressor compressor = Compressor.builder(Path.of("example.sz"), Compression.snappyFramed())
+                .build()) {
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::snappy-framed-compressor[]
     }
@@ -42,9 +41,9 @@ public class SnappyExamples {
     /** Example for framed Snappy decompression. */
     public static void framedDecompressor() throws IOException {
         // tag::snappy-framed-decompressor[]
-        try (SnappyFramedDecompressor snappyDecompressor =
-                SnappyFramedDecompressor.builder(Path.of("example.sz")).build()) {
-            snappyDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.sz")).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::snappy-framed-decompressor[]
     }
@@ -53,10 +52,10 @@ public class SnappyExamples {
     public static void rawCompressor() throws IOException {
         // tag::snappy-raw-compressor[]
         Path source = Path.of("path/to/file.txt");
-        try (SnappyRawCompressor snappyCompressor = SnappyRawCompressor.builder(
-                        Path.of("example.snappy"), Files.size(source))
-                .build()) {
-            snappyCompressor.write(source);
+        Compression snappy = Compression.snappyRaw().uncompressedSize(Files.size(source));
+        try (Compressor compressor =
+                Compressor.builder(Path.of("example.snappy"), snappy).build()) {
+            compressor.write(source);
         }
         // end::snappy-raw-compressor[]
     }
@@ -64,9 +63,9 @@ public class SnappyExamples {
     /** Example for raw Snappy decompression. */
     public static void rawDecompressor() throws IOException {
         // tag::snappy-raw-decompressor[]
-        try (SnappyRawDecompressor snappyDecompressor =
-                SnappyRawDecompressor.builder(Path.of("example.snappy")).build()) {
-            snappyDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor = Decompressor.builder(Path.of("example.snappy"), Compression.snappyRaw())
+                .build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::snappy-raw-decompressor[]
     }

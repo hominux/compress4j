@@ -15,7 +15,8 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.brotli.BrotliDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -28,9 +29,9 @@ public class BrotliExamples {
     /** Example for Brotli decompression. */
     public static void decompressor() throws IOException {
         // tag::brotli-decompressor[]
-        try (BrotliDecompressor brotliDecompressor =
-                BrotliDecompressor.builder(Path.of("example.br")).build()) {
-            brotliDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor = Decompressor.builder(Path.of("example.br"), Compression.brotli())
+                .build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::brotli-decompressor[]
     }

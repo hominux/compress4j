@@ -15,8 +15,9 @@
  */
 package com.example.archivers.pack200;
 
-import com.hominux.compress4j.compressors.pack200.Pack200Compressor;
-import com.hominux.compress4j.compressors.pack200.Pack200Decompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -31,7 +32,8 @@ public class Pack200Examples {
         // tag::pack200-creator[]
         Path sourceJar = Path.of("example.jar");
         Path targetPack = Path.of("example.pack");
-        try (var compressor = Pack200Compressor.builder(targetPack).build()) {
+        try (var compressor =
+                Compressor.builder(targetPack, Compression.pack200()).build()) {
             compressor.write(sourceJar);
         }
         // end::pack200-creator[]
@@ -41,7 +43,8 @@ public class Pack200Examples {
         // tag::pack200-extractor[]
         Path sourcePack = Path.of("example.pack");
         Path targetJar = Path.of("example.jar");
-        try (var decompressor = Pack200Decompressor.builder(sourcePack).build()) {
+        try (var decompressor =
+                Decompressor.builder(sourcePack, Compression.pack200()).build()) {
             decompressor.write(targetJar);
         }
         // end::pack200-extractor[]

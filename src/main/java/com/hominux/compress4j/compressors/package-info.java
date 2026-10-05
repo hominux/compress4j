@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 /**
- * Provides a unified API and factories for dealing with compressed streams.
+ * Compression and decompression of single streams; see Compressor and Decompressor.
  *
  * @since 2.2
  */

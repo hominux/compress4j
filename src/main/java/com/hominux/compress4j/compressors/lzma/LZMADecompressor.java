@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.lzma;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import com.hominux.compress4j.utils.ArchiverDependencyChecker;
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +31,7 @@ import org.apache.commons.compress.compressors.lzma.LZMACompressorInputStream;
  *
  * @since 3.2
  */
-public class LZMADecompressor extends Decompressor<LZMACompressorInputStream> {
+public class LZMADecompressor extends CodecDecompressor<LZMACompressorInputStream> {
 
     /**
      * Constructor that takes a LZMACompressorInputStream.
@@ -139,7 +139,7 @@ public class LZMADecompressor extends Decompressor<LZMACompressorInputStream> {
 
     /** Builder for creating instances of {@link LZMADecompressor}. */
     public static class LZMADecompressorBuilder
-            extends Decompressor.DecompressorBuilder<
+            extends CodecDecompressor.DecompressorBuilder<
                     LZMACompressorInputStream, LZMADecompressor, LZMADecompressorBuilder> {
 
         private final LZMADecompressorInputStreamBuilder<LZMADecompressorBuilder> inputStreamBuilder;

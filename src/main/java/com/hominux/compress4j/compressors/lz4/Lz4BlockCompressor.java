@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.lz4;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -27,7 +27,7 @@ import org.apache.commons.compress.compressors.lz4.BlockLZ4CompressorOutputStrea
  *
  * @since 3.2
  */
-public class Lz4BlockCompressor extends Compressor<BlockLZ4CompressorOutputStream> {
+public class Lz4BlockCompressor extends CodecCompressor<BlockLZ4CompressorOutputStream> {
 
     /**
      * Constructor that takes a BlockLZ4CompressorOutputStream.

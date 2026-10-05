@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.snappy;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -27,7 +27,7 @@ import org.apache.commons.compress.compressors.snappy.FramedSnappyCompressorOutp
  *
  * @since 3.2
  */
-public class SnappyFramedCompressor extends Compressor<FramedSnappyCompressorOutputStream> {
+public class SnappyFramedCompressor extends CodecCompressor<FramedSnappyCompressorOutputStream> {
 
     /**
      * Constructor that takes a FramedSnappyCompressorOutputStream.

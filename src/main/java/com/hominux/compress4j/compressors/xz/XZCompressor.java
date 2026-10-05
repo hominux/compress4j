@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.xz;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -25,13 +25,13 @@ import org.tukaani.xz.LZMA2Options;
 
 /**
  * Provides XZ compression functionality that writes to an {@link XZCompressorOutputStream}. This class extends the
- * {@link Compressor} and supports configurable LZMA2 options.
+ * {@link CodecCompressor} and supports configurable LZMA2 options.
  *
  * <p>Use the builder pattern to configure compression options, such as {@link LZMA2Options}, before creating instances.
  *
  * @since 2.2
  */
-public class XZCompressor extends Compressor<XZCompressorOutputStream> {
+public class XZCompressor extends CodecCompressor<XZCompressorOutputStream> {
 
     /**
      * Constructor that takes an XZCompressorOutputStream.

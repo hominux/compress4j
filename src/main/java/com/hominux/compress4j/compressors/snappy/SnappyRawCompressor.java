@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.compressors.snappy;
 
-import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.CodecCompressor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -27,7 +27,7 @@ import org.apache.commons.compress.compressors.snappy.SnappyCompressorOutputStre
  *
  * @since 3.2
  */
-public class SnappyRawCompressor extends Compressor<SnappyCompressorOutputStream> {
+public class SnappyRawCompressor extends CodecCompressor<SnappyCompressorOutputStream> {
 
     /**
      * Constructor that takes a SnappyCompressorOutputStream.

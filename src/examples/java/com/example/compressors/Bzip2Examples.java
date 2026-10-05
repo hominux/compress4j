@@ -15,8 +15,9 @@
  */
 package com.example.compressors;
 
-import com.hominux.compress4j.compressors.bzip2.BZip2Compressor;
-import com.hominux.compress4j.compressors.bzip2.BZip2Decompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Compressor;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -28,21 +29,19 @@ public class Bzip2Examples {
 
     public static void compressor() throws IOException {
         // tag::bzip2-compressor[]
-        try (BZip2Compressor bzip2Compressor = BZip2Compressor.builder(Path.of("example.bz2"))
-                .compressorOutputStreamBuilder()
-                .blockSize(5)
-                .parentBuilder()
+        try (Compressor compressor = Compressor.builder(
+                        Path.of("example.bz2"), Compression.bzip2().blockSize(5))
                 .build()) {
-            bzip2Compressor.write(Path.of("path/to/file.txt"));
+            compressor.write(Path.of("path/to/file.txt"));
         }
         // end::bzip2-compressor[]
     }
 
     public static void decompressor() throws IOException {
         // tag::bzip2-decompressor[]
-        try (BZip2Decompressor gzipDecompressor =
-                BZip2Decompressor.builder(Path.of("example.bz2")).build()) {
-            gzipDecompressor.write(Path.of("path/to/file.txt"));
+        try (Decompressor decompressor =
+                Decompressor.builder(Path.of("example.bz2")).build()) {
+            decompressor.write(Path.of("path/to/file.txt"));
         }
         // end::bzip2-decompressor[]
     }

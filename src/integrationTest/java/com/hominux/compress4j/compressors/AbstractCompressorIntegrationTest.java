@@ -33,9 +33,9 @@ public abstract class AbstractCompressorIntegrationTest {
     @TempDir
     protected Path tempDir;
 
-    protected abstract Compressor<?> compressorBuilder(Path compressPath) throws IOException;
+    protected abstract CodecCompressor<?> compressorBuilder(Path compressPath) throws IOException;
 
-    protected abstract Decompressor<?> decompressorBuilder(Path compressPath) throws IOException;
+    protected abstract CodecDecompressor<?> decompressorBuilder(Path compressPath) throws IOException;
 
     protected abstract String compressionExtension();
 
@@ -59,13 +59,13 @@ public abstract class AbstractCompressorIntegrationTest {
         var compressPath = tempDir.resolve("compressTest.txt" + compressionExtension());
         var decompressPath = tempDir.resolve("decompressedTest.txt");
 
-        try (Compressor<?> compressor = compressorBuilder(compressPath)) {
+        try (CodecCompressor<?> compressor = compressorBuilder(compressPath)) {
             compressor.write(sourcePath);
         }
 
         assertThat(compressPath).exists();
 
-        try (Decompressor<?> decompressor = decompressorBuilder(compressPath)) {
+        try (CodecDecompressor<?> decompressor = decompressorBuilder(compressPath)) {
             decompressor.write(decompressPath);
         }
 
@@ -80,7 +80,7 @@ public abstract class AbstractCompressorIntegrationTest {
         var preCompressedPath = createFile(tempDir, "normalFile.txt", "this is the decompressed textfile\n");
         var decompressPath = tempDir.resolve("decompressedTest.txt");
 
-        try (Decompressor<?> decompressor = decompressorBuilder(compressedPath)) {
+        try (CodecDecompressor<?> decompressor = decompressorBuilder(compressedPath)) {
             decompressor.write(decompressPath);
         }
 

@@ -17,7 +17,7 @@ package com.hominux.compress4j.compressors.pack200;
 
 import static java.nio.file.Files.newInputStream;
 
-import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.compressors.CodecDecompressor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -28,7 +28,7 @@ import org.apache.commons.compress.compressors.pack200.Pack200Strategy;
 
 /**
  * Provides Pack200 decompression functionality that reads from a {@link Pack200CompressorInputStream}. This class
- * extends the {@link Decompressor} base class and supports decompressing Pack200-compressed JAR files.
+ * extends the {@link CodecDecompressor} base class and supports decompressing Pack200-compressed JAR files.
  *
  * <p>Pack200 is a compression format specifically designed for Java Archive (JAR) files. This decompressor can restore
  * JAR files that have been compressed with Pack200.
@@ -37,7 +37,7 @@ import org.apache.commons.compress.compressors.pack200.Pack200Strategy;
  *
  * @since 2.2
  */
-public class Pack200Decompressor extends Decompressor<Pack200CompressorInputStream> {
+public class Pack200Decompressor extends CodecDecompressor<Pack200CompressorInputStream> {
 
     /**
      * Constructor that takes a Pack200CompressorInputStream.
