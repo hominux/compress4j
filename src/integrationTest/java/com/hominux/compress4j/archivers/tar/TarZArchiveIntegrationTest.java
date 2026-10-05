@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.UpstreamSamples;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -42,8 +43,9 @@ class TarZArchiveIntegrationTest {
     }
 
     private void extractAll(byte[] bytes) throws IOException {
-        try (var extractor =
-                TarZArchiveExtractor.builder(new ByteArrayInputStream(bytes)).build()) {
+        try (var extractor = TarArchiveExtractor.builder(new ByteArrayInputStream(bytes))
+                .compression(Compression.unixZ())
+                .build()) {
             extractor.extract(tempDir.resolve("bytes-out"));
         }
     }
@@ -52,7 +54,7 @@ class TarZArchiveIntegrationTest {
     void shouldExtractUpstreamSample() throws IOException {
         var out = Files.createDirectory(tempDir.resolve("out"));
 
-        try (var extractor = TarZArchiveExtractor.builder(sample()).build()) {
+        try (var extractor = TarArchiveExtractor.builder(sample()).build()) {
             extractor.extract(out);
         }
 
@@ -65,7 +67,7 @@ class TarZArchiveIntegrationTest {
         var out = Files.createDirectory(tempDir.resolve("stream-out"));
 
         try (var in = Files.newInputStream(sample());
-                var extractor = TarZArchiveExtractor.builder(in).build()) {
+                var extractor = TarArchiveExtractor.builder(in).build()) {
             extractor.extract(out);
         }
 
@@ -73,16 +75,8 @@ class TarZArchiveIntegrationTest {
     }
 
     @Test
-    void shouldExposeInputStreamBuilderParent() {
-        var builder = TarZArchiveExtractor.builder(new ByteArrayInputStream(new byte[0]));
-
-        assertThat(builder.zInputStream().parentBuilder()).isSameAs(builder);
-    }
-
-    @Test
     void shouldEnforceMaxEntries() throws IOException {
-        try (var extractor =
-                TarZArchiveExtractor.builder(sample()).maxEntries(1).build()) {
+        try (var extractor = TarArchiveExtractor.builder(sample()).maxEntries(1).build()) {
             assertThatThrownBy(() -> extractor.extract(tempDir.resolve("limit1")))
                     .isInstanceOf(LimitExceededException.class);
         }
@@ -91,7 +85,7 @@ class TarZArchiveIntegrationTest {
     @Test
     void shouldEnforceMaxEntrySize() throws IOException {
         try (var extractor =
-                TarZArchiveExtractor.builder(sample()).maxEntrySize(1).build()) {
+                TarArchiveExtractor.builder(sample()).maxEntrySize(1).build()) {
             assertThatThrownBy(() -> extractor.extract(tempDir.resolve("limit2")))
                     .isInstanceOf(LimitExceededException.class);
         }
@@ -100,7 +94,7 @@ class TarZArchiveIntegrationTest {
     @Test
     void shouldEnforceMaxTotalSize() throws IOException {
         try (var extractor =
-                TarZArchiveExtractor.builder(sample()).maxTotalSize(1).build()) {
+                TarArchiveExtractor.builder(sample()).maxTotalSize(1).build()) {
             assertThatThrownBy(() -> extractor.extract(tempDir.resolve("limit3")))
                     .isInstanceOf(LimitExceededException.class);
         }
@@ -130,7 +124,7 @@ class TarZArchiveIntegrationTest {
         var archive = UpstreamSamples.copy("/archives/traversal.tar.Z", tempDir);
         var target = Files.createDirectory(tempDir.resolve("target"));
 
-        try (var extractor = TarZArchiveExtractor.builder(archive).build()) {
+        try (var extractor = TarArchiveExtractor.builder(archive).build()) {
             assertThatThrownBy(() -> extractor.extract(target)).isInstanceOf(IOException.class);
         }
 
@@ -142,7 +136,7 @@ class TarZArchiveIntegrationTest {
         var archive = UpstreamSamples.copy("/archives/escaping-symlink.tar.Z", tempDir);
         var target = Files.createDirectory(tempDir.resolve("link-target"));
 
-        try (var extractor = TarZArchiveExtractor.builder(archive)
+        try (var extractor = TarArchiveExtractor.builder(archive)
                 .escapingSymlinkPolicy(ArchiveExtractor.EscapingSymlinkPolicy.DISALLOW)
                 .build()) {
             assertThatThrownBy(() -> extractor.extract(target)).isInstanceOf(IOException.class);

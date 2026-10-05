@@ -111,18 +111,32 @@ class ArchiverDependencyCheckerWithoutZstdTest {
                 new ByteArrayInputStream(new byte[0])));
     }
 
+    private static Throwable tarBuildFailure(String tarClass, Class<?> argType, Object arg) throws Exception {
+        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
+            Object builder =
+                    loader.loadClass(tarClass).getMethod("builder", argType).invoke(null, arg);
+            Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
+            Object codec = compression.getMethod("zstd").invoke(null);
+            builder.getClass().getMethod("compression", compression).invoke(builder, codec);
+            builder.getClass().getMethod("build").invoke(builder);
+            throw new AssertionError("Expected failure without the codec library");
+        } catch (InvocationTargetException e) {
+            return e.getCause();
+        }
+    }
+
     @Test
     void tarCreatorBuildRejectsMissingZstd() throws Exception {
-        assertMissingZstd(buildFailure(
-                "com.hominux.compress4j.archivers.tar.TarZstdArchiveCreator",
+        assertMissingZstd(tarBuildFailure(
+                "com.hominux.compress4j.archivers.tar.TarArchiveCreator",
                 OutputStream.class,
                 new ByteArrayOutputStream()));
     }
 
     @Test
     void tarExtractorBuildRejectsMissingZstd() throws Exception {
-        assertMissingZstd(buildFailure(
-                "com.hominux.compress4j.archivers.tar.TarZstdArchiveExtractor",
+        assertMissingZstd(tarBuildFailure(
+                "com.hominux.compress4j.archivers.tar.TarArchiveExtractor",
                 InputStream.class,
                 new ByteArrayInputStream(new byte[0])));
     }

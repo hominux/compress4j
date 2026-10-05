@@ -15,18 +15,18 @@
  */
 package com.hominux.compress4j;
 
+import java.util.Objects;
+
 /**
- * Limits on what reading untrusted input may produce. Each component is a maximum, or {@link #UNLIMITED}. A breach
- * throws {@link com.hominux.compress4j.exceptions.LimitExceededException}, which error handlers cannot suppress.
+ * Limits on what reading untrusted input may produce. Every limit is a maximum, or {@link #UNLIMITED}. A breach throws
+ * {@link com.hominux.compress4j.exceptions.LimitExceededException}, which error handlers cannot suppress.
  *
- * @param maxEntries maximum number of archive entries, counted after strip-components and the filter
- * @param maxEntrySize maximum uncompressed bytes of one entry
- * @param maxTotalSize maximum uncompressed bytes of the whole input
- * @param maxRatio maximum uncompressed bytes produced per compressed byte read. Readers in this version validate it but
- *     do not enforce it.
+ * <p>Obtain instances from {@link #defaults()} or {@link #noLimits()} and the {@code with} methods. {@link #maxRatio()}
+ * is validated but not enforced by readers in this version.
+ *
  * @since 5.0
  */
-public record ExtractionLimits(long maxEntries, long maxEntrySize, long maxTotalSize, long maxRatio) {
+public final class ExtractionLimits {
 
     /** Value disabling a limit. */
     public static final long UNLIMITED = -1;
@@ -34,17 +34,20 @@ public record ExtractionLimits(long maxEntries, long maxEntrySize, long maxTotal
     private static final ExtractionLimits DEFAULTS = new ExtractionLimits(1_000_000, UNLIMITED, UNLIMITED, 100);
     private static final ExtractionLimits NONE = new ExtractionLimits(UNLIMITED, UNLIMITED, UNLIMITED, UNLIMITED);
 
-    /**
-     * Rejects a count or size below 0 and a ratio below 1, except {@link #UNLIMITED}.
-     *
-     * @throws IllegalArgumentException if a size or count is below 0 other than {@link #UNLIMITED}, or the ratio is
-     *     below 1 other than {@link #UNLIMITED}
-     */
-    public ExtractionLimits {
+    private final long maxEntries;
+    private final long maxEntrySize;
+    private final long maxTotalSize;
+    private final long maxRatio;
+
+    private ExtractionLimits(long maxEntries, long maxEntrySize, long maxTotalSize, long maxRatio) {
         requireLimit("maxEntries", maxEntries, 0);
         requireLimit("maxEntrySize", maxEntrySize, 0);
         requireLimit("maxTotalSize", maxTotalSize, 0);
         requireLimit("maxRatio", maxRatio, 1);
+        this.maxEntries = maxEntries;
+        this.maxEntrySize = maxEntrySize;
+        this.maxTotalSize = maxTotalSize;
+        this.maxRatio = maxRatio;
     }
 
     private static void requireLimit(String name, long value, long minimum) {
@@ -114,5 +117,63 @@ public record ExtractionLimits(long maxEntries, long maxEntrySize, long maxTotal
      */
     public ExtractionLimits withMaxRatio(long value) {
         return new ExtractionLimits(maxEntries, maxEntrySize, maxTotalSize, value);
+    }
+
+    /**
+     * Returns the maximum number of archive entries, counted after strip-components and the filter.
+     *
+     * @return the maximum number of archive entries, counted after strip-components and the filter, or
+     *     {@link #UNLIMITED}
+     */
+    public long maxEntries() {
+        return maxEntries;
+    }
+
+    /**
+     * Returns the maximum uncompressed bytes of one entry.
+     *
+     * @return the maximum uncompressed bytes of one entry, or {@link #UNLIMITED}
+     */
+    public long maxEntrySize() {
+        return maxEntrySize;
+    }
+
+    /**
+     * Returns the maximum uncompressed bytes of the whole input.
+     *
+     * @return the maximum uncompressed bytes of the whole input, or {@link #UNLIMITED}
+     */
+    public long maxTotalSize() {
+        return maxTotalSize;
+    }
+
+    /**
+     * Returns the maximum uncompressed-to-compressed ratio, or {@link #UNLIMITED}. Readers in this version validate it
+     * but do not enforce it.
+     *
+     * @return the maximum ratio, or {@link #UNLIMITED}
+     */
+    public long maxRatio() {
+        return maxRatio;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof ExtractionLimits that
+                && maxEntries == that.maxEntries
+                && maxEntrySize == that.maxEntrySize
+                && maxTotalSize == that.maxTotalSize
+                && maxRatio == that.maxRatio;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(maxEntries, maxEntrySize, maxTotalSize, maxRatio);
+    }
+
+    @Override
+    public String toString() {
+        return "ExtractionLimits[maxEntries=" + maxEntries + ", maxEntrySize=" + maxEntrySize + ", maxTotalSize="
+                + maxTotalSize + ", maxRatio=" + maxRatio + "]";
     }
 }

@@ -44,7 +44,7 @@ Compress4J extracts what an archive tells it to. When the archive comes from an 
   `LimitExceededException` both extend `UnsafeInputException`, which no error handler can suppress.
 
 ```java
-try (var extractor = TarGzArchiveExtractor.builder(in)
+try (var extractor = TarArchiveExtractor.builder(in)
         .maxEntries(10_000)
         .maxEntrySize(100L * 1024 * 1024)
         .maxTotalSize(1024L * 1024 * 1024)

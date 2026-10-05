@@ -18,10 +18,11 @@ package com.example;
 import com.hominux.compress4j.archivers.ArchiveItem;
 import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.archivers.sevenz.SevenZArchiveExtractor;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveCreator;
-import com.hominux.compress4j.archivers.tar.TarGzArchiveExtractor;
+import com.hominux.compress4j.archivers.tar.TarArchiveCreator;
+import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
 import com.hominux.compress4j.archivers.zip.ZipArchiveCreator;
 import com.hominux.compress4j.archivers.zip.ZipArchiveExtractor;
+import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -42,7 +43,7 @@ public final class StreamingExamples {
 
     public static Optional<String> readOneFile(Path archive) throws IOException {
         // tag::read-one-file[]
-        try (var extractor = TarGzArchiveExtractor.builder(archive).build()) {
+        try (var extractor = TarArchiveExtractor.builder(archive).build()) {
             return extractor.stream()
                     .filter(item -> item.entry().name().equals("config/app.properties"))
                     .findFirst()
@@ -61,7 +62,7 @@ public final class StreamingExamples {
 
     public static void staleItem(Path archive) throws IOException {
         // tag::stale-item[]
-        try (var extractor = TarGzArchiveExtractor.builder(archive).build()) {
+        try (var extractor = TarArchiveExtractor.builder(archive).build()) {
             var items = extractor.stream().toList(); // advances past every entry
             items.get(0).content(); // throws IllegalStateException: entry ... is no longer current
         }
@@ -70,7 +71,9 @@ public final class StreamingExamples {
 
     public static void writeFromWalk(Path dir, Path archive) throws IOException {
         // tag::write-from-walk[]
-        try (var creator = TarGzArchiveCreator.builder(archive).build();
+        try (var creator = TarArchiveCreator.builder(archive)
+                        .compression(Compression.gzip())
+                        .build();
                 Stream<Path> paths = Files.walk(dir)) {
             creator.addAll(
                     paths.skip(1).filter(p -> !p.toString().endsWith(".tmp")).map(p -> {
@@ -86,7 +89,7 @@ public final class StreamingExamples {
 
     public static void repack(Path tarGz, Path zip) throws IOException {
         // tag::repack[]
-        try (var extractor = TarGzArchiveExtractor.builder(tarGz).build();
+        try (var extractor = TarArchiveExtractor.builder(tarGz).build();
                 var creator = ZipArchiveCreator.builder(zip).build()) {
             creator.addAll(extractor.stream().map(ArchiveItem::toSource));
         }
@@ -97,7 +100,9 @@ public final class StreamingExamples {
         // tag::unknown-size[]
         var unsized = new EntrySource.File(
                 "download.bin", 0, FileTime.from(Instant.now()), OptionalLong.empty(), () -> download);
-        try (var creator = TarGzArchiveCreator.builder(archive).build()) {
+        try (var creator = TarArchiveCreator.builder(archive)
+                .compression(Compression.gzip())
+                .build()) {
             creator.add(EntrySource.buffered(unsized, tempDir));
         }
         // end::unknown-size[]

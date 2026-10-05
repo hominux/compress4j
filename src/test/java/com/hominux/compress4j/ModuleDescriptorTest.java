@@ -108,14 +108,14 @@ class ModuleDescriptorTest {
     }
 
     @Test
-    void keepsOnlyUtilsPackageInternal() throws Exception {
+    void keepsOnlyUtilsAndInternalPackagesUnexported() throws Exception {
         ModuleDescriptor descriptor = descriptor();
         Set<String> exported =
                 descriptor.exports().stream().map(Exports::source).collect(Collectors.toSet());
 
         assertThat(descriptor.packages()).containsAll(exported);
         assertThat(descriptor.packages().stream().filter(p -> !exported.contains(p)))
-                .containsExactly(BASE + "utils");
+                .containsExactlyInAnyOrder(BASE + "utils", BASE + "internal.codec");
     }
 
     @Test

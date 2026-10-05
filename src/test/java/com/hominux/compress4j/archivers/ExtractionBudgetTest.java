@@ -15,7 +15,6 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.ExtractionLimits.UNLIMITED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,7 +53,7 @@ class ExtractionBudgetTest {
     @Test
     void meterThrowsOnTheReadThatCrossesTheEntryLimit() throws IOException {
         // Given
-        var budget = new ExtractionBudget(new ExtractionLimits(UNLIMITED, 4, UNLIMITED, UNLIMITED));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4));
         var in = budget.meter("e", new ByteArrayInputStream(new byte[10]));
 
         // When
@@ -72,7 +71,7 @@ class ExtractionBudgetTest {
     @Test
     void meterCountsTotalAcrossEntries() throws IOException {
         // Given
-        var budget = new ExtractionBudget(new ExtractionLimits(UNLIMITED, UNLIMITED, 6, UNLIMITED));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxTotalSize(6));
 
         // When
         budget.meter("a", new ByteArrayInputStream(new byte[4])).readAllBytes();
@@ -88,7 +87,7 @@ class ExtractionBudgetTest {
     @Test
     void meterCountsSkippedBytes() {
         // Given
-        var budget = new ExtractionBudget(new ExtractionLimits(UNLIMITED, 4, UNLIMITED, UNLIMITED));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4));
         var in = budget.meter("s", new ByteArrayInputStream(new byte[10]));
 
         // Then
@@ -108,7 +107,7 @@ class ExtractionBudgetTest {
     @Test
     void entryOfExactlyMaxEntrySizeReadsFullyThenReturnsEof() throws IOException {
         // Given
-        var budget = new ExtractionBudget(new ExtractionLimits(UNLIMITED, 4, UNLIMITED, UNLIMITED));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxEntrySize(4));
         var in = budget.meter("e", new ByteArrayInputStream(new byte[4]));
 
         // Then
@@ -119,7 +118,7 @@ class ExtractionBudgetTest {
     @Test
     void totalOfExactlyMaxTotalSizeAcrossTwoEntriesReadsWithoutThrowing() {
         // Given
-        var budget = new ExtractionBudget(new ExtractionLimits(UNLIMITED, UNLIMITED, 6, UNLIMITED));
+        var budget = new ExtractionBudget(ExtractionLimits.noLimits().withMaxTotalSize(6));
 
         // Then
         assertThatCode(() -> {

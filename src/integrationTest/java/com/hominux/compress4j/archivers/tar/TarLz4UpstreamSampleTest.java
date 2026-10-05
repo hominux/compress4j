@@ -43,7 +43,7 @@ class TarLz4UpstreamSampleTest {
         var out = Files.createDirectory(tempDir.resolve("framed"));
 
         try (var extractor =
-                TarLz4ArchiveExtractor.builder(sample("upstream-bla.tar.lz4")).build()) {
+                TarArchiveExtractor.builder(sample("upstream-bla.tar.lz4")).build()) {
             extractor.extract(out);
         }
 
