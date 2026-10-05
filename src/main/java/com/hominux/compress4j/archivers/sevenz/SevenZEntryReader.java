@@ -18,7 +18,6 @@ package com.hominux.compress4j.archivers.sevenz;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.archive.ReaderContext;
-import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import com.hominux.compress4j.utils.EntryValues;
 import com.hominux.compress4j.utils.UnixFileType;
 import jakarta.annotation.Nonnull;
@@ -29,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.LongSupplier;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 
@@ -41,13 +39,11 @@ final class SevenZEntryReader implements EntryReader {
 
     private final SevenZFile file;
     private final ReaderContext context;
-    private final ExpansionMeter skipped;
     private Optional<String> current = Optional.empty();
 
-    SevenZEntryReader(SevenZFile file, ReaderContext context, LongSupplier compressedBytes) {
+    SevenZEntryReader(SevenZFile file, ReaderContext context) {
         this.file = file;
         this.context = context;
-        this.skipped = new ExpansionMeter(context.limits(), compressedBytes);
     }
 
     @Override
@@ -68,7 +64,7 @@ final class SevenZEntryReader implements EntryReader {
 
     private void drainCurrent() throws IOException {
         if (current.isPresent()) {
-            skipped.meter(new CurrentEntryStream(), current).transferTo(OutputStream.nullOutputStream());
+            context.meter().meter(new CurrentEntryStream(), current).transferTo(OutputStream.nullOutputStream());
             current = Optional.empty();
         }
     }

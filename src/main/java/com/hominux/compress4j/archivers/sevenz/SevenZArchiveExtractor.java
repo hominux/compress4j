@@ -112,7 +112,7 @@ public final class SevenZArchiveExtractor extends ArchiveExtractor {
                 opened.channel().position(0);
                 SevenZFile file = open(opened);
                 opened.built();
-                EntryReader reader = new SevenZEntryReader(file, readerContext(), opened.channel()::count);
+                EntryReader reader = new SevenZEntryReader(file, readerContext());
                 return new SevenZArchiveExtractor(this, reader, opened.channel()::count);
             } catch (IOException e) {
                 throw opened.closeIfOwned(e);

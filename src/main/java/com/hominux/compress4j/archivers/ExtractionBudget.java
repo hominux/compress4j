@@ -36,8 +36,12 @@ final class ExtractionBudget {
     private long entries = 0;
 
     ExtractionBudget(ExtractionLimits limits, LongSupplier compressedBytes) {
+        this(limits, new ExpansionMeter(limits, compressedBytes));
+    }
+
+    ExtractionBudget(ExtractionLimits limits, ExpansionMeter meter) {
         this.limits = limits;
-        this.meter = new ExpansionMeter(limits, compressedBytes);
+        this.meter = meter;
     }
 
     void countEntry() throws LimitExceededException {

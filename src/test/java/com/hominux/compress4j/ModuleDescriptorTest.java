@@ -134,8 +134,8 @@ class ModuleDescriptorTest {
     }
 
     @Test
-    void reExportsTypesUsedInPublicSignatures() throws Exception {
-        assertThat(modifiersOf(descriptor(), "org.apache.commons.compress")).contains(Modifier.TRANSITIVE);
+    void keepsCommonsCompressInternalAndReExportsCommonsIo() throws Exception {
+        assertThat(modifiersOf(descriptor(), "org.apache.commons.compress")).isEmpty();
         assertThat(modifiersOf(descriptor(), "org.apache.commons.io")).contains(Modifier.TRANSITIVE);
     }
 

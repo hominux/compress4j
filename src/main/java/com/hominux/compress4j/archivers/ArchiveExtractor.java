@@ -22,6 +22,7 @@ import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.exceptions.UnsafeInputException;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.archive.ReaderContext;
+import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +37,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -46,8 +48,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Base of the archive extractors that read through an {@code EntryReader}; formats not yet migrated extend
- * {@link LegacyArchiveExtractor}.
+ * Base of the archive extractors. Subclasses add the builder for one format; the expansion ratio limit is measured
+ * against the compressed bytes the format reader reports.
  *
  * <p>An extractor is not thread-safe.
  *
@@ -88,7 +90,8 @@ public abstract class ArchiveExtractor implements Closeable {
         this.overwrite = builder.overwrite;
         this.escapingSymlinkPolicy = builder.escapingSymlinkPolicy;
         this.directoryModeApplier = builder.directoryModeApplier;
-        this.pipeline = new EntryPipeline(reader, stripComponents, entryFilter, builder.limits, compressedBytes);
+        this.pipeline = new EntryPipeline(
+                reader, stripComponents, entryFilter, builder.limits, builder.claimMeter(compressedBytes));
     }
 
     /**
@@ -286,6 +289,7 @@ public abstract class ArchiveExtractor implements Closeable {
         int stripComponents = 0;
         boolean overwrite = false;
         ExtractionLimits limits = ExtractionLimits.defaults();
+        private Optional<PendingBuild> pending = Optional.empty();
         DirectoryModeApplier directoryModeApplier = DEFAULT_MODE_APPLIER;
 
         /** Creates a builder with the default options. */
@@ -478,11 +482,27 @@ public abstract class ArchiveExtractor implements Closeable {
         /**
          * Returns the context a format reader needs to enforce limits and report unsupported entries.
          *
-         * @return the reader context for the options set so far
+         * @return a new reader context for the options set so far, owned by the extractor of this build
          */
         protected final ReaderContext readerContext() {
-            return new ReaderContext(limits, unsupportedEntryHandler);
+            var source = new AtomicReference<LongSupplier>(() -> 0);
+            var meter = new ExpansionMeter(limits, () -> source.get().getAsLong());
+            var context = new ReaderContext(limits, unsupportedEntryHandler, meter);
+            pending = Optional.of(new PendingBuild(context, source));
+            return context;
         }
+
+        private ExpansionMeter claimMeter(LongSupplier compressedBytes) {
+            var claimed = pending.orElseGet(() -> {
+                readerContext();
+                return pending.orElseThrow();
+            });
+            pending = Optional.empty();
+            claimed.source().set(compressedBytes);
+            return claimed.context().meter();
+        }
+
+        private record PendingBuild(ReaderContext context, AtomicReference<LongSupplier> source) {}
 
         /**
          * Builds the extractor.

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 /**
- * AR archive format support.
+ * Reads and writes AR archives.
  *
  * @since 2.2
  */

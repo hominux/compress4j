@@ -15,6 +15,7 @@
  */
 package com.hominux.compress4j.archivers.arj;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -61,12 +62,11 @@ class ArjArchiveIntegrationTest {
         var fromFile = Files.createDirectory(tempDir.resolve("file-out"));
         var fromStream = Files.createDirectory(tempDir.resolve("stream-out"));
 
-        try (var extractor = ArjArchiveExtractor.builder(sample().toFile()).build()) {
+        try (var extractor = ArjArchiveExtractor.builder(sample()).build()) {
             extractor.extract(fromFile);
         }
         try (var in = Files.newInputStream(sample());
-                var extractor =
-                        ArjArchiveExtractor.builder(in).encoding("UTF-8").build()) {
+                var extractor = ArjArchiveExtractor.builder(in).encoding(UTF_8).build()) {
             extractor.extract(fromStream);
         }
 

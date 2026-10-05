@@ -209,8 +209,8 @@ class ZipEntryReaderTest {
     @DisplayName("open before next should fail")
     void testOpenWithoutCurrentEntryFails() {
         entries();
-        assertThatThrownBy(() -> reader.open(new Entry("a", Entry.Type.FILE, 0)))
-                .isInstanceOf(IllegalStateException.class);
+        var entry = new Entry("a", Entry.Type.FILE, 0);
+        assertThatThrownBy(() -> reader.open(entry)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

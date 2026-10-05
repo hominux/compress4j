@@ -15,14 +15,13 @@
  */
 
 /**
- * Archiving and compression API on top of Apache Commons Compress.
+ * Archiving and compression API.
  *
- * <p>Commons Compress is an automatic module, so consumers are bound to the name {@code org.apache.commons.compress}.
- * The XZ formats need {@code org.tukaani.xz} and the Zstandard formats need {@code com.github.luben.zstd_jni} on the
- * module path.
+ * <p>Apache Commons Compress is an implementation dependency: no exported type exposes it. The XZ formats need
+ * {@code org.tukaani.xz} and the Zstandard formats need {@code com.github.luben.zstd_jni} on the module path.
  */
 module com.hominux.compress4j {
-    requires transitive org.apache.commons.compress;
+    requires org.apache.commons.compress;
     requires transitive org.apache.commons.io;
     requires org.apache.commons.lang3;
     requires org.slf4j;

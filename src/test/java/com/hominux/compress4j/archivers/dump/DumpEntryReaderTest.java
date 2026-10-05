@@ -20,13 +20,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hominux.compress4j.ExtractionLimits;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.archivers.UnsupportedEntry;
+import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import org.apache.commons.compress.archivers.dump.DumpArchiveEntry;
 import org.apache.commons.compress.archivers.dump.DumpArchiveInputStream;
@@ -35,7 +39,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-class DumpArchiveExtractorTest {
+class DumpEntryReaderTest {
 
     private static DumpArchiveInputStream streamOf(DumpArchiveEntry entry) throws IOException {
         var in = mock(DumpArchiveInputStream.class);
@@ -52,8 +56,8 @@ class DumpArchiveExtractorTest {
 
     @Test
     void shouldReturnEmptyWhenNoMoreEntries() throws IOException {
-        try (var extractor = new DumpArchiveExtractor(mock(DumpArchiveInputStream.class))) {
-            assertThat(extractor.nextEntry()).isEmpty();
+        try (var reader = readerOver(mock(DumpArchiveInputStream.class))) {
+            assertThat(reader.next()).isEmpty();
         }
     }
 
@@ -64,10 +68,10 @@ class DumpArchiveExtractorTest {
         var in = mock(DumpArchiveInputStream.class);
         when(in.getNextEntry()).thenReturn(root, file, null);
 
-        try (var extractor = new DumpArchiveExtractor(in)) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(in)) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.name()).isEqualTo("file.txt"));
-            assertThat(extractor.nextEntry()).isEmpty();
+            assertThat(reader.next()).isEmpty();
         }
     }
 
@@ -75,8 +79,8 @@ class DumpArchiveExtractorTest {
     void shouldMapDirectoryEntry() throws IOException {
         var entry = entry("dir", DumpArchiveEntry.TYPE.DIRECTORY);
 
-        try (var extractor = new DumpArchiveExtractor(streamOf(entry))) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(streamOf(entry))) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.type()).isEqualTo(Entry.Type.DIR));
         }
     }
@@ -86,8 +90,8 @@ class DumpArchiveExtractorTest {
         var entry = entry("file.txt", DumpArchiveEntry.TYPE.FILE);
         when(entry.getMode()).thenReturn(0100640);
 
-        try (var extractor = new DumpArchiveExtractor(streamOf(entry))) {
-            assertThat(extractor.nextEntry()).hasValueSatisfying(e -> {
+        try (var reader = readerOver(streamOf(entry))) {
+            assertThat(reader.next()).hasValueSatisfying(e -> {
                 assertThat(e.type()).isEqualTo(Entry.Type.FILE);
                 assertThat(e.mode()).isEqualTo(0100640);
             });
@@ -99,10 +103,10 @@ class DumpArchiveExtractorTest {
         var in = streamOf(entry("file.txt", DumpArchiveEntry.TYPE.FILE));
         when(in.read()).thenReturn((int) 'h', (int) 'i', -1);
 
-        try (var extractor = new DumpArchiveExtractor(in)) {
-            var mapped = extractor.nextEntry().orElseThrow();
+        try (var reader = readerOver(in)) {
+            var mapped = reader.next().orElseThrow();
 
-            var data = extractor.openEntryStream(mapped);
+            var data = reader.open(mapped);
 
             assertThat(data.read()).isEqualTo('h');
             assertThat(data.read()).isEqualTo('i');
@@ -120,22 +124,25 @@ class DumpArchiveExtractorTest {
         when(in.getNextEntry()).thenReturn(special).thenReturn(null);
         var reported = new ArrayList<UnsupportedEntry>();
 
-        try (var extractor = extractorOver(in, reported::add)) {
-            assertThat(extractor.nextEntry()).isEmpty();
+        try (var reader = readerOver(in, reported::add)) {
+            assertThat(reader.next()).isEmpty();
         }
 
-        assertThat(reported).containsExactly(new UnsupportedEntry("special", DumpArchiveExtractor.kindOf(type)));
+        assertThat(reported).containsExactly(new UnsupportedEntry("special", DumpEntryReader.kindOf(type)));
     }
 
-    private static DumpArchiveExtractor extractorOver(DumpArchiveInputStream in, Consumer<UnsupportedEntry> handler)
-            throws IOException {
-        var builder = new DumpArchiveExtractor.DumpArchiveExtractorBuilder(InputStream.nullInputStream()) {
-            @Override
-            public DumpArchiveInputStream buildArchiveInputStream() {
-                return in;
-            }
-        };
-        return builder.unsupportedEntryHandler(handler).build();
+    private static DumpEntryReader readerOver(DumpArchiveInputStream in) {
+        return readerOver(in, unsupported -> {});
+    }
+
+    private static DumpEntryReader readerOver(DumpArchiveInputStream in, Consumer<UnsupportedEntry> unsupported) {
+        return new DumpEntryReader(in, new ReaderContext(ExtractionLimits.defaults(), unsupported));
+    }
+
+    private static ArchiveExtractor extractorOver(DumpArchiveInputStream in) throws IOException {
+        return InMemoryArchiveExtractor.builder(List.of())
+                .readerDecorator(ignored -> readerOver(in))
+                .build();
     }
 
     @TempDir
@@ -145,25 +152,24 @@ class DumpArchiveExtractorTest {
     void shouldNotSkipAnUnnamedEntryThatIsNotADirectory() throws IOException {
         var unnamedFile = entry("", DumpArchiveEntry.TYPE.FILE);
 
-        try (var extractor = new DumpArchiveExtractor(streamOf(unnamedFile))) {
-            assertThat(extractor.nextEntry())
+        try (var reader = readerOver(streamOf(unnamedFile))) {
+            assertThat(reader.next())
                     .hasValueSatisfying(e -> assertThat(e.name()).isEmpty());
         }
     }
 
     @Test
-    void shouldReportUnsupportedEntryToTheUnsupportedHandlerAndCreateNothing() throws IOException {
+    void shouldReportUnsupportedEntryToTheUnsupportedHandler() throws IOException {
         var in = mock(DumpArchiveInputStream.class);
         var link = entry("link", DumpArchiveEntry.TYPE.LINK);
         when(in.getNextEntry()).thenReturn(link).thenReturn(null);
         var seen = new ArrayList<UnsupportedEntry>();
 
-        try (var extractor = extractorOver(in, seen::add)) {
-            extractor.extract(tempDir);
+        try (var reader = readerOver(in, seen::add)) {
+            assertThat(reader.next()).isEmpty();
         }
 
         assertThat(seen).containsExactly(new UnsupportedEntry("link", "symbolic link"));
-        assertThat(tempDir).isEmptyDirectory();
     }
 
     @Test
@@ -173,7 +179,7 @@ class DumpArchiveExtractorTest {
         when(in.getNextEntry()).thenReturn(escaping).thenReturn(null);
         var target = Files.createDirectory(tempDir.resolve("target"));
 
-        try (var extractor = new DumpArchiveExtractor(in)) {
+        try (var extractor = extractorOver(in)) {
             assertThatThrownBy(() -> extractor.extract(target)).isInstanceOf(IOException.class);
         }
 

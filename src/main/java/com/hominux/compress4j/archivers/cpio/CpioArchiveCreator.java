@@ -15,130 +15,37 @@
  */
 package com.hominux.compress4j.archivers.cpio;
 
-import com.hominux.compress4j.archivers.LegacyArchiveCreator;
+import com.hominux.compress4j.archivers.ArchiveCreator;
+import com.hominux.compress4j.internal.io.Sink;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
-import java.util.OptionalLong;
-import org.apache.commons.compress.archivers.cpio.CpioArchiveEntry;
+import java.util.Objects;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveOutputStream;
 import org.apache.commons.compress.archivers.cpio.CpioConstants;
-import org.apache.commons.io.IOUtils;
 
 /**
- * The CPIO archive creator.
+ * Writes CPIO archives. Symbolic links are stored with the {@code C_ISLNK} mode bits and the target path as content.
  *
  * @since 2.2
  */
-@SuppressWarnings("OctalInteger")
-public class CpioArchiveCreator extends LegacyArchiveCreator<CpioArchiveOutputStream> {
+public final class CpioArchiveCreator extends ArchiveCreator {
 
-    private final short format;
-
-    /**
-     * Create a new CpioArchiveCreator with the given output stream.
-     *
-     * @param cpioArchiveOutputStream the output CPIO Archive Output Stream
-     */
-    public CpioArchiveCreator(CpioArchiveOutputStream cpioArchiveOutputStream) {
-        super(cpioArchiveOutputStream);
-        this.format = CpioConstants.FORMAT_NEW;
+    private CpioArchiveCreator(Builder builder, CpioEntryWriter writer) {
+        super(builder, writer);
     }
 
     /**
-     * Create a new CpioArchiveCreator with the given output stream and options.
-     *
-     * @param builder the archive output stream builder
-     * @throws IOException if an I/O error occurred
-     */
-    public CpioArchiveCreator(CpioArchiveCreatorBuilder builder) throws IOException {
-        super(builder);
-        this.format = builder.cpioOutputStreamBuilder.format;
-    }
-
-    @Override
-    protected boolean requiresSize() {
-        return true;
-    }
-
-    @Override
-    protected void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
-        String directoryName = name.endsWith("/") ? name : name + "/";
-        CpioArchiveEntry entry;
-        if (format != CpioConstants.FORMAT_NEW) {
-            entry = new CpioArchiveEntry(format, directoryName, 0);
-        } else {
-            entry = new CpioArchiveEntry(directoryName);
-            entry.setSize(0);
-        }
-        entry.setTime(lastModified.toMillis() / 1000L);
-        entry.setMode(CpioConstants.C_ISDIR | (mode != 0 ? mode : 0755));
-        archiveOutputStream.putArchiveEntry(entry);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    @Override
-    protected void writeFile(String name, InputStream content, OptionalLong size, int mode, FileTime lastModified)
-            throws IOException {
-        long length = size.orElseThrow();
-        CpioArchiveEntry entry = newEntry(name, length, lastModified);
-        setRegularMode(entry, mode);
-        archiveOutputStream.putArchiveEntry(entry);
-        if (length > 0) {
-            IOUtils.copy(content, archiveOutputStream);
-        }
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    @Override
-    protected void writeSymlink(String name, String target, int mode, FileTime lastModified) throws IOException {
-        byte[] bytes = target.getBytes(StandardCharsets.UTF_8);
-        CpioArchiveEntry entry = newEntry(name, bytes.length, lastModified);
-        entry.setMode(CpioConstants.C_ISLNK | (mode != 0 ? mode : 0777));
-        archiveOutputStream.putArchiveEntry(entry);
-        archiveOutputStream.write(bytes);
-        archiveOutputStream.closeArchiveEntry();
-    }
-
-    private CpioArchiveEntry newEntry(String name, long length, FileTime modTime) {
-        CpioArchiveEntry entry;
-        if (format != CpioConstants.FORMAT_NEW) {
-            entry = new CpioArchiveEntry(format, name, length);
-        } else {
-            entry = new CpioArchiveEntry(name);
-            entry.setSize(length);
-        }
-        entry.setTime(modTime.toMillis() / 1000L);
-        return entry;
-    }
-
-    private static void setRegularMode(CpioArchiveEntry entry, int mode) {
-        if (mode == 0) {
-            entry.setMode(CpioConstants.C_ISREG | 0644);
-            return;
-        }
-        try {
-            entry.setMode(CpioConstants.C_ISREG | (mode & 0777));
-        } catch (IllegalArgumentException e) {
-            entry.setMode(CpioConstants.C_ISREG | 0644);
-        }
-    }
-
-    /**
-     * Helper static method to create an instance of the {@link CpioArchiveCreatorBuilder}
+     * Creates a builder writing the archive to the given path.
      *
      * @param path the path to write the archive to
-     * @return a new instance of {@link CpioArchiveCreatorBuilder}
-     * @throws IOException if an I/O error occurs opening the file
+     * @return the builder
      */
-    public static CpioArchiveCreatorBuilder builder(Path path) throws IOException {
-        return new CpioArchiveCreatorBuilder(path);
+    public static Builder builder(Path path) {
+        return new Builder(new Sink.OfPath(path));
     }
 
     /**
@@ -149,159 +56,91 @@ public class CpioArchiveCreator extends LegacyArchiveCreator<CpioArchiveOutputSt
      * @return the builder
      * @since 5.0
      */
-    public static CpioArchiveCreatorBuilder builder(SeekableByteChannel channel) {
-        return builder(Channels.newOutputStream(channel));
+    public static Builder builder(SeekableByteChannel channel) {
+        return new Builder(new Sink.OfChannel(channel));
     }
 
     /**
-     * Helper static method to create an instance of the {@link CpioArchiveCreatorBuilder}
+     * Creates a builder writing the archive to the given stream. The creator closes the stream when it is closed; a
+     * failed {@code build()} leaves it open.
      *
      * @param outputStream the output stream to write the archive to
-     * @return a new instance of {@link CpioArchiveCreatorBuilder}
+     * @return the builder
      */
-    public static CpioArchiveCreatorBuilder builder(OutputStream outputStream) {
-        return new CpioArchiveCreatorBuilder(outputStream);
+    public static Builder builder(OutputStream outputStream) {
+        return new Builder(new Sink.OfStream(outputStream));
     }
 
     /**
-     * Builder for configuring and creating a {@link CpioArchiveOutputStream}.
+     * Builder for {@link CpioArchiveCreator}.
      *
-     * @param <P> the type of the parent builder
-     * @since 2.2
+     * @since 5.0
      */
-    public static class CpioArchiveOutputStreamBuilder<P> {
-        /** The output stream to write the archive to. */
-        protected final OutputStream outputStream;
-
-        private final P parent;
-        private short format = CpioConstants.FORMAT_NEW;
+    public static final class Builder extends ArchiveCreator.Builder<Builder, CpioArchiveCreator> {
+        private final Sink sink;
+        private CpioFormat format = CpioFormat.NEW;
         private int blockSize = CpioConstants.BLOCK_SIZE;
-        private String encoding = "UTF-8";
+        private Charset encoding = StandardCharsets.UTF_8;
 
-        /**
-         * Constructs a builder for a CPIO output stream.
-         *
-         * @param parent the parent builder
-         * @param outputStream the output stream to write the archive to
-         */
-        public CpioArchiveOutputStreamBuilder(P parent, OutputStream outputStream) {
-            this.parent = parent;
-            this.outputStream = outputStream;
+        private Builder(Sink sink) {
+            this.sink = sink;
         }
 
         /**
-         * Sets the CPIO format to use.
+         * Sets the header format. Defaults to {@link CpioFormat#NEW}.
          *
-         * @param format the CPIO format (e.g., CpioConstants.FORMAT_NEW, FORMAT_OLD_ASCII, etc.)
-         * @return this builder instance
+         * @param format the format
+         * @return this builder
+         * @throws NullPointerException if the format is null
+         * @since 5.0
          */
-        public CpioArchiveOutputStreamBuilder<P> format(short format) {
-            this.format = format;
+        public Builder format(CpioFormat format) {
+            this.format = Objects.requireNonNull(format, "format");
             return this;
         }
 
         /**
-         * Sets the block size for the CPIO archive.
+         * Sets the block size. Defaults to 512 bytes.
          *
          * @param blockSize the block size in bytes
-         * @return this builder instance
+         * @return this builder
+         * @throws IllegalArgumentException if the block size is not positive
+         * @since 5.0
          */
-        public CpioArchiveOutputStreamBuilder<P> blockSize(int blockSize) {
-            this.blockSize = blockSize;
+        public Builder blockSize(int blockSize) {
+            this.blockSize = CpioFormat.requireBlockSize(blockSize);
             return this;
         }
 
         /**
-         * Sets the character encoding for file names.
+         * Sets the encoding of entry names. Defaults to UTF-8.
          *
-         * @param encoding the character encoding
-         * @return this builder instance
+         * @param encoding the encoding
+         * @return this builder
+         * @throws NullPointerException if the encoding is null
+         * @since 5.0
          */
-        public CpioArchiveOutputStreamBuilder<P> encoding(String encoding) {
-            this.encoding = encoding;
+        public Builder encoding(Charset encoding) {
+            this.encoding = Objects.requireNonNull(encoding, "encoding");
             return this;
         }
 
-        /**
-         * Returns the parent builder.
-         *
-         * @return the parent builder
-         */
-        public P and() {
-            return parent;
-        }
-
-        /**
-         * Builds the {@link CpioArchiveOutputStream} with the configured options.
-         *
-         * @return a new CPIO archive output stream
-         * @throws IOException if an I/O error occurs during stream creation
-         */
-        public CpioArchiveOutputStream build() throws IOException {
-            return new CpioArchiveOutputStream(outputStream, format, blockSize, encoding);
-        }
-    }
-
-    /**
-     * Builder for configuring and creating {@link CpioArchiveCreator} instances.
-     *
-     * @since 2.2
-     */
-    public static class CpioArchiveCreatorBuilder
-            extends ArchiveCreatorBuilder<CpioArchiveOutputStream, CpioArchiveCreatorBuilder, CpioArchiveCreator> {
-
-        private final CpioArchiveOutputStreamBuilder<CpioArchiveCreatorBuilder> cpioOutputStreamBuilder;
-
-        /**
-         * Constructs a CpioArchiveCreatorBuilder with the given file path.
-         *
-         * @param path the file path to write the archive to
-         * @throws IOException if an I/O error occurs opening the file
-         */
-        public CpioArchiveCreatorBuilder(Path path) throws IOException {
-            super(Files.newOutputStream(path), true);
-            this.cpioOutputStreamBuilder = new CpioArchiveOutputStreamBuilder<>(this, outputStream);
-        }
-
-        /**
-         * Constructs a CpioArchiveCreatorBuilder with the given output stream.
-         *
-         * @param outputStream the output stream to write the archive to
-         */
-        public CpioArchiveCreatorBuilder(OutputStream outputStream) {
-            this(outputStream, false);
-        }
-
-        private CpioArchiveCreatorBuilder(OutputStream outputStream, boolean owned) {
-            super(outputStream, owned);
-            if (outputStream == null) {
-                throw new NullPointerException("Output stream cannot be null");
-            }
-            this.cpioOutputStreamBuilder = new CpioArchiveOutputStreamBuilder<>(this, outputStream);
-        }
-
-        /**
-         * Access the CPIO output stream builder for configuration.
-         *
-         * @return the CPIO output stream builder
-         */
-        public CpioArchiveOutputStreamBuilder<CpioArchiveCreatorBuilder> cpioOutputStream() {
-            return cpioOutputStreamBuilder;
-        }
-
+        /** {@inheritDoc} */
         @Override
-        protected CpioArchiveCreatorBuilder getThis() {
+        protected Builder getThis() {
             return this;
         }
 
-        @Override
-        public CpioArchiveOutputStream buildArchiveOutputStream() throws IOException {
-            return cpioOutputStreamBuilder.build();
-        }
-
+        /** {@inheritDoc} */
         @Override
         public CpioArchiveCreator build() throws IOException {
-            return new CpioArchiveCreator(this);
+            Sink.Opened opened = sink.open();
+            try {
+                var cpio = new CpioArchiveOutputStream(opened.out(), format.value, blockSize, encoding.name());
+                return new CpioArchiveCreator(this, new CpioEntryWriter(cpio, format.value));
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
+            }
         }
     }
 }

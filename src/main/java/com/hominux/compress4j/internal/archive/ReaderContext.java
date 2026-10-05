@@ -19,9 +19,11 @@ import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.UnsupportedEntry;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.exceptions.LimitExceededException.Limit;
+import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -30,8 +32,23 @@ import java.util.function.Consumer;
  *
  * @param limits the extraction limits
  * @param unsupported told about every entry the reader skips
+ * @param meter the one meter of the extraction, shared by the reader and the extractor so bytes a reader consumes
+ *     without delivering them count against the same limits
  */
-public record ReaderContext(ExtractionLimits limits, Consumer<UnsupportedEntry> unsupported) {
+public record ReaderContext(ExtractionLimits limits, Consumer<UnsupportedEntry> unsupported, ExpansionMeter meter) {
+
+    /**
+     * Creates a context whose meter sees no compressed bytes, for readers that never meter.
+     *
+     * @param limits the extraction limits
+     * @param unsupported told about every entry the reader skips
+     */
+    public ReaderContext(ExtractionLimits limits, Consumer<UnsupportedEntry> unsupported) {
+        this(limits, unsupported, new ExpansionMeter(limits, () -> 0));
+    }
+
+    /** The longest symbolic link target a reader accepts. */
+    public static final long MAX_LINK_TARGET_BYTES = 4096;
 
     /**
      * Reports an entry the reader skips because its type cannot be extracted.
@@ -68,5 +85,24 @@ public record ReaderContext(ExtractionLimits limits, Consumer<UnsupportedEntry> 
                     "entry '" + entryName + "' ends after " + bytes.length + " of " + declaredSize + " bytes");
         }
         return bytes;
+    }
+
+    /**
+     * Reads a symbolic link target stored as entry content, as UTF-8.
+     *
+     * @param entryName the entry being read, reported on a breach
+     * @param in the stream to read from
+     * @param declaredSize the number of bytes the archive declares
+     * @return the link target
+     * @throws IOException if reading fails, the stream ends early, or {@code declaredSize} is negative or above
+     *     {@link #MAX_LINK_TARGET_BYTES}
+     * @throws LimitExceededException if {@code declaredSize} exceeds the maximum entry size
+     */
+    public String readLinkTarget(String entryName, InputStream in, long declaredSize) throws IOException {
+        if (declaredSize > MAX_LINK_TARGET_BYTES) {
+            throw new IOException("Symlink target of '" + entryName + "' exceeds " + MAX_LINK_TARGET_BYTES + " bytes: "
+                    + declaredSize);
+        }
+        return new String(readDeclared(entryName, in, declaredSize), StandardCharsets.UTF_8);
     }
 }

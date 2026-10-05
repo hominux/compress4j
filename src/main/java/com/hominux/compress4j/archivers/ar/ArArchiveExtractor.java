@@ -15,56 +15,36 @@
  */
 package com.hominux.compress4j.archivers.ar;
 
-import com.hominux.compress4j.archivers.Entry;
-import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
-import com.hominux.compress4j.utils.EntryValues;
-import com.hominux.compress4j.utils.UnixFileType;
+import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
-import org.apache.commons.compress.archivers.ar.ArArchiveEntry;
+import java.util.function.LongSupplier;
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream;
 
 /**
- * The AR archive extractor.
+ * Reads AR archives. Regular files, directories and symbolic links are extracted; every other entry type is reported
+ * through the unsupported-entry handler and skipped. The expansion ratio is measured against the bytes consumed from
+ * the source.
  *
  * @since 2.2
  */
-public class ArArchiveExtractor extends LegacyArchiveExtractor<ArArchiveInputStream> {
+public final class ArArchiveExtractor extends ArchiveExtractor {
 
-    /**
-     * Create a new ArArchiveExtractor with the given input stream.
-     *
-     * @param arArchiveInputStream the input AR Archive Input Stream
-     */
-    public ArArchiveExtractor(ArArchiveInputStream arArchiveInputStream) {
-        super(arArchiveInputStream);
+    private ArArchiveExtractor(Builder builder, ArEntryReader reader, LongSupplier compressedBytes) {
+        super(builder, reader, compressedBytes);
     }
 
     /**
-     * Create a new ArArchiveExtractor with the given input stream and options.
-     *
-     * @param builder the archive input stream builder
-     * @throws IOException if an I/O error occurred
-     */
-    public ArArchiveExtractor(ArArchiveExtractorBuilder builder) throws IOException {
-        super(builder);
-    }
-
-    /**
-     * Helper static method to create an instance of the {@link ArArchiveExtractorBuilder}
+     * Creates a builder reading the archive at the given path.
      *
      * @param path the path to read the archive from
-     * @return An instance of the {@link ArArchiveExtractorBuilder}
-     * @throws IOException if an I/O error occurred
+     * @return the builder
      */
-    public static ArArchiveExtractorBuilder builder(Path path) throws IOException {
-        return new ArArchiveExtractorBuilder(path);
+    public static Builder builder(Path path) {
+        return new Builder(new Source.OfPath(path));
     }
 
     /**
@@ -75,105 +55,49 @@ public class ArArchiveExtractor extends LegacyArchiveExtractor<ArArchiveInputStr
      * @return the builder
      * @since 5.0
      */
-    public static ArArchiveExtractorBuilder builder(SeekableByteChannel channel) {
-        return builder(Channels.newInputStream(channel));
+    public static Builder builder(SeekableByteChannel channel) {
+        return new Builder(new Source.OfChannel(channel));
     }
 
     /**
-     * Helper static method to create an instance of the {@link ArArchiveExtractorBuilder}
+     * Creates a builder reading the archive from the given stream. The extractor closes the stream when it is closed; a
+     * failed {@code build()} leaves it open.
      *
      * @param inputStream the input stream to read the archive from
-     * @return An instance of the {@link ArArchiveExtractorBuilder}
+     * @return the builder
      */
-    public static ArArchiveExtractorBuilder builder(InputStream inputStream) {
-        return new ArArchiveExtractorBuilder(inputStream);
+    public static Builder builder(InputStream inputStream) {
+        return new Builder(new Source.OfStream(inputStream));
     }
 
-    /** {@inheritDoc} */
-    @Override
-    protected Optional<Entry> nextEntry() throws IOException {
-        ArArchiveEntry ae;
-        while ((ae = archiveInputStream.getNextEntry()) != null) {
-            int mode = ae.getMode();
-            UnixFileType fileType = UnixFileType.of(mode);
-            Entry entry;
-            switch (fileType) {
-                case SYMLINK ->
-                    entry = new Entry(ae.getName(), Entry.Type.SYMLINK, mode)
-                            .withLinkTarget(readSymlinkTargetStoredAsContent(ae));
-                case DIRECTORY -> entry = new Entry(ae.getName(), Entry.Type.DIR, mode);
-                case FILE -> entry = new Entry(ae.getName(), Entry.Type.FILE, mode);
-                default -> {
-                    reportUnsupported(ae.getName(), fileType.kind());
-                    continue;
-                }
-            }
-            return Optional.of(EntryValues.withMetadata(
-                    entry,
-                    Optional.ofNullable(ae.getLastModifiedDate()),
-                    entry.type() == Entry.Type.FILE ? ae.getSize() : 0));
-        }
-        return Optional.empty();
-    }
+    /**
+     * Builder for {@link ArArchiveExtractor}.
+     *
+     * @since 5.0
+     */
+    public static final class Builder extends ArchiveExtractor.Builder<Builder, ArArchiveExtractor> {
+        private final Source source;
 
-    private String readSymlinkTargetStoredAsContent(ArArchiveEntry entry) throws IOException {
-        byte[] targetBytes = readEntryContent(entry.getName(), archiveInputStream, entry.getSize());
-        return new String(targetBytes, StandardCharsets.UTF_8);
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    protected InputStream openEntryStream(Entry entry) {
-        return archiveInputStream;
-    }
-
-    /** AR archive extractor builder */
-    public static class ArArchiveExtractorBuilder
-            extends ArchiveExtractorBuilder<ArArchiveInputStream, ArArchiveExtractorBuilder, ArArchiveExtractor> {
-
-        /** Input stream to read from for extraction. */
-        private final InputStream inputStream;
-
-        /**
-         * Create a new {@link ArArchiveExtractor} with the given path.
-         *
-         * @param path the path to read the archive from
-         * @throws IOException if an I/O error occurred
-         */
-        public ArArchiveExtractorBuilder(Path path) throws IOException {
-            this(Files.newInputStream(path), true);
-        }
-
-        /**
-         * Create a new {@link ArArchiveExtractor} with the given input stream.
-         *
-         * @param inputStream the input stream
-         */
-        public ArArchiveExtractorBuilder(InputStream inputStream) {
-            this(inputStream, false);
-        }
-
-        private ArArchiveExtractorBuilder(InputStream inputStream, boolean owned) {
-            super(inputStream, owned);
-            this.inputStream = inputStream;
+        private Builder(Source source) {
+            this.source = source;
         }
 
         /** {@inheritDoc} */
         @Override
-        protected ArArchiveExtractorBuilder getThis() {
+        protected Builder getThis() {
             return this;
         }
 
         /** {@inheritDoc} */
         @Override
-        public ArArchiveInputStream buildArchiveInputStream() {
-            return new ArArchiveInputStream(inputStream);
-        }
-
-        /** {@inheritDoc} */
-        @Override
         public ArArchiveExtractor build() throws IOException {
-            return new ArArchiveExtractor(this);
+            Source.Opened opened = source.open();
+            try {
+                ArEntryReader reader = new ArEntryReader(new ArArchiveInputStream(opened.in()), readerContext());
+                return new ArArchiveExtractor(this, reader, opened.in()::count);
+            } catch (RuntimeException e) {
+                throw opened.closeIfOwned(e);
+            }
         }
     }
 }

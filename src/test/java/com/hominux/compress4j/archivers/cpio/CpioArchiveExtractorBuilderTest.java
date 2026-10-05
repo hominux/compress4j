@@ -23,6 +23,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,7 +68,7 @@ class CpioArchiveExtractorBuilderTest {
         Files.write(archiveFile, sampleArchive);
 
         // when
-        var builder = CpioArchiveExtractor.builder(archiveFile.toFile());
+        var builder = CpioArchiveExtractor.builder(archiveFile);
 
         // then
         assertThat(builder).isNotNull();
@@ -114,10 +116,8 @@ class CpioArchiveExtractorBuilderTest {
 
         // when & then
         try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                .cpioInputStream()
                 .blockSize(1024)
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             assertThat(extractor).isNotNull();
 
@@ -136,9 +136,7 @@ class CpioArchiveExtractorBuilderTest {
 
         // when
         var builder = CpioArchiveExtractor.builder(inputStream);
-        var inputStreamBuilder = builder.cpioInputStream();
-        var configuredBuilder =
-                inputStreamBuilder.blockSize(2048).encoding("ISO-8859-1").and();
+        var configuredBuilder = builder.blockSize(2048).encoding(StandardCharsets.ISO_8859_1);
 
         // then
         assertThat(configuredBuilder).isSameAs(builder);
@@ -160,22 +158,14 @@ class CpioArchiveExtractorBuilderTest {
     }
 
     @Test
-    void testBuilderArchiveInputStreamBuild() throws IOException {
+    void testBuilderBuildsReadableExtractor() throws IOException {
         // given
         InputStream inputStream = new ByteArrayInputStream(sampleArchive);
-        var builder = CpioArchiveExtractor.builder(inputStream);
 
         // when
-        var cpioInputStream = builder.buildArchiveInputStream();
-
-        // then
-        assertThat(cpioInputStream).isNotNull();
-
-        var entry = cpioInputStream.getNextEntry();
-        assertThat(entry).isNotNull();
-        assertThat(entry.getName()).isEqualTo("test.txt");
-
-        cpioInputStream.close();
+        try (var extractor = CpioArchiveExtractor.builder(inputStream).build()) {
+            assertThat(extractor.stream().map(item -> item.entry().name())).contains("test.txt");
+        }
     }
 
     @Test
@@ -184,7 +174,8 @@ class CpioArchiveExtractorBuilderTest {
         var nonExistentFile = tempDir.resolve("does-not-exist.cpio");
 
         // when & then
-        assertThatThrownBy(() -> CpioArchiveExtractor.builder(nonExistentFile)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> CpioArchiveExtractor.builder(nonExistentFile).build())
+                .isInstanceOf(IOException.class);
     }
 
     @Test
@@ -222,9 +213,7 @@ class CpioArchiveExtractorBuilderTest {
 
             // when
             try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                    .cpioInputStream()
                     .blockSize(blockSize)
-                    .and()
                     .build()) {
 
                 // then
@@ -250,9 +239,7 @@ class CpioArchiveExtractorBuilderTest {
 
             // when
             try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                    .cpioInputStream()
-                    .encoding(encoding)
-                    .and()
+                    .encoding(Charset.forName(encoding))
                     .build()) {
 
                 // then
@@ -274,10 +261,8 @@ class CpioArchiveExtractorBuilderTest {
 
         // when & then
         try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                .cpioInputStream()
                 .blockSize(1024)
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
 
             assertThat(extractor).isNotNull();
@@ -301,9 +286,7 @@ class CpioArchiveExtractorBuilderTest {
 
         var archiveOutput = new ByteArrayOutputStream();
         try (var creator = CpioArchiveCreator.builder(archiveOutput)
-                .cpioOutputStream()
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
             creator.add(EntrySource.file("special-äöü.txt", specialFile));
         }
@@ -312,9 +295,7 @@ class CpioArchiveExtractorBuilderTest {
 
         // when & then
         try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                .cpioInputStream()
-                .encoding("UTF-8")
-                .and()
+                .encoding(StandardCharsets.UTF_8)
                 .build()) {
 
             assertThat(extractor).isNotNull();
@@ -359,11 +340,7 @@ class CpioArchiveExtractorBuilderTest {
         InputStream inputStream = new ByteArrayInputStream(sampleArchive);
 
         // when
-        var builder = CpioArchiveExtractor.builder(inputStream)
-                .cpioInputStream()
-                .blockSize(2048)
-                .encoding("UTF-8")
-                .and();
+        var builder = CpioArchiveExtractor.builder(inputStream).blockSize(2048).encoding(StandardCharsets.UTF_8);
 
         // then
         assertThat(builder).isNotNull();
@@ -385,15 +362,11 @@ class CpioArchiveExtractorBuilderTest {
         InputStream inputStream = new ByteArrayInputStream(sampleArchive);
 
         // when
-        var builder = CpioArchiveExtractor.builder(inputStream)
-                .cpioInputStream()
-                .blockSize(-1)
-                .and();
+        var builder = CpioArchiveExtractor.builder(inputStream);
 
         // then
-        assertThatThrownBy(builder::build)
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("blockSize must be bigger than 0");
+        assertThatThrownBy(() -> builder.blockSize(-1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> builder.blockSize(0)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -414,11 +387,8 @@ class CpioArchiveExtractorBuilderTest {
         InputStream inputStream = new ByteArrayInputStream(archiveOutput.toByteArray());
 
         // when & then
-        try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                .cpioInputStream()
-                .blockSize(4096)
-                .and()
-                .build()) {
+        try (var extractor =
+                CpioArchiveExtractor.builder(inputStream).blockSize(4096).build()) {
 
             assertThat(extractor).isNotNull();
 

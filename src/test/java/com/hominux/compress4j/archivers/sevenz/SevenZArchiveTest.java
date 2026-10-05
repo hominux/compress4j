@@ -31,6 +31,7 @@ import com.hominux.compress4j.archivers.EntrySource;
 import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.internal.archive.ReaderContext;
+import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -321,8 +322,10 @@ class SevenZArchiveTest {
     private SevenZEntryReader readerOf(Path archive) throws IOException {
         return new SevenZEntryReader(
                 SevenZFile.builder().setPath(archive).get(),
-                new ReaderContext(ExtractionLimits.defaults(), e -> {}),
-                () -> Long.MAX_VALUE);
+                new ReaderContext(
+                        ExtractionLimits.defaults(),
+                        e -> {},
+                        new ExpansionMeter(ExtractionLimits.defaults(), () -> Long.MAX_VALUE)));
     }
 
     @Test
@@ -377,7 +380,7 @@ class SevenZArchiveTest {
     void unnamedEntryIsRejected() throws IOException {
         var file = mock(SevenZFile.class);
         when(file.getNextEntry()).thenReturn(new SevenZArchiveEntry());
-        var reader = new SevenZEntryReader(file, new ReaderContext(ExtractionLimits.defaults(), e -> {}), () -> 1);
+        var reader = new SevenZEntryReader(file, new ReaderContext(ExtractionLimits.defaults(), e -> {}));
 
         assertThatThrownBy(reader::next)
                 .isInstanceOf(NullPointerException.class)
@@ -526,6 +529,35 @@ class SevenZArchiveTest {
         Path out = Files.createDirectory(tmp.resolve("bomb-out"));
 
         try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
+            assertThatThrownBy(() -> extractor.extract(out))
+                    .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
+                            .isEqualTo(LimitExceededException.Limit.RATIO));
+        }
+    }
+
+    private Path solid(String name, boolean withSkipped, int bytes) throws IOException {
+        Path archive = tmp.resolve(name);
+        try (SevenZOutputFile out = new SevenZOutputFile(archive.toFile())) {
+            if (withSkipped) {
+                put(out, "fifo", false, SevenZEntryReader.UNIX_EXTENSION | (0010644 << 16), "\0".repeat(bytes));
+            }
+            put(out, "plain", false, -1, "\0".repeat(bytes));
+        }
+        return archive;
+    }
+
+    @Test
+    void skippedAndReadBytesShareOneRatioAllowance() throws IOException {
+        int belowGrace = 700 << 10;
+        try (var extractor = SevenZArchiveExtractor.builder(solid("alone.7z", false, belowGrace))
+                .build()) {
+            Path out = Files.createDirectory(tmp.resolve("alone-out"));
+            assertDoesNotThrow(() -> extractor.extract(out));
+        }
+
+        try (var extractor = SevenZArchiveExtractor.builder(solid("both.7z", true, belowGrace))
+                .build()) {
+            Path out = Files.createDirectory(tmp.resolve("both-out"));
             assertThatThrownBy(() -> extractor.extract(out))
                     .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
                             .isEqualTo(LimitExceededException.Limit.RATIO));

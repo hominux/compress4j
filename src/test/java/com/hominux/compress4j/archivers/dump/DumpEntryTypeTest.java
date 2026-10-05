@@ -27,8 +27,8 @@ class DumpEntryTypeTest {
 
     @Test
     void filesAndDirectoriesAreSupported() {
-        assertThat(DumpArchiveExtractor.typeOf(TYPE.FILE)).contains(Entry.Type.FILE);
-        assertThat(DumpArchiveExtractor.typeOf(TYPE.DIRECTORY)).contains(Entry.Type.DIR);
+        assertThat(DumpEntryReader.typeOf(TYPE.FILE)).contains(Entry.Type.FILE);
+        assertThat(DumpEntryReader.typeOf(TYPE.DIRECTORY)).contains(Entry.Type.DIR);
     }
 
     @ParameterizedTest
@@ -42,7 +42,7 @@ class DumpEntryTypeTest {
         "UNKNOWN, unknown type"
     })
     void otherTypesAreUnsupported(TYPE type, String kind) {
-        assertThat(DumpArchiveExtractor.typeOf(type)).isEmpty();
-        assertThat(DumpArchiveExtractor.kindOf(type)).isEqualTo(kind);
+        assertThat(DumpEntryReader.typeOf(type)).isEmpty();
+        assertThat(DumpEntryReader.kindOf(type)).isEqualTo(kind);
     }
 }

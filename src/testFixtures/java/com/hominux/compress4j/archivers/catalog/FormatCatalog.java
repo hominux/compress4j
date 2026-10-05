@@ -26,9 +26,6 @@ import static com.hominux.compress4j.archivers.catalog.Capability.SYMLINKS;
 
 import com.hominux.compress4j.archivers.ArchiveCreator;
 import com.hominux.compress4j.archivers.ArchiveExtractor;
-import com.hominux.compress4j.archivers.LegacyArchiveCreator;
-import com.hominux.compress4j.archivers.LegacyArchiveCreator.ArchiveCreatorBuilder;
-import com.hominux.compress4j.archivers.LegacyArchiveExtractor;
 import com.hominux.compress4j.archivers.ar.ArArchiveCreator;
 import com.hominux.compress4j.archivers.ar.ArArchiveExtractor;
 import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Reader;
@@ -106,8 +103,7 @@ public final class FormatCatalog {
                         Optional.of(ZipArchiveCreator.class),
                         "builder",
                         Optional.empty(),
-                        Optional.of((path, filter) -> ArchiveFormat.writer(
-                                ZipArchiveCreator.builder(path).filter(filter).build())),
+                        Optional.of(ZipArchiveCreator::builder),
                         Optional.of(nw((SeekableByteChannel ch) ->
                                 ZipArchiveCreator.builder(ch).build())),
                         Optional.of(nw(
@@ -138,9 +134,7 @@ public final class FormatCatalog {
                         Optional.of(SevenZArchiveCreator.class),
                         "builder",
                         Optional.empty(),
-                        Optional.of((path, filter) -> ArchiveFormat.writer(SevenZArchiveCreator.builder(path)
-                                .filter(filter)
-                                .build())),
+                        Optional.of(SevenZArchiveCreator::builder),
                         Optional.of(nw((SeekableByteChannel ch) ->
                                 SevenZArchiveCreator.builder(ch).build())),
                         Optional.empty(),
@@ -187,10 +181,7 @@ public final class FormatCatalog {
                 Optional.of(TarArchiveCreator.class),
                 "builder",
                 Optional.empty(),
-                Optional.of((path, filter) -> ArchiveFormat.writer(TarArchiveCreator.builder(path)
-                        .compression(compression)
-                        .filter(filter)
-                        .build())),
+                Optional.of(path -> TarArchiveCreator.builder(path).compression(compression)),
                 Optional.of(ch -> ArchiveFormat.writer(
                         TarArchiveCreator.builder(ch).compression(compression).build())),
                 Optional.of(o -> ArchiveFormat.writer(
@@ -210,12 +201,12 @@ public final class FormatCatalog {
             Set<Capability> capabilities,
             Class<?> extractor,
             Class<?> creator,
-            IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>> builderAt,
-            IOFunction<SeekableByteChannel, LegacyArchiveCreator<?>> createOnChannel,
-            IOFunction<OutputStream, LegacyArchiveCreator<?>> createOnStream,
-            IOFunction<Path, LegacyArchiveExtractor<?>> readAt,
-            IOFunction<SeekableByteChannel, LegacyArchiveExtractor<?>> readFromChannel,
-            IOFunction<InputStream, LegacyArchiveExtractor<?>> readFromStream) {
+            ArchiveFormat.BuilderAt builderAt,
+            IOFunction<SeekableByteChannel, ArchiveCreator> createOnChannel,
+            IOFunction<OutputStream, ArchiveCreator> createOnStream,
+            IOFunction<Path, ArchiveExtractor> readAt,
+            IOFunction<SeekableByteChannel, ArchiveExtractor> readFromChannel,
+            IOFunction<InputStream, ArchiveExtractor> readFromStream) {
         return new ArchiveFormat(
                 name,
                 capabilities,
@@ -223,25 +214,12 @@ public final class FormatCatalog {
                 Optional.of(creator),
                 "builder",
                 Optional.empty(),
-                Optional.of(lb(builderAt)),
-                Optional.of(lw(createOnChannel)),
-                Optional.of(lw(createOnStream)),
-                lr(readAt),
-                Optional.of(lr(readFromChannel)),
-                Optional.of(lr(readFromStream)));
-    }
-
-    private static ArchiveFormat.FilteredWriter lb(IOFunction<Path, ArchiveCreatorBuilder<?, ?, ?>> builderAt) {
-        return (path, filter) ->
-                ArchiveFormat.writer(builderAt.apply(path).filter(filter).build());
-    }
-
-    private static <T> IOFunction<T, ArchiveFormat.Writer> lw(IOFunction<T, ? extends LegacyArchiveCreator<?>> f) {
-        return t -> ArchiveFormat.writer(f.apply(t));
-    }
-
-    private static <T> IOFunction<T, ArchiveFormat.Reader> lr(IOFunction<T, ? extends LegacyArchiveExtractor<?>> f) {
-        return t -> ArchiveFormat.reader(f.apply(t));
+                Optional.of(builderAt),
+                Optional.of(nw(createOnChannel)),
+                Optional.of(nw(createOnStream)),
+                nr(readAt),
+                Optional.of(nr(readFromChannel)),
+                Optional.of(nr(readFromStream)));
     }
 
     private static <T> IOFunction<T, ArchiveFormat.Writer> nw(IOFunction<T, ? extends ArchiveCreator> f) {

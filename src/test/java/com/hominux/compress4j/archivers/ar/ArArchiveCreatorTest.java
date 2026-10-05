@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.utils.UnixFileType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,6 +30,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import org.apache.commons.compress.archivers.ar.ArArchiveEntry;
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream;
+import org.apache.commons.compress.archivers.ar.ArArchiveOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -301,8 +303,8 @@ class ArArchiveCreatorTest {
         var modTime = FileTime.from(Instant.parse("2023-01-01T00:00:00Z"));
 
         // when
-        try (ArArchiveCreator creator = ArArchiveCreator.builder(outputStream).build()) {
-            creator.writeSymlink("link", "target.txt", 0, modTime);
+        try (var writer = new ArEntryWriter(new ArArchiveOutputStream(outputStream))) {
+            writer.writeSymlink("link", "target.txt", 0, modTime);
         }
 
         // then
@@ -310,7 +312,7 @@ class ArArchiveCreatorTest {
             ArArchiveEntry entry = ais.getNextEntry();
             assertThat(entry).isNotNull();
             assertThat(entry.getName()).isEqualTo("link");
-            assertThat(entry.getMode() & ArArchiveCreator.S_IFMT).isEqualTo(ArArchiveCreator.S_IFLNK);
+            assertThat(UnixFileType.of(entry.getMode())).isEqualTo(UnixFileType.SYMLINK);
             assertThat(new String(ais.readAllBytes(), StandardCharsets.UTF_8)).isEqualTo("target.txt");
         }
     }
