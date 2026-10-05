@@ -87,10 +87,13 @@ class ArchiverDependencyCheckerWithoutXzTest {
         assertThat(failure).hasMessage(format + " compression is not available." + YOU_NEED_XZ_JAVA);
     }
 
-    private static Throwable buildFailureWithoutXz(String builderClass, Class<?> argType, Object arg) throws Exception {
+    private static Throwable buildFailureWithoutXz(String builderClass, Class<?> argType, Object arg, String codec)
+            throws Exception {
         try (XzHidingClassLoader loader = new XzHidingClassLoader(classpathUrls())) {
-            Object builder =
-                    loader.loadClass(builderClass).getMethod("builder", argType).invoke(null, arg);
+            Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
+            Object builder = loader.loadClass(builderClass)
+                    .getMethod("builder", argType, compression)
+                    .invoke(null, arg, compression.getMethod(codec).invoke(null));
             builder.getClass().getMethod("build").invoke(builder);
             throw new AssertionError("Expected failure without xz");
         } catch (InvocationTargetException e) {
@@ -106,17 +109,19 @@ class ArchiverDependencyCheckerWithoutXzTest {
     @Test
     void lzmaCompressorBuildRejectsMissingXz() throws Exception {
         assertMissingLzma(buildFailureWithoutXz(
-                "com.hominux.compress4j.compressors.lzma.LZMACompressor",
+                "com.hominux.compress4j.compressors.Compressor",
                 OutputStream.class,
-                new ByteArrayOutputStream()));
+                new ByteArrayOutputStream(),
+                "lzma"));
     }
 
     @Test
     void lzmaDecompressorBuildRejectsMissingXz() throws Exception {
         assertMissingLzma(buildFailureWithoutXz(
-                "com.hominux.compress4j.compressors.lzma.LZMADecompressor",
+                "com.hominux.compress4j.compressors.Decompressor",
                 InputStream.class,
-                new ByteArrayInputStream(new byte[0])));
+                new ByteArrayInputStream(new byte[0]),
+                "lzma"));
     }
 
     private static Throwable tarBuildFailure(String tarClass, Class<?> argType, Object arg) throws Exception {

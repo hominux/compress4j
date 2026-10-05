@@ -17,7 +17,8 @@ package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hominux.compress4j.compressors.lz4.Lz4BlockDecompressor;
+import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,7 +55,7 @@ class TarLz4UpstreamSampleTest {
     @Test
     void shouldExtractBlockUpstreamSample() throws IOException {
         var tar = tempDir.resolve("block.tar");
-        try (var decompressor = Lz4BlockDecompressor.builder(sample("upstream-bla.tar.block_lz4"))
+        try (var decompressor = Decompressor.builder(sample("upstream-bla.tar.block_lz4"), Compression.lz4Block())
                 .build()) {
             decompressor.write(tar);
         }
