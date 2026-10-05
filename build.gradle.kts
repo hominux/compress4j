@@ -87,6 +87,9 @@ testing {
             dependencies {
                 implementation(platform(libs.junit.bom))
 
+                implementation(libs.archunit)
+                implementation(libs.archunit.junit5.api)
+                runtimeOnly(libs.archunit.junit5)
                 implementation(libs.assertj.core)
                 implementation(libs.junit.jupiter.api)
                 implementation(libs.junit.jupiter.params)

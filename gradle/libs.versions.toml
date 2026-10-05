@@ -1,5 +1,6 @@
 [versions]
 apache-commons-compress = "1.28.0"
+archunit = "1.5.1"
 asm = "9.10.1"
 assertJ = "3.27.7"
 build-health = "3.19.2"
@@ -34,6 +35,9 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 
 # TEST dependencies
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+archunit-junit5-api = { module = "com.tngtech.archunit:archunit-junit5-api", version.ref = "archunit" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertJ" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations" }

@@ -18,7 +18,7 @@ package com.hominux.compress4j.archivers.dump;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.archive.ReaderContext;
-import com.hominux.compress4j.utils.EntryValues;
+import com.hominux.compress4j.internal.util.EntryValues;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;

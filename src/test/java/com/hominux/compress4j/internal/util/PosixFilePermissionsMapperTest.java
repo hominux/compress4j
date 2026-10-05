@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.utils;
+package com.hominux.compress4j.internal.util;
 
-import static com.hominux.compress4j.utils.PosixFilePermissionsMapper.fromUnixMode;
-import static com.hominux.compress4j.utils.PosixFilePermissionsMapper.toUnixMode;
+import static com.hominux.compress4j.internal.util.PosixFilePermissionsMapper.fromUnixMode;
+import static com.hominux.compress4j.internal.util.PosixFilePermissionsMapper.toUnixMode;
 import static java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE;
 import static java.nio.file.attribute.PosixFilePermission.GROUP_READ;
 import static java.nio.file.attribute.PosixFilePermission.GROUP_WRITE;

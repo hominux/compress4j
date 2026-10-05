@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.utils;
+package com.hominux.compress4j.internal.util;
 
 import com.hominux.compress4j.archivers.Entry;
 import java.nio.file.attribute.FileTime;

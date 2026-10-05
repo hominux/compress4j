@@ -96,7 +96,7 @@ class ModuleDescriptorTest {
     }
 
     @Test
-    void keepsOnlyUtilsAndInternalPackagesUnexported() throws Exception {
+    void keepsOnlyInternalPackagesUnexported() throws Exception {
         ModuleDescriptor descriptor = descriptor();
         Set<String> exported =
                 descriptor.exports().stream().map(Exports::source).collect(Collectors.toSet());
@@ -104,7 +104,7 @@ class ModuleDescriptorTest {
         assertThat(descriptor.packages()).containsAll(exported);
         assertThat(descriptor.packages().stream().filter(p -> !exported.contains(p)))
                 .containsExactlyInAnyOrder(
-                        BASE + "utils",
+                        BASE + "internal.util",
                         BASE + "internal.archive",
                         BASE + "internal.codec",
                         BASE + "internal.io",

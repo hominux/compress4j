@@ -20,7 +20,7 @@ package com.hominux.compress4j.exceptions;
  * attempting to use archive formats that require additional libraries that are not present in the current runtime
  * environment.
  */
-public class MissingArchiveDependencyException extends RuntimeException {
+public final class MissingArchiveDependencyException extends RuntimeException {
 
     /**
      * Constructs a new exception with the specified detail message. The cause is not initialized.

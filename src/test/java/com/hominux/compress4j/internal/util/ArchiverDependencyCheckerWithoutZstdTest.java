@@ -13,14 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.utils;
+package com.hominux.compress4j.internal.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.exceptions.MissingArchiveDependencyException;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -29,18 +31,18 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-class ArchiverDependencyCheckerWithoutBrotliTest {
+class ArchiverDependencyCheckerWithoutZstdTest {
 
-    private static final String BROTLI_PACKAGE = "org.brotli.";
+    private static final String ZSTD_PACKAGE = "com.github.luben.";
 
-    private static final class BrotliHidingClassLoader extends URLClassLoader {
-        BrotliHidingClassLoader(URL[] urls) {
+    private static final class ZstdHidingClassLoader extends URLClassLoader {
+        ZstdHidingClassLoader(URL[] urls) {
             super(urls, ClassLoader.getPlatformClassLoader());
         }
 
         @Override
         protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            if (name.startsWith(BROTLI_PACKAGE)) {
+            if (name.startsWith(ZSTD_PACKAGE)) {
                 throw new ClassNotFoundException(name);
             }
             return super.loadClass(name, resolve);
@@ -62,11 +64,11 @@ class ArchiverDependencyCheckerWithoutBrotliTest {
     }
 
     private static Throwable checkFailure(String entryName) throws Exception {
-        try (var loader = new BrotliHidingClassLoader(classpathUrls())) {
+        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
             loader.loadClass(ArchiverDependencyChecker.class.getName())
                     .getMethod("check", String.class)
                     .invoke(null, entryName);
-            throw new AssertionError("Expected failure without org.brotli:dec");
+            throw new AssertionError("Expected failure without zstd-jni");
         } catch (InvocationTargetException e) {
             return e.getCause();
         }
@@ -74,34 +76,73 @@ class ArchiverDependencyCheckerWithoutBrotliTest {
 
     private static Throwable buildFailure(String builderClass, Class<?> argType, Object arg, String codec)
             throws Exception {
-        try (var loader = new BrotliHidingClassLoader(classpathUrls())) {
+        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
             Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
             Object builder = loader.loadClass(builderClass)
                     .getMethod("builder", argType, compression)
                     .invoke(null, arg, compression.getMethod(codec).invoke(null));
             builder.getClass().getMethod("build").invoke(builder);
-            throw new AssertionError("Expected failure without org.brotli:dec");
+            throw new AssertionError("Expected failure without zstd-jni");
         } catch (InvocationTargetException e) {
             return e.getCause();
         }
     }
 
-    private static void assertMissingBrotli(Throwable failure) {
+    private static void assertMissingZstd(Throwable failure) {
         assertThat(failure.getClass().getName()).isEqualTo(MissingArchiveDependencyException.class.getName());
-        assertThat(failure).hasMessage(DependencyCheckerTestConstants.EXPECTED_MESSAGE_BROTLI);
+        assertThat(failure).hasMessage(DependencyCheckerTestConstants.EXPECTED_MESSAGE_ZSTD);
     }
 
     @Test
-    void checkerRejectsBrotli() throws Exception {
-        assertMissingBrotli(checkFailure("br"));
+    void checkerRejectsZstd() throws Exception {
+        assertMissingZstd(checkFailure("zstd"));
     }
 
     @Test
-    void decompressorBuildRejectsMissingBrotli() throws Exception {
-        assertMissingBrotli(buildFailure(
+    void compressorBuildRejectsMissingZstd() throws Exception {
+        assertMissingZstd(buildFailure(
+                "com.hominux.compress4j.compressors.Compressor",
+                OutputStream.class,
+                new ByteArrayOutputStream(),
+                "zstd"));
+    }
+
+    @Test
+    void decompressorBuildRejectsMissingZstd() throws Exception {
+        assertMissingZstd(buildFailure(
                 "com.hominux.compress4j.compressors.Decompressor",
                 InputStream.class,
                 new ByteArrayInputStream(new byte[0]),
-                "brotli"));
+                "zstd"));
+    }
+
+    private static Throwable tarBuildFailure(String tarClass, Class<?> argType, Object arg) throws Exception {
+        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
+            Object builder =
+                    loader.loadClass(tarClass).getMethod("builder", argType).invoke(null, arg);
+            Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
+            Object codec = compression.getMethod("zstd").invoke(null);
+            builder.getClass().getMethod("compression", compression).invoke(builder, codec);
+            builder.getClass().getMethod("build").invoke(builder);
+            throw new AssertionError("Expected failure without the codec library");
+        } catch (InvocationTargetException e) {
+            return e.getCause();
+        }
+    }
+
+    @Test
+    void tarCreatorBuildRejectsMissingZstd() throws Exception {
+        assertMissingZstd(tarBuildFailure(
+                "com.hominux.compress4j.archivers.tar.TarArchiveCreator",
+                OutputStream.class,
+                new ByteArrayOutputStream()));
+    }
+
+    @Test
+    void tarExtractorBuildRejectsMissingZstd() throws Exception {
+        assertMissingZstd(tarBuildFailure(
+                "com.hominux.compress4j.archivers.tar.TarArchiveExtractor",
+                InputStream.class,
+                new ByteArrayInputStream(new byte[0])));
     }
 }
