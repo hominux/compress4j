@@ -334,7 +334,7 @@ if (System.getProperty("os.name").startsWith("Linux")) {
 
 sonar {
     properties {
-        property("sonar.projectKey", "compress4j_compress4j")
+        property("sonar.projectKey", "hominux_compress4j")
         property("sonar.organization", "hominux")
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.sources", "src/main/java,src/examples/java,.github/workflows")

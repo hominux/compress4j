@@ -2,8 +2,8 @@
 
 image:https://img.shields.io/maven-central/v/com.hominux/compress4j[Maven Central Version]
 image:https://github.com/hominux/compress4j/actions/workflows/ci.yml/badge.svg[Build Status]
-image:https://sonarcloud.io/api/project_badges/measure?project=compress4j_compress4j&metric=alert_status[Quality Gate Status,link=https://sonarcloud.io/summary/new_code?id=compress4j_compress4j]
-image:https://sonarcloud.io/api/project_badges/measure?project=compress4j_compress4j&metric=coverage[Coverage Status,link=https://sonarcloud.io/summary/new_code?id=compress4j_compress4j]
+image:https://sonarcloud.io/api/project_badges/measure?project=hominux_compress4j&metric=alert_status[Quality Gate Status,link=https://sonarcloud.io/summary/new_code?id=hominux_compress4j]
+image:https://sonarcloud.io/api/project_badges/measure?project=hominux_compress4j&metric=coverage[Coverage Status,link=https://sonarcloud.io/summary/new_code?id=hominux_compress4j]
 
 Create and extract archives in Java, with guards against Zip Slip and decompression bombs. Compress4J is a thin
 builder-style API on top of
