@@ -25,10 +25,12 @@ import java.io.InputStream;
 import java.util.Optional;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveEntry;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream;
+import org.apache.commons.compress.archivers.cpio.CpioConstants;
 import org.apache.commons.io.input.CloseShieldInputStream;
 
 final class CpioEntryReader implements EntryReader {
 
+    private static final String HARD_LINK = "hard link without data";
     private static final String TRAILER = "TRAILER!!!";
 
     private final CpioArchiveInputStream archiveInputStream;
@@ -45,12 +47,17 @@ final class CpioEntryReader implements EntryReader {
         while ((ce = archiveInputStream.getNextEntry()) != null && !TRAILER.equals(ce.getName())) {
             UnixFileType fileType = UnixFileType.of((int) ce.getMode());
             Optional<Entry.Type> type = fileType.entryType();
-            if (type.isPresent()) {
+            if (type.isPresent() && !isDatalessHardLink(ce)) {
                 return Optional.of(toEntry(ce, type.orElseThrow()));
             }
-            context.reportUnsupported(ce.getName(), fileType.kind());
+            context.reportUnsupported(ce.getName(), type.isPresent() ? HARD_LINK : fileType.kind());
         }
         return Optional.empty();
+    }
+
+    private static boolean isDatalessHardLink(CpioArchiveEntry ce) {
+        boolean newc = ce.getFormat() == CpioConstants.FORMAT_NEW || ce.getFormat() == CpioConstants.FORMAT_NEW_CRC;
+        return newc && ce.isRegularFile() && ce.getNumberOfLinks() > 1 && ce.getSize() == 0;
     }
 
     @Override
