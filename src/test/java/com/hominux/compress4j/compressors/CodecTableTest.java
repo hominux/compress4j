@@ -43,21 +43,21 @@ class CodecTableTest {
 
     private static String factory(Compression compression) {
         return switch (compression) {
-            case Compression.None c -> "none";
-            case Compression.Gzip c -> "gzip";
-            case Compression.Bzip2 c -> "bzip2";
-            case Compression.Xz c -> "xz";
-            case Compression.Lzma c -> "lzma";
-            case Compression.Lz4Block c -> "lz4Block";
-            case Compression.Lz4Framed c -> "lz4Framed";
-            case Compression.Zstd c -> "zstd";
-            case Compression.Deflate c -> "deflate";
-            case Compression.Deflate64 c -> "deflate64";
-            case Compression.SnappyRaw c -> "snappyRaw";
-            case Compression.SnappyFramed c -> "snappyFramed";
-            case Compression.Brotli c -> "brotli";
-            case Compression.UnixZ c -> "unixZ";
-            case Compression.Pack200 c -> "pack200";
+            case None c -> "none";
+            case Gzip c -> "gzip";
+            case Bzip2 c -> "bzip2";
+            case Xz c -> "xz";
+            case Lzma c -> "lzma";
+            case Lz4Block c -> "lz4Block";
+            case Lz4Framed c -> "lz4Framed";
+            case Zstd c -> "zstd";
+            case Deflate c -> "deflate";
+            case Deflate64 c -> "deflate64";
+            case SnappyRaw c -> "snappyRaw";
+            case SnappyFramed c -> "snappyFramed";
+            case Brotli c -> "brotli";
+            case UnixZ c -> "unixZ";
+            case Pack200 c -> "pack200";
         };
     }
 

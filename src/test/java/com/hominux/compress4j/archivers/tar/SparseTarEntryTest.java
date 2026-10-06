@@ -74,10 +74,10 @@ class SparseTarEntryTest {
 
     private static byte[] sparseTar() throws IOException {
         byte[] stored = "hello".getBytes(StandardCharsets.US_ASCII);
-        byte[] records = (record("GNU.sparse.name", "big.bin")
-                        + record("GNU.sparse.size", Long.toString(REAL_SIZE))
-                        + record("GNU.sparse.numblocks", "1")
-                        + record("GNU.sparse.map", (REAL_SIZE - 5) + ",5"))
+        byte[] records = (paxRecord("GNU.sparse.name", "big.bin")
+                        + paxRecord("GNU.sparse.size", Long.toString(REAL_SIZE))
+                        + paxRecord("GNU.sparse.numblocks", "1")
+                        + paxRecord("GNU.sparse.map", (REAL_SIZE - 5) + ",5"))
                 .getBytes(StandardCharsets.US_ASCII);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (TarArchiveOutputStream tar = new TarArchiveOutputStream(bytes)) {
@@ -94,7 +94,7 @@ class SparseTarEntryTest {
         tar.closeArchiveEntry();
     }
 
-    private static String record(String key, String value) {
+    private static String paxRecord(String key, String value) {
         String body = " " + key + "=" + value + "\n";
         int length = body.length() + 1;
         while (Integer.toString(length).length() + body.length() != length) {

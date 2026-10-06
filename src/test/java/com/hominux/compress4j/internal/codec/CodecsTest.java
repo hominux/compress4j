@@ -18,8 +18,14 @@ package com.hominux.compress4j.internal.codec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.compressors.Bzip2;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.compressors.DeflateStrategy;
+import com.hominux.compress4j.compressors.Lz4Framed;
+import com.hominux.compress4j.compressors.None;
+import com.hominux.compress4j.compressors.Pack200;
+import com.hominux.compress4j.compressors.UnixZ;
+import com.hominux.compress4j.compressors.Xz;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -141,9 +147,9 @@ class CodecsTest {
 
     private static Compression withConcatenation(Compression compression) {
         return switch (compression) {
-            case Compression.Bzip2 b -> b.decompressConcatenated(true);
-            case Compression.Xz x -> x.decompressConcatenated(true);
-            case Compression.Lz4Framed l -> l.decompressConcatenated(true);
+            case Bzip2 b -> b.decompressConcatenated(true);
+            case Xz x -> x.decompressConcatenated(true);
+            case Lz4Framed l -> l.decompressConcatenated(true);
             default -> throw new IllegalArgumentException(compression.toString());
         };
     }
@@ -179,14 +185,14 @@ class CodecsTest {
     void detectsPack200() throws IOException {
         byte[] magic = {(byte) 0xCA, (byte) 0xFE, (byte) 0xD0, 0x0D, 0, 0, 0, 0};
         var in = new BufferedInputStream(new ByteArrayInputStream(magic));
-        assertThat(Codecs.detect(in)).isInstanceOf(Compression.Pack200.class);
+        assertThat(Codecs.detect(in)).isInstanceOf(Pack200.class);
     }
 
     @Test
     void detectsUnixZ() throws IOException {
         var in =
                 new BufferedInputStream(new ByteArrayInputStream(new byte[] {0x1f, (byte) 0x9d, (byte) 0x90, 0, 0, 0}));
-        assertThat(Codecs.detect(in)).isInstanceOf(Compression.UnixZ.class);
+        assertThat(Codecs.detect(in)).isInstanceOf(UnixZ.class);
     }
 
     @Test
@@ -218,14 +224,14 @@ class CodecsTest {
 
     @Test
     void tarWhoseFirstEntryNameStartsWithBZhIsNotBzip2() throws IOException {
-        assertThat(detectBytes(tarHeaderNamed("BZh.txt"))).isInstanceOf(Compression.None.class);
-        assertThat(detectBytes(tarHeaderNamed("BZh9.txt"))).isInstanceOf(Compression.None.class);
+        assertThat(detectBytes(tarHeaderNamed("BZh.txt"))).isInstanceOf(None.class);
+        assertThat(detectBytes(tarHeaderNamed("BZh9.txt"))).isInstanceOf(None.class);
     }
 
     @Test
     void emptyBzip2StreamIsStillDetected() throws IOException {
         byte[] empty = compress(Compression.bzip2());
-        assertThat(detectBytes(empty)).isInstanceOf(Compression.Bzip2.class);
+        assertThat(detectBytes(empty)).isInstanceOf(Bzip2.class);
     }
 
     private static byte[] tarHeaderNamed(String name) {

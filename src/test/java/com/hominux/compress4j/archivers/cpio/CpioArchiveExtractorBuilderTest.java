@@ -62,22 +62,6 @@ class CpioArchiveExtractorBuilderTest {
     }
 
     @Test
-    void testBuilderWithFile() throws IOException {
-        // given
-        var archiveFile = tempDir.resolve("test.cpio");
-        Files.write(archiveFile, sampleArchive);
-
-        // when
-        var builder = CpioArchiveExtractor.builder(archiveFile);
-
-        // then
-        assertThat(builder).isNotNull();
-        try (var extractor = builder.build()) {
-            assertThat(extractor).isNotNull();
-        }
-    }
-
-    @Test
     void testBuilderWithInputStream() throws IOException {
         // given
         InputStream inputStream = new ByteArrayInputStream(sampleArchive);

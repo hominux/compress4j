@@ -56,7 +56,7 @@ class CompressionTest {
         assertThat(Compression.deflate().level()).isEqualTo(-1);
         assertThat(Compression.deflate().zlibHeader()).isTrue();
         assertThat(Compression.snappyRaw().uncompressedSize()).isEqualTo(OptionalLong.empty());
-        assertThat(Compression.pack200().strategy()).isEqualTo(Compression.Pack200.Strategy.IN_MEMORY);
+        assertThat(Compression.pack200().strategy()).isEqualTo(Pack200.Strategy.IN_MEMORY);
         assertThat(Compression.pack200().properties()).isEmpty();
     }
 
@@ -105,7 +105,7 @@ class CompressionTest {
     }
 
     private static void assertGzip(
-            Compression.Gzip gzip,
+            Gzip gzip,
             int level,
             int bufferSize,
             String fileName,
@@ -170,12 +170,9 @@ class CompressionTest {
         var deflate = Compression.deflate().level(1).zlibHeader(false);
         assertThat(deflate.level(2).zlibHeader()).isFalse();
         assertThat(deflate.zlibHeader(true).level()).isEqualTo(1);
-        var pack = Compression.pack200()
-                .strategy(Compression.Pack200.Strategy.TEMP_FILE)
-                .properties(Map.of("k", "v"));
-        assertThat(pack.strategy(Compression.Pack200.Strategy.IN_MEMORY).properties())
-                .containsOnlyKeys("k");
-        assertThat(pack.properties(Map.of()).strategy()).isEqualTo(Compression.Pack200.Strategy.TEMP_FILE);
+        var pack = Compression.pack200().strategy(Pack200.Strategy.TEMP_FILE).properties(Map.of("k", "v"));
+        assertThat(pack.strategy(Pack200.Strategy.IN_MEMORY).properties()).containsOnlyKeys("k");
+        assertThat(pack.properties(Map.of()).strategy()).isEqualTo(Pack200.Strategy.TEMP_FILE);
     }
 
     @Test
@@ -314,7 +311,7 @@ class CompressionTest {
         assertDifferent(Compression.xz(), Compression.xz().memoryLimitKiB(3));
         assertDifferent(Compression.xz(), Compression.xz().decompressConcatenated(true));
         assertDifferent(Compression.deflate(), Compression.deflate().level(2));
-        assertDifferent(Compression.pack200(), Compression.pack200().strategy(Compression.Pack200.Strategy.TEMP_FILE));
+        assertDifferent(Compression.pack200(), Compression.pack200().strategy(Pack200.Strategy.TEMP_FILE));
     }
 
     private static void assertSame(Compression left, Compression right) {
