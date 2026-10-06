@@ -18,4 +18,7 @@
  *
  * @since 3.2
  */
+@NullMarked
 package com.hominux.compress4j.archivers.sevenz;
+
+import org.jspecify.annotations.NullMarked;

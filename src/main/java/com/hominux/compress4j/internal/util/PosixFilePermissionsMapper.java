@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.utils;
+package com.hominux.compress4j.internal.util;
 
-import jakarta.annotation.Nonnull;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +69,7 @@ public class PosixFilePermissionsMapper {
      * @param permissions the set of {@link PosixFilePermission}
      * @return the Unix mode
      */
-    public static int toUnixMode(@Nonnull Set<PosixFilePermission> permissions) {
+    public static int toUnixMode(Set<PosixFilePermission> permissions) {
         return POSIX_FILE_PERMISSIONS_TO_INT.entrySet().stream()
                 .filter(entry -> permissions.contains(entry.getKey()))
                 .mapToInt(Map.Entry::getValue)

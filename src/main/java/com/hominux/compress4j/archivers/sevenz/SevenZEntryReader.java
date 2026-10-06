@@ -18,9 +18,8 @@ package com.hominux.compress4j.archivers.sevenz;
 import com.hominux.compress4j.archivers.Entry;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.archive.ReaderContext;
-import com.hominux.compress4j.utils.EntryValues;
-import com.hominux.compress4j.utils.UnixFileType;
-import jakarta.annotation.Nonnull;
+import com.hominux.compress4j.internal.util.EntryValues;
+import com.hominux.compress4j.internal.util.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -129,7 +128,7 @@ final class SevenZEntryReader implements EntryReader {
         }
 
         @Override
-        public int read(@Nonnull byte[] b, int off, int len) throws IOException {
+        public int read(byte[] b, int off, int len) throws IOException {
             Objects.checkFromIndexSize(off, len, b.length);
             return len == 0 ? 0 : file.read(b, off, len);
         }

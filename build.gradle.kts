@@ -6,6 +6,8 @@ import me.champeau.gradle.japicmp.JapicmpTask
 import org.gradle.api.publish.maven.MavenPom
 import org.jreleaser.model.Active
 import java.io.Serializable
+import net.ltgt.gradle.errorprone.CheckSeverity
+import net.ltgt.gradle.errorprone.errorprone
 
 plugins {
     `jacoco-report-aggregation`
@@ -15,6 +17,7 @@ plugins {
     `maven-publish`
     jacoco
 
+    alias(libs.plugins.errorprone)
     alias(libs.plugins.git.version)
     alias(libs.plugins.sonarqube)
     alias(libs.plugins.spotless)
@@ -55,7 +58,7 @@ val mockitoAgent: Configuration = configurations.create("mockitoAgent")
 dependencies {
     implementation(libs.commons.compress)
     api(libs.commons.io)
-    compileOnlyApi(libs.jakarta.annotation.api)
+    api(libs.jspecify)
 
     implementation(libs.commons.lang3)
     implementation(libs.slf4j.api)
@@ -67,7 +70,7 @@ dependencies {
     testFixturesApi(libs.assertj.core)
     testFixturesApi(libs.commons.compress)
     testFixturesApi(libs.jackson.core)
-    testFixturesCompileOnly(libs.jakarta.annotation.api)
+    testFixturesApi(libs.jspecify)
     testFixturesApi(libs.logback.classic)
     testFixturesApi(libs.logback.core)
 
@@ -76,6 +79,9 @@ dependencies {
     testFixturesImplementation(libs.jackson.annotations)
     testFixturesImplementation(libs.jackson.databind)
     testFixturesImplementation(libs.mockito.core)
+
+    errorprone(libs.error.prone.core)
+    errorprone(libs.nullaway)
 
     mockitoAgent(libs.mockito.core) { isTransitive = false }
 }
@@ -87,6 +93,11 @@ testing {
             dependencies {
                 implementation(platform(libs.junit.bom))
 
+                implementation(libs.archunit)
+                implementation(libs.archunit.junit5.api)
+                runtimeOnly(libs.archunit.junit5)
+                runtimeOnly(libs.error.prone.core)
+                runtimeOnly(libs.nullaway)
                 implementation(libs.assertj.core)
                 implementation(libs.junit.jupiter.api)
                 implementation(libs.junit.jupiter.params)
@@ -122,12 +133,26 @@ val integrationTest by testing.suites.registering(JvmTestSuite::class) {
     }}
 }
 
+val errorProneJvmArgs: List<String> = listOf(
+    "api", "code", "comp", "file", "main", "model", "parser", "processing", "tree", "util"
+).map { "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" } +
+        listOf("code", "comp").map { "--add-opens=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" }
+
 tasks.withType<Test>().configureEach {
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         listOf(
             "-javaagent:${mockitoAgent.asPath}",
             "--add-opens=java.base/java.util.zip=ALL-UNNAMED"
         )
+    })
+}
+
+tasks.test {
+    jvmArgumentProviders.add(CommandLineArgumentProvider {
+        val errorprone = tasks.compileJava.get().options.errorprone
+        val options = errorprone.checkOptions.get().map { (name, value) -> "-XepOpt:$name=$value" }
+        val checks = errorprone.checks.get().map { (name, severity) -> "-Xep:$name:$severity" }
+        errorProneJvmArgs + "-Dcompile.errorprone.args=${(checks + options + errorprone.errorproneArgs.get()).joinToString(" ")}"
     })
 }
 
@@ -195,6 +220,9 @@ dependencyAnalysis {
             onUnusedDependencies {
                 exclude("org.junit.jupiter:junit-jupiter")
             }
+            onCompileOnly {
+                exclude("org.jspecify:jspecify")
+            }
             onAny {
                 severity("fail")
             }
@@ -205,6 +233,18 @@ dependencyAnalysis {
 tasks.withType<JavaCompile> {
     options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-serial"))
     options.encoding = "UTF-8"
+}
+
+tasks.named<JavaCompile>("compileJava") {
+    options.errorprone {
+        check("NullAway", CheckSeverity.ERROR)
+        option("NullAway:OnlyNullMarked", "true")
+        option("NullAway:JSpecifyMode", "true")
+    }
+}
+
+tasks.withType<JavaCompile>().matching { it.name != "compileJava" }.configureEach {
+    options.errorprone.enabled = false
 }
 
 tasks.jar {
@@ -316,7 +356,7 @@ spotless {
     }
     format("javaMisc") {
         target("src/**/package-info.java")
-        licenseHeaderFile(rootProject.file(".config/spotless/copyright.java.txt"), "\\/\\*\\*|@Nonnull\\npackage |package ")
+        licenseHeaderFile(rootProject.file(".config/spotless/copyright.java.txt"), "\\/\\*\\*|import |@NullMarked|package ")
     }
 }
 

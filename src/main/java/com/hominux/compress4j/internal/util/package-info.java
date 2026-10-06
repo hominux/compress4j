@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2026 The Compress4J Project
+ * Copyright 2026 The Compress4J Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/** Entry points and limit types shared by the archive and compression APIs. */
+/**
+ * Internal; not part of the API.
+ *
+ * @since 5.0
+ */
 @NullMarked
-package com.hominux.compress4j;
+package com.hominux.compress4j.internal.util;
 
 import org.jspecify.annotations.NullMarked;

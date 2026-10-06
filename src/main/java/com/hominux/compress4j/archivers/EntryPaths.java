@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.archivers;
 
-import static com.hominux.compress4j.utils.FileUtils.checkValidPath;
+import static com.hominux.compress4j.internal.util.FileUtils.checkValidPath;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -54,6 +54,11 @@ final class EntryPaths {
      */
     static void makeDirectory(Path path) throws IOException {
         Files.createDirectories(path);
+    }
+
+    static Path requireParent(Path path) {
+        return Optional.ofNullable(path.getParent())
+                .orElseThrow(() -> new IllegalArgumentException("Path has no parent: " + path));
     }
 
     static Optional<String> stripComponents(String entryName, int count) {

@@ -578,8 +578,8 @@ public sealed interface Compression
         @Override
         public boolean equals(Object other) {
             return other instanceof Bzip2 that
-                    && Objects.equals(blockSize, that.blockSize)
-                    && Objects.equals(decompressConcatenated, that.decompressConcatenated);
+                    && blockSize == that.blockSize
+                    && decompressConcatenated == that.decompressConcatenated;
         }
 
         @Override
@@ -684,9 +684,9 @@ public sealed interface Compression
         @Override
         public boolean equals(Object other) {
             return other instanceof Xz that
-                    && Objects.equals(preset, that.preset)
+                    && preset == that.preset
                     && Objects.equals(memoryLimitKiB, that.memoryLimitKiB)
-                    && Objects.equals(decompressConcatenated, that.decompressConcatenated);
+                    && decompressConcatenated == that.decompressConcatenated;
         }
 
         @Override
@@ -813,8 +813,7 @@ public sealed interface Compression
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Lz4Framed that
-                    && Objects.equals(decompressConcatenated, that.decompressConcatenated);
+            return other instanceof Lz4Framed that && decompressConcatenated == that.decompressConcatenated;
         }
 
         @Override
@@ -862,7 +861,7 @@ public sealed interface Compression
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Zstd that && Objects.equals(level, that.level);
+            return other instanceof Zstd that && level == that.level;
         }
 
         @Override
@@ -928,9 +927,7 @@ public sealed interface Compression
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Deflate that
-                    && Objects.equals(level, that.level)
-                    && Objects.equals(zlibHeader, that.zlibHeader);
+            return other instanceof Deflate that && level == that.level && zlibHeader == that.zlibHeader;
         }
 
         @Override

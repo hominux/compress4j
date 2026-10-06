@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Compress4J Project
+ * Copyright 2024-2026 The Compress4J Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.utils;
+package com.hominux.compress4j.internal.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,19 +30,24 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
-class ArchiverDependencyCheckerWithoutZstdTest {
+class ArchiverDependencyCheckerWithoutXzTest {
 
-    private static final String ZSTD_PACKAGE = "com.github.luben.";
+    private static final String XZ_PACKAGE = "org.tukaani.";
+    private static final String YOU_NEED_XZ_JAVA =
+            " In addition to Apache Commons Compress you need the XZ for Java library"
+                    + " - see https://tukaani.org/xz/java.html";
 
-    private static final class ZstdHidingClassLoader extends URLClassLoader {
-        ZstdHidingClassLoader(URL[] urls) {
+    private static final class XzHidingClassLoader extends URLClassLoader {
+        XzHidingClassLoader(URL[] urls) {
             super(urls, ClassLoader.getPlatformClassLoader());
         }
 
         @Override
         protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            if (name.startsWith(ZSTD_PACKAGE)) {
+            if (name.startsWith(XZ_PACKAGE)) {
                 throw new ClassNotFoundException(name);
             }
             return super.loadClass(name, resolve);
@@ -63,65 +68,68 @@ class ArchiverDependencyCheckerWithoutZstdTest {
         }
     }
 
-    private static Throwable checkFailure(String entryName) throws Exception {
-        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
-            loader.loadClass(ArchiverDependencyChecker.class.getName())
-                    .getMethod("check", String.class)
-                    .invoke(null, entryName);
-            throw new AssertionError("Expected failure without zstd-jni");
+    private static Throwable checkWithoutXz(String entryName) throws Exception {
+        try (XzHidingClassLoader loader = new XzHidingClassLoader(classpathUrls())) {
+            Class<?> checker = loader.loadClass(ArchiverDependencyChecker.class.getName());
+            checker.getMethod("check", String.class).invoke(null, entryName);
+            throw new AssertionError("Expected check to fail without xz");
         } catch (InvocationTargetException e) {
             return e.getCause();
         }
     }
 
-    private static Throwable buildFailure(String builderClass, Class<?> argType, Object arg, String codec)
+    @ParameterizedTest
+    @CsvSource({"xz,XZ", "lzma,LZMA"})
+    void shouldRejectWhenXzIsMissing(String entryName, String format) throws Exception {
+        Throwable failure = checkWithoutXz(entryName);
+
+        assertThat(failure.getClass().getName()).isEqualTo(MissingArchiveDependencyException.class.getName());
+        assertThat(failure).hasMessage(format + " compression is not available." + YOU_NEED_XZ_JAVA);
+    }
+
+    private static Throwable buildFailureWithoutXz(String builderClass, Class<?> argType, Object arg, String codec)
             throws Exception {
-        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
+        try (XzHidingClassLoader loader = new XzHidingClassLoader(classpathUrls())) {
             Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
             Object builder = loader.loadClass(builderClass)
                     .getMethod("builder", argType, compression)
                     .invoke(null, arg, compression.getMethod(codec).invoke(null));
             builder.getClass().getMethod("build").invoke(builder);
-            throw new AssertionError("Expected failure without zstd-jni");
+            throw new AssertionError("Expected failure without xz");
         } catch (InvocationTargetException e) {
             return e.getCause();
         }
     }
 
-    private static void assertMissingZstd(Throwable failure) {
+    private static void assertMissingLzma(Throwable failure) {
         assertThat(failure.getClass().getName()).isEqualTo(MissingArchiveDependencyException.class.getName());
-        assertThat(failure).hasMessage(DependencyCheckerTestConstants.EXPECTED_MESSAGE_ZSTD);
+        assertThat(failure).hasMessage("LZMA compression is not available." + YOU_NEED_XZ_JAVA);
     }
 
     @Test
-    void checkerRejectsZstd() throws Exception {
-        assertMissingZstd(checkFailure("zstd"));
-    }
-
-    @Test
-    void compressorBuildRejectsMissingZstd() throws Exception {
-        assertMissingZstd(buildFailure(
+    void lzmaCompressorBuildRejectsMissingXz() throws Exception {
+        assertMissingLzma(buildFailureWithoutXz(
                 "com.hominux.compress4j.compressors.Compressor",
                 OutputStream.class,
                 new ByteArrayOutputStream(),
-                "zstd"));
+                "lzma"));
     }
 
     @Test
-    void decompressorBuildRejectsMissingZstd() throws Exception {
-        assertMissingZstd(buildFailure(
+    void lzmaDecompressorBuildRejectsMissingXz() throws Exception {
+        assertMissingLzma(buildFailureWithoutXz(
                 "com.hominux.compress4j.compressors.Decompressor",
                 InputStream.class,
                 new ByteArrayInputStream(new byte[0]),
-                "zstd"));
+                "lzma"));
     }
 
     private static Throwable tarBuildFailure(String tarClass, Class<?> argType, Object arg) throws Exception {
-        try (var loader = new ZstdHidingClassLoader(classpathUrls())) {
+        try (var loader = new XzHidingClassLoader(classpathUrls())) {
             Object builder =
                     loader.loadClass(tarClass).getMethod("builder", argType).invoke(null, arg);
             Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
-            Object codec = compression.getMethod("zstd").invoke(null);
+            Object codec = compression.getMethod("lzma").invoke(null);
             builder.getClass().getMethod("compression", compression).invoke(builder, codec);
             builder.getClass().getMethod("build").invoke(builder);
             throw new AssertionError("Expected failure without the codec library");
@@ -131,16 +139,16 @@ class ArchiverDependencyCheckerWithoutZstdTest {
     }
 
     @Test
-    void tarCreatorBuildRejectsMissingZstd() throws Exception {
-        assertMissingZstd(tarBuildFailure(
+    void tarLzmaCreatorBuildRejectsMissingXz() throws Exception {
+        assertMissingLzma(tarBuildFailure(
                 "com.hominux.compress4j.archivers.tar.TarArchiveCreator",
                 OutputStream.class,
                 new ByteArrayOutputStream()));
     }
 
     @Test
-    void tarExtractorBuildRejectsMissingZstd() throws Exception {
-        assertMissingZstd(tarBuildFailure(
+    void tarLzmaExtractorBuildRejectsMissingXz() throws Exception {
+        assertMissingLzma(tarBuildFailure(
                 "com.hominux.compress4j.archivers.tar.TarArchiveExtractor",
                 InputStream.class,
                 new ByteArrayInputStream(new byte[0])));

@@ -37,7 +37,7 @@ class ModuleDescriptorTest {
 
     private static final String BASE = "com.hominux.compress4j.";
     private static final List<String> DEPENDENCY_JAR_PREFIXES =
-            List.of("commons-compress", "commons-codec", "commons-io", "commons-lang3", "slf4j-api");
+            List.of("commons-compress", "commons-codec", "commons-io", "commons-lang3", "jspecify", "slf4j-api");
 
     private static Path moduleRoot() throws URISyntaxException {
         return Path.of(ArchiveExtractor.class
@@ -96,7 +96,7 @@ class ModuleDescriptorTest {
     }
 
     @Test
-    void keepsOnlyUtilsAndInternalPackagesUnexported() throws Exception {
+    void keepsOnlyInternalPackagesUnexported() throws Exception {
         ModuleDescriptor descriptor = descriptor();
         Set<String> exported =
                 descriptor.exports().stream().map(Exports::source).collect(Collectors.toSet());
@@ -104,7 +104,7 @@ class ModuleDescriptorTest {
         assertThat(descriptor.packages()).containsAll(exported);
         assertThat(descriptor.packages().stream().filter(p -> !exported.contains(p)))
                 .containsExactlyInAnyOrder(
-                        BASE + "utils",
+                        BASE + "internal.util",
                         BASE + "internal.archive",
                         BASE + "internal.codec",
                         BASE + "internal.io",
@@ -130,7 +130,13 @@ class ModuleDescriptorTest {
         assertThat(modifiersOf(descriptor(), "org.tukaani.xz")).contains(Modifier.STATIC, Modifier.TRANSITIVE);
         assertThat(modifiersOf(descriptor(), "com.github.luben.zstd_jni"))
                 .contains(Modifier.STATIC, Modifier.TRANSITIVE);
-        assertThat(modifiersOf(descriptor(), "jakarta.annotation")).contains(Modifier.STATIC, Modifier.TRANSITIVE);
+    }
+
+    @Test
+    void requiresJspecifyTransitively() throws Exception {
+        assertThat(modifiersOf(descriptor(), "org.jspecify"))
+                .contains(Modifier.TRANSITIVE)
+                .doesNotContain(Modifier.STATIC);
     }
 
     @Test

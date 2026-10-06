@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.internal.io;
 
-import com.hominux.compress4j.utils.BuildGatedChannel;
+import com.hominux.compress4j.internal.util.BuildGatedChannel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;

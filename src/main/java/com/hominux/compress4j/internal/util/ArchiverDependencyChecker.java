@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.hominux.compress4j.utils;
+package com.hominux.compress4j.internal.util;
 
 import static org.apache.commons.compress.compressors.CompressorStreamFactory.BROTLI;
 import static org.apache.commons.compress.compressors.CompressorStreamFactory.LZMA;
@@ -21,6 +21,7 @@ import static org.apache.commons.compress.compressors.CompressorStreamFactory.XZ
 import static org.apache.commons.compress.compressors.CompressorStreamFactory.ZSTANDARD;
 
 import com.hominux.compress4j.exceptions.MissingArchiveDependencyException;
+import java.util.Locale;
 import org.apache.commons.compress.compressors.brotli.BrotliUtils;
 import org.apache.commons.compress.compressors.lzma.LZMAUtils;
 import org.apache.commons.compress.compressors.xz.XZUtils;
@@ -85,7 +86,7 @@ public class ArchiverDependencyChecker {
      * @param name the name of the archiver
      */
     public static void check(String name) {
-        switch (name.toLowerCase()) {
+        switch (name.toLowerCase(Locale.ROOT)) {
             case BROTLI -> checkBrotli();
             case LZMA -> checkLZMA();
             case XZ -> checkXZ();

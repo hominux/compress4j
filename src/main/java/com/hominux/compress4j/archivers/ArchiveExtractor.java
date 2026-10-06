@@ -104,6 +104,10 @@ public abstract class ArchiveExtractor implements Closeable {
      * @throws UnsafeEntryException if an entry would be written, or a symlink would point, outside outputDir
      */
     public final void extract(Path outputDir) throws IOException {
+        extractInto(outputDir.toAbsolutePath().normalize());
+    }
+
+    private void extractInto(Path outputDir) throws IOException {
         pipeline.start();
         SymlinkGuard guard = new SymlinkGuard(outputDir);
         List<DirectoryMode> directoryModes = new ArrayList<>();
@@ -222,7 +226,7 @@ public abstract class ArchiveExtractor implements Closeable {
         Entry entry = item.entry();
         if (overwrite || !Files.exists(outputFile)) {
             InputStream content = contentOf(item);
-            EntryPaths.makeDirectory(outputFile.getParent());
+            EntryPaths.makeDirectory(EntryPaths.requireParent(outputFile));
             try (OutputStream outputStream = Files.newOutputStream(
                     outputFile,
                     StandardOpenOption.CREATE,

@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import com.hominux.compress4j.utils.PosixFilePermissionsMapper;
+import com.hominux.compress4j.internal.util.PosixFilePermissionsMapper;
 import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;

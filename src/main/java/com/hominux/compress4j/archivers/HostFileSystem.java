@@ -15,7 +15,7 @@
  */
 package com.hominux.compress4j.archivers;
 
-import com.hominux.compress4j.utils.PosixFilePermissionsMapper;
+import com.hominux.compress4j.internal.util.PosixFilePermissionsMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;

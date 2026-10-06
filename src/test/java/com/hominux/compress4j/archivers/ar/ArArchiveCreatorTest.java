@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.archivers.EntrySource;
-import com.hominux.compress4j.utils.UnixFileType;
+import com.hominux.compress4j.internal.util.UnixFileType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

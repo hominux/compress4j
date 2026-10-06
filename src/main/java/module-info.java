@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
+import org.jspecify.annotations.NullMarked;
+
 /**
  * Archiving and compression API.
  *
  * <p>Apache Commons Compress is an implementation dependency: no exported type exposes it. The XZ formats need
  * {@code org.tukaani.xz} and the Zstandard formats need {@code com.github.luben.zstd_jni} on the module path.
  */
+@NullMarked
 module com.hominux.compress4j {
     requires org.apache.commons.compress;
     requires transitive org.apache.commons.io;
     requires org.apache.commons.lang3;
     requires org.slf4j;
-    requires static transitive jakarta.annotation;
+    requires transitive org.jspecify;
     requires static transitive org.tukaani.xz;
     requires static transitive com.github.luben.zstd_jni;
 
