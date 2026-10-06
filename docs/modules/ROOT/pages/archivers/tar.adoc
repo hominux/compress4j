@@ -1,6 +1,6 @@
 = tar
 
-Here is a simple example of how to use Compress4J to create and extract tar files:
+Tar archives are plain or compressed. `TarArchiveCreator` and `TarArchiveExtractor` handle every variant; the compression is a `Compression` value, not a separate class.
 
 == Example Usage
 
@@ -16,6 +16,19 @@ include::example$java/com/example/archivers/tar/TarExamples.java[tag=tar-creator
 ----
 include::example$java/com/example/archivers/tar/TarExamples.java[tag=tar-extractor,indent=0]
 ----
+
+== Compression
+
+Pass a `Compression` to `TarArchiveCreator.builder(...).compression(...)` to write a compressed tar. The value carries the codec options, such as `Compression.gzip().level(9)` or `Compression.zstd().level(6)`. Every writable codec in the xref:index.adoc#_supported_codecs[codec table] works except Pack200, and raw Snappy, which needs `uncompressedSize(...)` that a tar stream rarely knows up front.
+
+The extractor detects the compression from the leading bytes when you set none:
+
+* gzip, bzip2, xz, Zstandard, framed LZ4, framed Snappy and Unix `.Z` have strong magic numbers and are detected. Concatenated gzip, bzip2, xz and framed LZ4 members are read; the others are not verified for it.
+* LZMA has no magic number: call `.compression(Compression.lzma())` on the extractor.
+* Pack200 is never detected and the tar extractor does not read it.
+* Input with no detected signature reads as plain tar; input that is not a tar archive fails with an `IOException`.
+
+An explicit `compression(...)` on the extractor is used exactly as given.
 
 .Tar Gzip Creation
 [,java]

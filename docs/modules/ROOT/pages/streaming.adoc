@@ -4,7 +4,7 @@
 
 == Reading
 
-`ArchiveExtractor.stream()` returns the archive's entries in order as `ArchiveItem`s, after `stripComponents`, `filter` and the entry limit apply. `item.content()` reads the entry's bytes, metered against `maxEntrySize` and `maxTotalSize`.
+`ArchiveExtractor.stream()` returns the archive's entries in order as `ArchiveItem`s, after `stripComponents`, `filter` and the entry limit apply. `item.content()` reads the entry's bytes, metered against `maxEntrySize`, `maxTotalSize` and `maxRatio`.
 
 [,java]
 ----
@@ -18,7 +18,11 @@ An item's content is readable only while it is current. Collecting items first a
 include::example$java/com/example/StreamingExamples.java[tag=stale-item,indent=0]
 ----
 
-The stream is sequential and single-use: a parallel stream fails with `IllegalStateException` when consumed, and a second `stream()` or `extract()` call throws it too. Errors while advancing arrive as `UncheckedIOException`.
+The stream is sequential and single-use: a parallel stream fails with `IllegalStateException` when consumed, and a second `stream()` or `extract()` call throws it too. `stream()` surfaces parser failures, including corrupt input, as `UncheckedIOException` wrapping the `IOException`.
+
+== Decompressing a stream
+
+`Decompressor.inputStream()` returns the decompressed bytes of one compressed stream, metered against the same ratio and size limits. Closing it closes the `Decompressor`. Combine it with any archive or parser that reads an `InputStream`.
 
 == Writing
 

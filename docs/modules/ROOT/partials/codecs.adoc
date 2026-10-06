@@ -1,0 +1,19 @@
+[cols="2,1,1,1,3",options="header"]
+|===
+|Codec |Read |Write |Detected |Compression value
+
+|gzip |✓ |✓ |✓ |`Compression.gzip()`
+|bzip2 |✓ |✓ |✓ |`Compression.bzip2()`
+|xz |✓ |✓ |✓ |`Compression.xz()`
+|lzma |✓ |✓ | |`Compression.lzma()`
+|lz4-block |✓ |✓ | |`Compression.lz4Block()`
+|lz4-framed |✓ |✓ |✓ |`Compression.lz4Framed()`
+|zstd |✓ |✓ |✓ |`Compression.zstd()`
+|deflate |✓ |✓ | |`Compression.deflate()`
+|snappy-framed |✓ |✓ |✓ |`Compression.snappyFramed()`
+|snappy-raw |✓ |✓ | |`Compression.snappyRaw()`
+|pack200 |✓ |✓ | |`Compression.pack200()`
+|deflate64 |✓ | | |`Compression.deflate64()`
+|brotli |✓ | | |`Compression.brotli()`
+|z |✓ | |✓ |`Compression.unixZ()`
+|===

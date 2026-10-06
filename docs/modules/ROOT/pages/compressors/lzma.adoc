@@ -1,6 +1,10 @@
 = LZMA
 
-Here is a simple example of how to use LZMA compression. It requires `org.tukaani:xz` at runtime, the same library the XZ formats use; see xref:additional_formats.adoc[Additional Formats].
+Select LZMA with `Compression.lzma()`. It requires `org.tukaani:xz` at runtime, the same library XZ uses; see xref:additional_formats.adoc[Additional Formats].
+
+LZMA streams have no magic number, so `Decompressor` and the tar extractor never detect them: pass `Compression.lzma()` explicitly. A stream with no detectable signature passes through unchanged, so `Decompressor.builder(p)` on LZMA data returns the compressed bytes: use `Decompressor.builder(p, Compression.lzma())`. The one option, `memoryLimitKiB`, caps the memory a read may use (default 256 MiB).
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 

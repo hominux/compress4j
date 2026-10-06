@@ -10,8 +10,9 @@ builder-style API on top of
 https://commons.apache.org/proper/commons-compress/[Apache Commons Compress], and a maintained successor to
 https://github.com/thrau/jarchivelib[JArchiveLib].
 
-* *Safe extraction.* Path traversal (Zip Slip) is rejected, escaping symlinks are rejected by default, and entry-count and
-  size limits stop decompression bombs. See <<safe-extraction>>.
+* *Safe extraction.* Path traversal (Zip Slip) is rejected, escaping symlinks are rejected by default, and extraction
+  has default limits (1,000,000 entries, expansion ratio 100) that stop decompression bombs. See
+  <<safe-extraction>>.
 * *One API for every format.* Tar, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.lzma`, `.tar.lz4`, `.tar.zst`, Zip, 7z, AR, CPIO and more share the same builders.
 * *Streams.* Read entries as a Java Stream, write from a Stream of files or another archive, repack between formats.
 * *Java 21+, JPMS-ready,* published to Maven Central.
@@ -72,34 +73,46 @@ Maven:
 
 == Quick start
 
-Create an archive:
+Create a gzip-compressed tar and extract it:
 
 [source,java]
 ----
-try (TarGzArchiveCreator creator = TarGzArchiveCreator.builder(Path.of("example.tar.gz")).build()) {
+try (TarArchiveCreator creator = TarArchiveCreator.builder(Path.of("example.tar.gz"))
+        .compression(Compression.gzip())
+        .build()) {
     creator.addDirectoryRecursively(Path.of("exampleDir"));
     creator.addFile(Path.of("path/to/file.txt"));
 }
+
+try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("example.tar.gz")).build()) {
+    extractor.extract(Path.of("outputDir"));
+}
 ----
 
-Extract one:
+Compress or decompress a single file with any codec. `Decompressor` detects the codec from the stream. Input with no
+detectable signature (deflate, LZMA, LZ4 block, raw Snappy) passes through unchanged, so name those codecs with
+`Decompressor.builder(path, Compression.lzma())`:
 
 [source,java]
 ----
-try (TarGzArchiveExtractor extractor = TarGzArchiveExtractor.builder(Path.of("example.tar.gz")).build()) {
-    extractor.extract(Path.of("outputDir"));
+try (Compressor compressor = Compressor.builder(Path.of("file.txt.zst"), Compression.zstd().level(6))
+        .build()) {
+    compressor.write(Path.of("file.txt"));
+}
+
+try (Decompressor decompressor = Decompressor.builder(Path.of("file.txt.zst")).build()) {
+    decompressor.write(Path.of("copy.txt"));
 }
 ----
 
 [[safe-extraction]]
 == Safe extraction of untrusted archives
 
-Extracting an archive you do not trust? Path traversal and escaping symlinks are rejected by default. Turn on the remaining guards
-for decompression bombs, as described in link:.github/SECURITY.md[SECURITY.md]:
+Extracting an archive you do not trust? Path traversal, escaping symlinks and decompression bombs are bounded by default: 1,000,000 entries and an expansion ratio of 100 after the first MiB. Add size limits as described in link:.github/SECURITY.md[SECURITY.md]:
 
 [source,java]
 ----
-try (TarGzArchiveExtractor extractor = TarGzArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
+try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
         .maxEntries(10_000)
         .maxEntrySize(100L * 1024 * 1024)
         .maxTotalSize(1024L * 1024 * 1024)
@@ -108,7 +121,7 @@ try (TarGzArchiveExtractor extractor = TarGzArchiveExtractor.builder(Path.of("un
 }
 ----
 
-Breaching a limit throws `ArchiveLimitExceededException`. It and `UnsafeEntryException` (traversal, escaping symlinks) both extend `ArchiveSecurityException`, which an error handler cannot suppress.
+Breaching a limit throws `LimitExceededException`. It and `UnsafeEntryException` (traversal, escaping symlinks) both extend `UnsafeInputException`, which an error handler cannot suppress. Raise `maxRatio` for legitimate highly compressible data, or pass `limits(ExtractionLimits.noLimits())` for trusted input.
 
 == Supported formats
 

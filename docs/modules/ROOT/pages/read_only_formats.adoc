@@ -1,14 +1,25 @@
 = Read-only formats
 
-Commons Compress reads, but cannot write, some formats. Compress4J supports these formats with an extractor or decompressor only; no creator or compressor class exists for them.
+Compress4J reads, but cannot write, some formats. Archives have an extractor only; codecs have a `Compression` value that `Decompressor` and the tar extractor read and `Compressor` rejects.
 
 == Convention
 
-* The class Javadoc starts with `Read-only: Compress4J provides no creator for this format.`
+* An archive has no creator class; a codec's `Compression.canWrite()` returns `false`.
 * The format's page opens with the note `Read-only: Compress4J can extract this format but cannot create it.`
 * Format lists mark the format with `(read-only)`.
-* Extractors inherit the same extraction guards as every other archive extractor: path traversal, escaping symlink policy, and entry and size limits.
+* Extractors enforce the same guards as every other archive extractor: path traversal, escaping symlink policy, and entry and size limits.
 
 == Read-only formats
 
-ARJ, UNIX dump, Unix compress (`.Z` and `.tar.Z`), Deflate64 and Brotli.
+[cols="2,3"]
+|===
+|Format |How to read it
+
+|ARJ |xref:archivers/arj.adoc[`ArjArchiveExtractor`]
+|UNIX dump |xref:archivers/dump.adoc[`DumpArchiveExtractor`]
+|Deflate64 |`Compression.deflate64()` with `Decompressor`; see xref:compressors/deflate64.adoc[Deflate64]
+|Brotli |`Compression.brotli()` with `Decompressor`; needs `org.brotli:dec`, see xref:compressors/brotli.adoc[Brotli]
+|Unix compress (`.Z`) |`Compression.unixZ()` with `Decompressor`, detected automatically; `.tar.Z` through `TarArchiveExtractor`; see xref:compressors/z.adoc[Unix compress]
+|===
+
+The xref:index.adoc#_supported_codecs[codec table] marks every read-only codec.

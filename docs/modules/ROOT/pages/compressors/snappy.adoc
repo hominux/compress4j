@@ -1,8 +1,10 @@
 = Snappy
 
-Snappy support needs no extra dependency. Compress4J provides two stream types, because they are different formats: the framed format (`.sz`, used for files and streams) and the raw format, a single block.
+Snappy needs no extra dependency. It has two formats, so it has two `Compression` factories: `Compression.snappyFramed()` (`.sz`, for files and streams) and `Compression.snappyRaw()`, a single block.
 
-The raw format stores the uncompressed length first, so `SnappyRawCompressor.builder(...)` requires it as an argument and rejects a negative value with an `IllegalArgumentException`.
+`Decompressor` detects the framed format, never the raw format. Raw data passes through `Decompressor.builder(p)` unchanged: use `Decompressor.builder(p, Compression.snappyRaw())`. The raw format stores the uncompressed length first, so writing needs `Compression.snappyRaw().uncompressedSize(length)`; a negative length throws `IllegalArgumentException`.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 

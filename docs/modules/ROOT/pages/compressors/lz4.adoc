@@ -1,10 +1,10 @@
 = LZ4
 
-LZ4 support needs no extra dependency. Compress4J provides two stream types, because they are different formats: the framed format (the `.lz4` files written by the `lz4` command line tool) and the raw block format.
+LZ4 needs no extra dependency. It has two formats, so it has two `Compression` factories: `Compression.lz4Framed()` for the `.lz4` files the `lz4` command line tool writes, and `Compression.lz4Block()` for the raw block format.
 
-The framed decompressor can read concatenated frames when `setDecompressConcatenated(true)` is set.
+`Decompressor` detects the framed format, never the block format. Block data passes through `Decompressor.builder(p)` unchanged: use `Decompressor.builder(p, Compression.lz4Block())`. The framed codec has one option, `decompressConcatenated`, to read concatenated frames.
 
-NOTE: Closing a block LZ4 compressor without writing any data fails inside Commons Compress with an `IndexOutOfBoundsException`. Write at least one byte before closing it.
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 
@@ -32,4 +32,4 @@ include::example$java/com/example/compressors/Lz4Examples.java[tag=lz4-block-com
 include::example$java/com/example/compressors/Lz4Examples.java[tag=lz4-block-decompressor,indent=0]
 ----
 
-The `.tar.lz4` creator and extractor use the framed format; see xref:archivers/tar.adoc[tar].
+The `.tar.lz4` format uses the framed codec; see xref:archivers/tar.adoc[tar].

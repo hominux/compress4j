@@ -2,7 +2,7 @@
 
 7z is the archive format of the 7-Zip utility. Compress4J creates 7z archives and extracts them, including password-protected ones.
 
-Extraction goes through the same guards as every other format: path traversal is rejected, and `escapingSymlinkPolicy`, `maxEntries`, `maxEntrySize` and `maxTotalSize` apply.
+Extraction goes through the same guards as every other format: path traversal is rejected, and `escapingSymlinkPolicy` and the limits (`limits(...)`, `maxEntries`, `maxEntrySize`, `maxTotalSize`, `maxRatio`) apply. See xref:security.adoc[].
 
 == Example Usage
 

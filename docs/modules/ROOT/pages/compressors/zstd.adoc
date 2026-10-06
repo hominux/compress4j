@@ -1,6 +1,10 @@
 = Zstandard
 
-Here is a simple example of how to use Zstandard compression. It requires `com.github.luben:zstd-jni` at runtime; see xref:additional_formats.adoc[Additional Formats].
+Select Zstandard with `Compression.zstd()`; `Decompressor` detects it from its magic number. It requires `com.github.luben:zstd-jni` at runtime; see xref:additional_formats.adoc[Additional Formats].
+
+The one option, `level`, defaults to 3.
+
+`Decompressor` enforces the default xref:security.adoc[limits]; a stream that expands past a ratio of 100 after the first MiB throws `LimitExceededException`.
 
 == Example Usage
 
