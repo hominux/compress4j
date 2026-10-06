@@ -246,10 +246,6 @@ public abstract class ArchiveExtractor implements Closeable {
         }
     }
 
-    private static boolean acceptAll(Entry entry) {
-        return true;
-    }
-
     private static int interimDirectoryMode(int archiveMode) {
         return (archiveMode & 0777) | 0700;
     }
@@ -293,7 +289,7 @@ public abstract class ArchiveExtractor implements Closeable {
     public abstract static class Builder<B extends Builder<B, E>, E extends ArchiveExtractor> {
         EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
 
-        Predicate<Entry> entryFilter = ArchiveExtractor::acceptAll;
+        Predicate<Entry> entryFilter = entry -> true;
 
         BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction =
                 (x, y) -> ErrorHandlerChoice.ABORT;
