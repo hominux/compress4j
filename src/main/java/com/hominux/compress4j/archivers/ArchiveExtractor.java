@@ -78,6 +78,7 @@ public abstract class ArchiveExtractor implements Closeable {
      * @param reader the format reader, closed by {@link #close()}
      * @param compressedBytes supplies the compressed bytes consumed so far, for the expansion ratio limit
      */
+    @SuppressWarnings("exports") // EntryReader stays unexported: subclassing is closed to code outside the module
     protected ArchiveExtractor(Builder<?, ?> builder, EntryReader reader, LongSupplier compressedBytes) {
         this.reader = reader;
         this.errorHandler = builder.errorHandlerFunction;
@@ -495,6 +496,7 @@ public abstract class ArchiveExtractor implements Closeable {
          *
          * @return a new reader context for the options set so far, owned by the extractor of this build
          */
+        @SuppressWarnings("exports") // ReaderContext stays unexported: only in-module format builders call this
         protected final ReaderContext readerContext() {
             var source = new AtomicReference<LongSupplier>(() -> 0);
             var meter = new ExpansionMeter(limits, () -> source.get().getAsLong());
