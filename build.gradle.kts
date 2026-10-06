@@ -162,7 +162,12 @@ val errorProneJvmArgs: List<String> = listOf(
 ).map { "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" } +
         listOf("code", "comp").map { "--add-opens=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" }
 
+val testJdk: Provider<JavaLanguageVersion> = providers.gradleProperty("test.jdk").map { JavaLanguageVersion.of(it) }
+
 tasks.withType<Test>().configureEach {
+    testJdk.orNull?.let { version ->
+        javaLauncher = javaToolchains.launcherFor { languageVersion = version }
+    }
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         listOf(
             "-javaagent:${mockitoAgent.asPath}",
