@@ -158,7 +158,6 @@ class ZipArchiveCreatorTest {
             byte[] targetBytes = targetPath.toString().getBytes();
             var size = targetBytes.length;
             var mode = 0777;
-            var dataStream = new ByteArrayInputStream(new byte[0]);
 
             // When
             creator.writeSymlink("testLink.lnk", targetPath.toString(), mode, testTime);

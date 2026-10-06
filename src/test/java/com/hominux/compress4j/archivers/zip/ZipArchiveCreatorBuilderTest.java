@@ -152,7 +152,7 @@ class ZipArchiveCreatorBuilderTest {
 
     @Test
     void unicodeExtraFieldsNeverAddsNone() throws IOException {
-        var entry = unicodeEntry(ZipUnicodeExtraFields.NEVER, StandardCharsets.UTF_8, "caf\u00e9.txt");
+        var entry = unicodeEntry(ZipUnicodeExtraFields.NEVER, StandardCharsets.UTF_8, "café.txt");
 
         assertThat(entry.getExtraField(UNICODE_PATH_HEADER_ID)).isNull();
     }
@@ -160,8 +160,7 @@ class ZipArchiveCreatorBuilderTest {
     @Test
     void unicodeExtraFieldsNotEncodeableAddsThemOnlyWhenTheEncodingFails() throws IOException {
         var encodeable = unicodeEntry(ZipUnicodeExtraFields.NOT_ENCODEABLE, StandardCharsets.US_ASCII, "a.txt");
-        var unencodeable =
-                unicodeEntry(ZipUnicodeExtraFields.NOT_ENCODEABLE, StandardCharsets.US_ASCII, "caf\u00e9.txt");
+        var unencodeable = unicodeEntry(ZipUnicodeExtraFields.NOT_ENCODEABLE, StandardCharsets.US_ASCII, "café.txt");
 
         assertThat(encodeable.getExtraField(UNICODE_PATH_HEADER_ID)).isNull();
         assertThat(unencodeable.getExtraField(UNICODE_PATH_HEADER_ID)).isNotNull();

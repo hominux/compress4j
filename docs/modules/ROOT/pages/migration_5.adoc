@@ -75,7 +75,7 @@ Zips written by 4.x still extract their symlinks as regular files. Only archives
 
 * `ZipArchiveExtractorBuilder.setSeekableByteChannel(ch)` becomes `ZipArchiveExtractor.builder(ch)`.
 * `SevenZArchiveExtractorBuilder.setSeekableByteChannel(ch)` becomes `SevenZArchiveExtractor.builder(ch)`.
-* New: `builder(SeekableByteChannel)` on every format, and `ZipArchiveExtractor.streaming(InputStream)`. See xref:streaming.adoc#_format_capabilities[format capabilities].
+* New: `builder(SeekableByteChannel)` on every format, and `ZipArchiveExtractor.streaming(InputStream)`. See xref:streaming.adoc#format-capabilities[format capabilities].
 * The public constructor `ZipArchiveExtractor(ZipFileArchiveInputStream)` and the public `SevenZArchiveExtractorBuilder(Path)` are removed. `new ZipArchiveExtractor(ZipArchiveExtractorBuilder)` is private, `new ZipArchiveExtractorBuilder(Path)` is package-private, and `ZipArchiveExtractor` can no longer be subclassed. Use `ZipArchiveExtractor.builder(Path|SeekableByteChannel)`, `ZipArchiveExtractor.streaming(InputStream)` or `SevenZArchiveExtractor.builder(Path|SeekableByteChannel)`.
 * Constructors taking a prebuilt archive stream are `protected` on `ArjArchiveExtractor`, `DumpArchiveExtractor` and `SevenZArchiveExtractor`. Use their builders.
 * Zip streaming mode reports mode `0`, extracts symlinks as regular files holding the target, and may leave an entry's `size()` empty.

@@ -64,7 +64,7 @@ class ZipStreamingTest {
                 .build()) {
             var entries = x.stream().map(ArchiveItem::entry).toList();
             assertThat(entries).extracting(Entry::type).containsExactly(Entry.Type.FILE, Entry.Type.SYMLINK);
-            assertThat(entries.get(0).mode() & 0777).isEqualTo(0750);
+            assertThat(entries.getFirst().mode() & 0777).isEqualTo(0750);
         }
     }
 

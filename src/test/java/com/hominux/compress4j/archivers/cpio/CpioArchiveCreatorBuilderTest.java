@@ -278,12 +278,10 @@ class CpioArchiveCreatorBuilderTest {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
         var builderInstance = CpioArchiveCreator.builder(outputStream);
-        var cpioOutputStreamBuilder = builderInstance;
-
-        assertThat(cpioOutputStreamBuilder).isNotNull();
+        assertThat(builderInstance).isNotNull();
 
         var configuredBuilder =
-                cpioOutputStreamBuilder.format(CpioFormat.NEW).blockSize(1024).encoding(StandardCharsets.UTF_8);
+                builderInstance.format(CpioFormat.NEW).blockSize(1024).encoding(StandardCharsets.UTF_8);
 
         assertThat(configuredBuilder).isSameAs(builderInstance);
 

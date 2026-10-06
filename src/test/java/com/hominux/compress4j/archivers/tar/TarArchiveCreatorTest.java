@@ -29,7 +29,6 @@ import static org.mockito.Mockito.spy;
 import com.hominux.compress4j.assertion.Compress4JAssertions;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -76,7 +75,6 @@ class TarArchiveCreatorTest {
     void shouldWriteEntryWithSymlink() throws IOException {
         // given
         var outputStream = mock(OutputStream.class);
-        var inputStream = mock(InputStream.class);
 
         // when
         var aOut = spy(new TarArchiveOutputStream(outputStream));

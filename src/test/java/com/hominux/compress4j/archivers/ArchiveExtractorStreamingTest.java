@@ -81,7 +81,7 @@ class ArchiveExtractorStreamingTest {
             List<ArchiveItem> items = extractor.stream().toList();
 
             // Then
-            ArchiveItem first = items.get(0);
+            ArchiveItem first = items.getFirst();
             assertThatThrownBy(first::content)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("a")
@@ -98,7 +98,7 @@ class ArchiveExtractorStreamingTest {
                     extractor.stream().map(ArchiveItem::content).toList();
 
             // Then
-            assertThatThrownBy(() -> opened.get(0).read())
+            assertThatThrownBy(() -> opened.getFirst().read())
                     .isInstanceOf(IOException.class)
                     .hasMessageContaining("no longer current");
         }

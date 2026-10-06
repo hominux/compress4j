@@ -53,7 +53,7 @@ public final class Corruptions {
     public static List<byte[]> variantsOf(byte[] valid, int flips) {
         var variants = new ArrayList<byte[]>();
         for (int cut : new int[] {0, 1, 7, 100, valid.length / 2, valid.length - 1}) {
-            variants.add(Arrays.copyOf(valid, Math.max(0, Math.min(cut, valid.length))));
+            variants.add(Arrays.copyOf(valid, Math.clamp(cut, 0, valid.length)));
         }
         var random = new Random(SEED);
         for (int i = 0; i < flips; i++) {
@@ -102,7 +102,7 @@ public final class Corruptions {
 
     private static byte[] flipped(byte[] valid, Random random) {
         byte[] bytes = valid.clone();
-        int window = Math.max(1, Math.min(bytes.length, HEADER_WINDOW));
+        int window = Math.clamp(bytes.length, 1, HEADER_WINDOW);
         for (int n = 1 + random.nextInt(8); n > 0 && bytes.length > 0; n--) {
             int at = random.nextInt(random.nextBoolean() ? window : bytes.length);
             bytes[at] = (byte) random.nextInt(256);

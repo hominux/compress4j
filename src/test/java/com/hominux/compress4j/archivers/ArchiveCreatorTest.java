@@ -75,7 +75,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("rawtypes")
 class ArchiveCreatorTest {
 
     private static final String LOGGER_NAME = ArchiveCreator.class.getPackageName();
@@ -406,7 +405,6 @@ class ArchiveCreatorTest {
         createFile(base, "file1", "1");
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
-        String file11RelativeName = base.relativize(file11).toString();
         int file11Mode = pinFileMode(file11);
         int subDir1Mode = pinDirectoryMode(subDir1);
 
@@ -452,8 +450,10 @@ class ArchiveCreatorTest {
         createFile(subDir1, "file11", "11");
         List<String> offered = new ArrayList<>();
 
-        try (InMemoryArchiveCreator archive =
-                spyCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> offered.add(s.name()) && false))) {
+        try (InMemoryArchiveCreator archive = spyCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> {
+            offered.add(s.name());
+            return false;
+        }))) {
 
             // when
             archive.addDirectoryRecursively(base);
@@ -476,7 +476,6 @@ class ArchiveCreatorTest {
         var file1 = createFile(base, "file1", "1");
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
-        String file11RelativeName = base.relativize(file11).toString();
         int file11Mode = pinFileMode(file11);
         int baseMode = pinDirectoryMode(base);
         int subDir1Mode = pinDirectoryMode(subDir1);
@@ -524,7 +523,6 @@ class ArchiveCreatorTest {
         createFile(base, "file1", "1");
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
-        String file11RelativeName = base.relativize(file11).toString();
         int file11Mode = pinFileMode(file11);
         int subDir1Mode = pinDirectoryMode(subDir1);
 
@@ -561,7 +559,6 @@ class ArchiveCreatorTest {
         createFile(base, "file1", "1");
         var subDir1 = base.resolve("subDir1");
         var file11 = createFile(subDir1, "file11", "11");
-        String file11RelativeName = base.relativize(file11).toString();
         int file11Mode = pinFileMode(file11);
         int baseMode = pinDirectoryMode(base);
         int subDir1Mode = pinDirectoryMode(subDir1);
@@ -810,8 +807,10 @@ class ArchiveCreatorTest {
         createFile(dirToSkip, "file_in_skipped_dir.txt", "secret");
 
         List<String> offered = new ArrayList<>();
-        try (InMemoryArchiveCreator archive = spyCreator(new InMemoryArchiveCreatorBuilder(out)
-                .filter(s -> offered.add(s.name()) && !s.name().equals("skip_this_dir")))) {
+        try (InMemoryArchiveCreator archive = spyCreator(new InMemoryArchiveCreatorBuilder(out).filter(s -> {
+            offered.add(s.name());
+            return !s.name().equals("skip_this_dir");
+        }))) {
             // When
             archive.addDirectoryRecursively(base);
 

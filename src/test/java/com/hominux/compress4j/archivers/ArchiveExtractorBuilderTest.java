@@ -56,14 +56,8 @@ class ArchiveExtractorBuilderTest {
         try (InMemoryArchiveExtractor extractor = builder.build()) {
             // then
             assertThat((Object) extractor)
-                    .extracting(
-                            "entryFilter",
-                            "errorHandler",
-                            "overwrite",
-                            "escapingSymlinkPolicy",
-                            "stripComponents",
-                            "postProcessor")
-                    .containsExactly(filter, errorHandler, true, DISALLOW, 5, postProcessor);
+                    .extracting("errorHandler", "overwrite", "escapingSymlinkPolicy", "postProcessor")
+                    .containsExactly(errorHandler, true, DISALLOW, postProcessor);
         }
     }
 

@@ -11,7 +11,7 @@ https://commons.apache.org/proper/commons-compress/[Apache Commons Compress], an
 https://github.com/thrau/jarchivelib[JArchiveLib].
 
 * *Safe extraction.* Path traversal (Zip Slip) is rejected, escaping symlinks are rejected by default, and entry-count and
-  size limits stop decompression bombs. See <<_safe_extraction_of_untrusted_archives>>.
+  size limits stop decompression bombs. See <<safe-extraction>>.
 * *One API for every format.* Tar, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.lzma`, `.tar.lz4`, `.tar.zst`, Zip, 7z, AR, CPIO and more share the same builders.
 * *Streams.* Read entries as a Java Stream, write from a Stream of files or another archive, repack between formats.
 * *Java 21+, JPMS-ready,* published to Maven Central.
@@ -91,6 +91,7 @@ try (TarGzArchiveExtractor extractor = TarGzArchiveExtractor.builder(Path.of("ex
 }
 ----
 
+[[safe-extraction]]
 == Safe extraction of untrusted archives
 
 Extracting an archive you do not trust? Path traversal and escaping symlinks are rejected by default. Turn on the remaining guards

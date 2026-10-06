@@ -77,7 +77,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("rawtypes")
 class ArchiveExtractorTest {
 
     private static final String LOGGER_NAME = ArchiveExtractor.class.getPackageName();

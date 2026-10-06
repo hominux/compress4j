@@ -19,6 +19,7 @@ import com.hominux.compress4j.exceptions.MissingArchiveDependencyException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serial;
 import java.io.UncheckedIOException;
 import java.util.function.Consumer;
 
@@ -79,16 +80,12 @@ public final class ParserFailures {
     }
 
     private static IOException translate(RuntimeException e, String what) throws IOException {
-        if (e instanceof CallbackFailure callback) {
-            throw callback.failure();
-        }
-        if (e instanceof MissingArchiveDependencyException) {
-            throw e;
-        }
-        if (e instanceof UncheckedIOException unchecked) {
-            throw unchecked.getCause();
-        }
-        return new IOException("Corrupt " + what, e);
+        return switch (e) {
+            case CallbackFailure callback -> throw callback.failure();
+            case MissingArchiveDependencyException missing -> throw missing;
+            case UncheckedIOException unchecked -> throw unchecked.getCause();
+            default -> new IOException("Corrupt " + what, e);
+        };
     }
 
     /**
@@ -139,6 +136,7 @@ public final class ParserFailures {
     }
 
     private static final class CallbackFailure extends RuntimeException {
+        @Serial
         private static final long serialVersionUID = 1L;
 
         private final transient RuntimeException failure;
