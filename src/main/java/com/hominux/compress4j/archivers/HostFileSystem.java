@@ -47,7 +47,8 @@ enum HostFileSystem {
         void applyMode(Path path, int unixMode) throws IOException {
             PosixFileAttributeView view =
                     Files.getFileAttributeView(path, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
-            if (unixMode != 0 && view != null) {
+            // JDK 25.0.1 follows a symlink here despite NOFOLLOW_LINKS and changes its target.
+            if (unixMode != 0 && view != null && !Files.isSymbolicLink(path)) {
                 view.setPermissions(PosixFilePermissionsMapper.fromUnixMode(unixMode));
             }
         }

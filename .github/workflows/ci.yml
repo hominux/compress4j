@@ -153,7 +153,7 @@ jobs:
       - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-        run: ./gradlew build --continue --no-daemon --scan
+        run: ./gradlew build --continue --no-daemon --scan "-Ptest.jdk=25"
       - name: Upload build reports
         if: always()  # A failed coverage gate is exactly when the reports are needed
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -204,7 +204,7 @@ jobs:
       - name: Build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-        run: ./gradlew build --continue --no-daemon --scan
+        run: ./gradlew build --continue --no-daemon --scan "-Ptest.jdk=${{ matrix.java-version }}"
       - name: Upload build reports
         if: always()  # A failed coverage gate is exactly when the reports are needed
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
