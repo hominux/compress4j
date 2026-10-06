@@ -172,3 +172,17 @@ jobs:
           repository: hominux/hominux.github.io
           event-type: update-docs
           client-payload: '{"repository": "${{ github.repository }}", "ref": "v${{ needs.plan.outputs.nextVersion }}"}'
+
+  announce:
+    name: Announce the release
+    needs: [plan, publish]
+    if: needs.plan.outputs.release == 'true' && !inputs.dry_run
+    permissions: {}
+    uses: hominux/.github/.github/workflows/announce-release.yml@243a86c4baffc1a0414be35e850f6ab480cdb3cf # main
+    with:
+      tag: v${{ needs.plan.outputs.nextVersion }}
+    secrets:
+      MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
+      MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+      BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+      BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
