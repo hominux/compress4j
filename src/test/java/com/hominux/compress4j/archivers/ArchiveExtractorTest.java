@@ -963,8 +963,9 @@ class ArchiveExtractorTest {
 
             // when & then
             assertThatThrownBy(() -> extractor.extract(tempDir))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Simulated error reading next entry");
+                    .isInstanceOf(IOException.class)
+                    .hasMessage("Corrupt archive")
+                    .hasRootCauseMessage("Simulated error reading next entry");
 
             assertThat(tempDir.resolve("file1.txt")).hasContent("abc");
         }

@@ -22,6 +22,7 @@ import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import com.hominux.compress4j.exceptions.UnsafeInputException;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.archive.ReaderContext;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -98,7 +99,7 @@ public abstract class ArchiveExtractor implements Closeable {
      * Extracts the archive to the specified directory.
      *
      * @param outputDir the directory to extract the archive to
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs or the archive is malformed
      * @throws IllegalStateException if this extractor was already streamed or extracted
      * @throws LimitExceededException if the archive breaches one of the configured extraction limits
      * @throws UnsafeEntryException if an entry would be written, or a symlink would point, outside outputDir
@@ -193,7 +194,12 @@ public abstract class ArchiveExtractor implements Closeable {
      */
     @Override
     public final void close() throws IOException {
-        reader.close();
+        ParserFailures.call(
+                () -> {
+                    reader.close();
+                    return Boolean.TRUE;
+                },
+                ParserFailures.ARCHIVE);
     }
 
     /**
@@ -491,7 +497,7 @@ public abstract class ArchiveExtractor implements Closeable {
         protected final ReaderContext readerContext() {
             var source = new AtomicReference<LongSupplier>(() -> 0);
             var meter = new ExpansionMeter(limits, () -> source.get().getAsLong());
-            var context = new ReaderContext(limits, unsupportedEntryHandler, meter);
+            var context = new ReaderContext(limits, ParserFailures.shield(unsupportedEntryHandler), meter);
             pending = Optional.of(new PendingBuild(context, source));
             return context;
         }
@@ -512,7 +518,7 @@ public abstract class ArchiveExtractor implements Closeable {
          * Builds the extractor.
          *
          * @return the extractor
-         * @throws IOException if the archive cannot be opened
+         * @throws IOException if the archive cannot be opened or its header is malformed
          */
         public abstract E build() throws IOException;
     }

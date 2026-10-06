@@ -16,6 +16,7 @@
 package com.hominux.compress4j.archivers.dump;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.io.Source;
 import java.io.IOException;
 import java.io.InputStream;
@@ -113,7 +114,8 @@ public final class DumpArchiveExtractor extends ArchiveExtractor {
         public DumpArchiveExtractor build() throws IOException {
             Source.Opened opened = source.open();
             try {
-                DumpEntryReader reader = new DumpEntryReader(archiveStream(opened), readerContext());
+                DumpEntryReader reader = new DumpEntryReader(
+                        ParserFailures.call(() -> archiveStream(opened), ParserFailures.ARCHIVE), readerContext());
                 return new DumpArchiveExtractor(this, reader, opened.in()::count);
             } catch (IOException e) {
                 throw opened.closeIfOwned(e);

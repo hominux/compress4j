@@ -64,7 +64,8 @@ class EntryPathsTest {
 
     @Test
     void requireParent_rejectsAPathWithoutParent() {
-        assertThatThrownBy(() -> EntryPaths.requireParent(Path.of("a.txt")))
-                .isInstanceOf(IllegalArgumentException.class);
+        Path noParent = Path.of("a.txt");
+
+        assertThatThrownBy(() -> EntryPaths.requireParent(noParent)).isInstanceOf(IllegalArgumentException.class);
     }
 }

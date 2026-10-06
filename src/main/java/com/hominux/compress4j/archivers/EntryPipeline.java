@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers;
 
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import com.hominux.compress4j.internal.limits.ExpansionMeter;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -84,7 +85,7 @@ final class EntryPipeline {
         }
         position++;
         Optional<Entry> raw;
-        while ((raw = reader.next()).isPresent()) {
+        while ((raw = ParserFailures.call(reader::next, ParserFailures.ARCHIVE)).isPresent()) {
             Optional<Entry> visible = strip(raw.orElseThrow()).filter(filter);
             if (visible.isPresent()) {
                 budget.countEntry();
@@ -104,9 +105,10 @@ final class EntryPipeline {
         }
         if (guardedContent.isEmpty()) {
             try {
-                InputStream raw = reader.open(item.entry());
+                InputStream raw = ParserFailures.call(() -> reader.open(item.entry()), ParserFailures.ARCHIVE);
+                InputStream parsed = ParserFailures.wrap(raw, ParserFailures.ARCHIVE_ENTRY);
                 guardedContent = Optional.of(
-                        new GuardedContent(item, budget.meter(item.entry().name(), raw)));
+                        new GuardedContent(item, budget.meter(item.entry().name(), parsed)));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

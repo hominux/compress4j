@@ -18,8 +18,10 @@ package com.hominux.compress4j.archivers;
 import static com.hominux.compress4j.internal.util.FileUtils.checkValidPath;
 
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
+import com.hominux.compress4j.internal.io.ParserFailures;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,9 +45,19 @@ record SymlinkExtractor(EscapingSymlinkPolicy policy, boolean overwrite) {
      * @param entry the entry to extract
      * @param outputFile the file to extract the entry to
      * @param guard records created links so they can be re-checked after extraction
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs or the link target is invalid
      */
     void extract(Path outputDir, Entry entry, Path outputFile, SymlinkGuard guard) throws IOException {
+        try {
+            extractLink(outputDir, entry, outputFile, guard);
+        } catch (InvalidPathException e) {
+            throw new IOException(
+                    "Corrupt archive entry: invalid link target of '" + ParserFailures.printable(entry.name()) + "'",
+                    e);
+        }
+    }
+
+    private void extractLink(Path outputDir, Entry entry, Path outputFile, SymlinkGuard guard) throws IOException {
         String target = entry.linkTarget()
                 .orElseThrow(() -> new IOException("Invalid symlink entry: " + entry.name() + " (empty target)"));
 
