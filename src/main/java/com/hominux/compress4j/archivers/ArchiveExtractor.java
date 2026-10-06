@@ -59,8 +59,6 @@ import org.slf4j.LoggerFactory;
 public abstract class ArchiveExtractor implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveExtractor.class);
 
-    private static final Predicate<Entry> ACCEPT_ALL = entry -> true;
-
     private static final DirectoryModeApplier DEFAULT_MODE_APPLIER =
             (path, mode) -> HostFileSystem.of(path).applyMode(path, mode);
 
@@ -247,6 +245,10 @@ public abstract class ArchiveExtractor implements Closeable {
         }
     }
 
+    private static boolean acceptAll(Entry entry) {
+        return true;
+    }
+
     private static int interimDirectoryMode(int archiveMode) {
         return (archiveMode & 0777) | 0700;
     }
@@ -290,7 +292,7 @@ public abstract class ArchiveExtractor implements Closeable {
     public abstract static class Builder<B extends Builder<B, E>, E extends ArchiveExtractor> {
         EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
 
-        Predicate<Entry> entryFilter = ACCEPT_ALL;
+        Predicate<Entry> entryFilter = ArchiveExtractor::acceptAll;
 
         BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction =
                 (x, y) -> ErrorHandlerChoice.ABORT;
