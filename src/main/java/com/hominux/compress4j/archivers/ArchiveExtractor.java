@@ -230,7 +230,7 @@ public abstract class ArchiveExtractor implements Closeable {
 
     private void writeFile(ArchiveItem item, Path outputFile) throws IOException {
         Entry entry = item.entry();
-        if (overwrite || !Files.exists(outputFile)) {
+        if (overwrite || !Files.exists(outputFile, LinkOption.NOFOLLOW_LINKS)) {
             InputStream content = contentOf(item);
             EntryPaths.makeDirectory(EntryPaths.requireParent(outputFile));
             try (OutputStream outputStream = Files.newOutputStream(

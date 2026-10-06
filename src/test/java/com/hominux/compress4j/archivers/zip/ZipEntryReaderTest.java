@@ -160,7 +160,7 @@ class ZipEntryReaderTest {
             var mockZipEntry = mock(ZipArchiveEntry.class);
             when(mockZipEntry.getName()).thenReturn("link");
             when(mockZipEntry.isUnixSymlink()).thenReturn(true);
-            when(mockZipEntry.getSize()).thenReturn(ZipEntryReader.MAX_SYMLINK_TARGET_BYTES + 1);
+            when(mockZipEntry.getSize()).thenReturn(ReaderContext.MAX_LINK_TARGET_BYTES + 1);
             entries(mockZipEntry);
 
             assertThatThrownBy(() -> reader.next())
@@ -175,7 +175,6 @@ class ZipEntryReaderTest {
             var mockZipEntry = mock(ZipArchiveEntry.class);
             when(mockZipEntry.getName()).thenReturn("link");
             when(mockZipEntry.isUnixSymlink()).thenReturn(true);
-            when(mockZipEntry.getSize()).thenReturn(4L);
             entries(mockZipEntry);
             when(mockZipFile.getInputStream(mockZipEntry)).thenThrow(new IOException("Test symlink error"));
 
