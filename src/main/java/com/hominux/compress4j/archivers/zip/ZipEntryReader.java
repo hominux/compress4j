@@ -107,8 +107,7 @@ final class ZipEntryReader implements EntryReader {
         }
         Entry.Type t = type.orElseThrow();
         Entry base = EntryValues.withLinkTarget(new Entry(ze.getName(), t, ze.getUnixMode()), symlinkTarget.apply(ze));
-        return Optional.of(EntryValues.withMetadata(
-                base, Optional.ofNullable(ze.getLastModifiedDate()), t == Entry.Type.FILE ? ze.getSize() : 0));
+        return Optional.of(EntryValues.withMetadata(base, ze, t == Entry.Type.FILE ? ze.getSize() : 0));
     }
 
     private static Optional<Entry.Type> type(ZipArchiveEntry ze) {

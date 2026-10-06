@@ -84,7 +84,7 @@ public class InMemoryArchiveExtractor extends ArchiveExtractor {
                     EntryValues.withLinkTarget(
                             new Entry(next.getName(), next.getType(), next.getMode()),
                             Optional.ofNullable(next.getLinkName())),
-                    Optional.ofNullable(next.getLastModifiedDate()),
+                    next,
                     next.getSize());
         }
     }

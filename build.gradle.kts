@@ -56,10 +56,10 @@ val examplesImplementation: Configuration by configurations
 val mockitoAgent: Configuration = configurations.create("mockitoAgent")
 
 dependencies {
-    implementation(libs.commons.compress)
     api(libs.commons.io)
     api(libs.jspecify)
 
+    implementation(libs.commons.compress)
     implementation(libs.commons.lang3)
     implementation(libs.slf4j.api)
 
@@ -69,13 +69,13 @@ dependencies {
     testFixturesApi(platform(libs.jackson.bom))
     testFixturesApi(libs.assertj.core)
     testFixturesApi(libs.commons.compress)
+    testFixturesApi(libs.commons.io)
     testFixturesApi(libs.jackson.core)
     testFixturesApi(libs.jspecify)
     testFixturesApi(libs.logback.classic)
     testFixturesApi(libs.logback.core)
 
     testFixturesImplementation(platform(libs.junit.bom))
-    testFixturesApi(libs.commons.io)
     testFixturesImplementation(libs.jackson.annotations)
     testFixturesImplementation(libs.jackson.databind)
     testFixturesImplementation(libs.mockito.core)
@@ -95,9 +95,6 @@ testing {
 
                 implementation(libs.archunit)
                 implementation(libs.archunit.junit5.api)
-                runtimeOnly(libs.archunit.junit5)
-                runtimeOnly(libs.error.prone.core)
-                runtimeOnly(libs.nullaway)
                 implementation(libs.assertj.core)
                 implementation(libs.junit.jupiter.api)
                 implementation(libs.junit.jupiter.params)
@@ -106,6 +103,10 @@ testing {
                 implementation(libs.mockito.core)
                 implementation(libs.mockito.jupiter)
                 implementation(libs.jimfs)
+
+                runtimeOnly(libs.archunit.junit5)
+                runtimeOnly(libs.error.prone.core)
+                runtimeOnly(libs.nullaway)
                 runtimeOnly(libs.org.tukaani.xz)
                 runtimeOnly(libs.com.github.luben.zstd.jni)
                 runtimeOnly(libs.org.brotli.dec)
@@ -211,6 +212,8 @@ fun baselineArtifacts(classifier: String?): FileCollection = files({
 
 fun registerApiComparison(name: String, baseline: FileCollection, jarTask: TaskProvider<Jar>, classpath: FileCollection) =
     tasks.register<JapicmpTask>(name) {
+        group = "verification"
+        description = "Compares the API of the built jar against the newest published release ($name)."
         onlyIf { newestDownloadableBaselineVersion.isNotEmpty() }
         oldArchives.from(baseline)
         newArchives.from(jarTask)
@@ -298,6 +301,8 @@ tasks.testCodeCoverageReport {
 }
 
 val testCodeCoverageVerification by tasks.registering(JacocoCoverageVerification::class) {
+    group = "verification"
+    description = "Fails when the aggregated line or branch coverage drops below the configured minimums."
     val report = tasks.testCodeCoverageReport.get()
     executionData(report.executionData)
     classDirectories.setFrom(report.classDirectories)

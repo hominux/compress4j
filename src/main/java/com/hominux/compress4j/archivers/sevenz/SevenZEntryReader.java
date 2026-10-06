@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
@@ -86,10 +85,12 @@ final class SevenZEntryReader implements EntryReader {
         if (result.isEmpty()) {
             context.reportUnsupported(name, fileType.kind());
         }
-        Optional<Date> modified =
-                entry.getHasLastModifiedDate() ? Optional.of(entry.getLastModifiedDate()) : Optional.empty();
-        return result.map(
-                e -> EntryValues.withMetadata(e, modified, e.type() == Entry.Type.FILE ? entry.getSize() : 0));
+        return result.map(e -> withMetadata(e, entry));
+    }
+
+    private static Entry withMetadata(Entry e, SevenZArchiveEntry entry) {
+        long bytes = e.type() == Entry.Type.FILE ? entry.getSize() : 0;
+        return entry.getHasLastModifiedDate() ? EntryValues.withMetadata(e, entry, bytes) : e.withSize(bytes);
     }
 
     private Optional<Entry> typed(SevenZArchiveEntry entry, String name, int mode, UnixFileType fileType)

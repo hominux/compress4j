@@ -66,7 +66,6 @@ final class ArEntryReader implements EntryReader {
         Entry entry = type == Entry.Type.SYMLINK
                 ? base.withLinkTarget(context.readLinkTarget(ae.getName(), archiveInputStream, ae.getSize()))
                 : base;
-        return EntryValues.withMetadata(
-                entry, Optional.ofNullable(ae.getLastModifiedDate()), type == Entry.Type.FILE ? ae.getSize() : 0);
+        return EntryValues.withMetadata(entry, ae, type == Entry.Type.FILE ? ae.getSize() : 0);
     }
 }

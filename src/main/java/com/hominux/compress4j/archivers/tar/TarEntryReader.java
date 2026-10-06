@@ -48,8 +48,7 @@ final class TarEntryReader implements EntryReader {
     private static Entry toEntry(TarArchiveEntry te) {
         Entry base = EntryValues.withLinkTarget(
                 new Entry(te.getName(), type(te), te.getMode()), Optional.ofNullable(te.getLinkName()));
-        return EntryValues.withMetadata(
-                base, Optional.ofNullable(te.getLastModifiedDate()), base.type() == Entry.Type.FILE ? te.getSize() : 0);
+        return EntryValues.withMetadata(base, te, base.type() == Entry.Type.FILE ? te.getSize() : 0);
     }
 
     @Override
