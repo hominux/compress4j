@@ -20,6 +20,7 @@ import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.compressors.Compressor;
 import com.hominux.compress4j.compressors.Decompressor;
+import com.hominux.compress4j.exceptions.UnsafeInputException;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -67,6 +68,18 @@ public class ReadmeExamples {
             decompressor.write(Path.of("copy.txt"));
         }
         // end::readme-decompress[]
+    }
+
+    public static void glance() throws IOException {
+        // tag::readme-glance[]
+        try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
+                .maxTotalSize(1024L * 1024 * 1024)
+                .build()) {
+            extractor.extract(Path.of("outputDir"));
+        } catch (UnsafeInputException e) {
+            System.err.println("Rejected: " + e.getMessage());
+        }
+        // end::readme-glance[]
     }
 
     public static void extractUntrusted() throws IOException {
