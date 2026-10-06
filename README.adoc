@@ -116,7 +116,7 @@ AR, CPIO, 7z, ARJ (read-only), UNIX dump (read-only), Deflate, Deflate64 (read-o
 
 == Documentation
 
-Full documentation, with an example per format, is at https://hominux.com/docs/.
+Full documentation, with an example per format, is at https://hominux.com/docs/compress4j/latest/.
 
 It is built with https://antora.org/[Antora]; the pages live in `docs/modules/ROOT/pages` and the examples they include
 are compiled from `src/examples/java`.
