@@ -140,9 +140,9 @@ class ModuleDescriptorTest {
     }
 
     @Test
-    void keepsCommonsCompressInternalAndReExportsCommonsIo() throws Exception {
+    void commonsCompressAndCommonsIoAreNotRequiredTransitively() throws Exception {
         assertThat(modifiersOf(descriptor(), "org.apache.commons.compress")).isEmpty();
-        assertThat(modifiersOf(descriptor(), "org.apache.commons.io")).contains(Modifier.TRANSITIVE);
+        assertThat(modifiersOf(descriptor(), "org.apache.commons.io")).isEmpty();
     }
 
     @Test

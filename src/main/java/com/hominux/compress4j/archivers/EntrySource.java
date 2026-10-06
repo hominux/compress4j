@@ -29,7 +29,6 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.OptionalLong;
-import org.apache.commons.io.function.IOSupplier;
 import org.apache.commons.io.input.CloseShieldInputStream;
 
 /**
@@ -61,6 +60,18 @@ public sealed interface EntrySource permits EntrySource.File, EntrySource.Direct
      */
     FileTime lastModified();
 
+    /** Opens the content of a {@link File}. */
+    @FunctionalInterface
+    interface ContentSupplier {
+        /**
+         * Opens the content; the creator closes the returned stream.
+         *
+         * @return a new stream over the content
+         * @throws IOException if the content cannot be opened
+         */
+        InputStream get() throws IOException;
+    }
+
     /**
      * A regular file. {@code content} is opened once, by the creator, which closes it after writing. {@code size} must
      * be present for formats that record sizes before content (tar, ar, cpio); see {@link #buffered}. A present
@@ -72,7 +83,7 @@ public sealed interface EntrySource permits EntrySource.File, EntrySource.Direct
      * @param size the content size, if known
      * @param content opens the content
      */
-    record File(String name, int mode, FileTime lastModified, OptionalLong size, IOSupplier<InputStream> content)
+    record File(String name, int mode, FileTime lastModified, OptionalLong size, ContentSupplier content)
             implements EntrySource {
         /**
          * Masks {@code mode} to permission bits and rejects null components.

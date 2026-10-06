@@ -25,7 +25,7 @@ import org.jspecify.annotations.NullMarked;
 @NullMarked
 module com.hominux.compress4j {
     requires org.apache.commons.compress;
-    requires transitive org.apache.commons.io;
+    requires org.apache.commons.io;
     requires org.apache.commons.lang3;
     requires org.slf4j;
     requires transitive org.jspecify;
