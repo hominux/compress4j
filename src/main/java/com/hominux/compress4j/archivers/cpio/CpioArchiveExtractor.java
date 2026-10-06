@@ -30,8 +30,9 @@ import org.apache.commons.compress.archivers.cpio.CpioConstants;
 
 /**
  * Reads CPIO archives. Regular files, directories and symbolic links are extracted; every other entry type is reported
- * through the unsupported-entry handler and skipped. The expansion ratio is measured against the bytes consumed from
- * the source.
+ * through the unsupported-entry handler and skipped. In the newc formats a hard-linked file keeps its data on the last
+ * name; every earlier name has no data, so it is reported as unsupported, and so is a hard-linked empty file. The
+ * expansion ratio is measured against the bytes consumed from the source.
  *
  * @since 2.2
  */
