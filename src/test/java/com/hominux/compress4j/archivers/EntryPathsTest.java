@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hominux.compress4j.exceptions.UnsafeEntryException;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,19 @@ class EntryPathsTest {
     @Test
     void entryFile_rejectsTraversal() {
         assertThatThrownBy(() -> EntryPaths.entryFile(outputDir, "../evil.txt")).isInstanceOf(IOException.class);
+    }
+
+    @Test
+    void entryFile_mapsDotNamesToTheOutputDir() throws IOException {
+        for (String name : new String[] {".", "./", "././", "/./"}) {
+            assertThat(EntryPaths.entryFile(outputDir, name)).isEqualTo(outputDir);
+        }
+    }
+
+    @Test
+    void entryFile_rejectsTraversalBehindADotSegment() {
+        assertThatThrownBy(() -> EntryPaths.entryFile(outputDir, "./../x")).isInstanceOf(UnsafeEntryException.class);
+        assertThatThrownBy(() -> EntryPaths.entryFile(outputDir, "a/..")).isInstanceOf(UnsafeEntryException.class);
     }
 
     @Test
