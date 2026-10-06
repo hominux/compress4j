@@ -1,0 +1,111 @@
+= Migrating from JArchiveLib
+:description: Move from the unmaintained JArchiveLib to Compress4J: dependency, API mapping and behavior differences.
+:keywords: JArchiveLib, jarchivelib, migration, compress4j, tar, zip
+
+Compress4J is a maintained successor to https://github.com/thrau/jarchivelib[JArchiveLib]. JArchiveLib picks a format at run time through `ArchiverFactory`; Compress4J has one creator and extractor class per format, and you name the compression with `Compression`.
+
+== Dependency
+
+[source,kotlin]
+----
+// before
+implementation("org.rauschig:jarchivelib:<version>")
+// after
+implementation("com.hominux:compress4j:<version>")
+----
+
+Imports change from `org.rauschig.jarchivelib` to `com.hominux.compress4j.archivers` and the format subpackages (`tar`, `zip`, `sevenz`, ...). Compression lives in `com.hominux.compress4j.compressors`.
+
+== API mapping
+
+[cols="1,1",options="header"]
+|===
+|JArchiveLib |Compress4J
+
+|`ArchiverFactory.createArchiver(ArchiveFormat.TAR, CompressionType.GZIP)`
+|`TarArchiveCreator.builder(path).compression(Compression.gzip())` and `TarArchiveExtractor.builder(path)`
+
+|`ArchiverFactory.createArchiver(File)` (format from the file name)
+|None. Choose the class for the format. `TarArchiveExtractor` detects the compression of a tar from its content.
+
+|`archiver.create(name, destDir, sources...)`
+|`XArchiveCreator.builder(path).build()`, then `addFile(path)` or `addDirectoryRecursively(dir)`
+
+|`archiver.extract(archive, destDir)`
+|`XArchiveExtractor.builder(archive).build()`, then `extract(destDir)`
+
+|`archiver.stream(archive)` and `ArchiveStream.getNextEntry()`
+|`extractor.stream()`, a `Stream<ArchiveItem>`; read `item.entry()` and `item.content()`
+
+|`ArchiveEntry`
+|`Entry` for the metadata and `ArchiveItem` for the entry with its content
+
+|`ArchiveFormat` and `CompressionType`
+|One extractor class per format, a creator class for each format that can be written (not ARJ or UNIX dump), and `Compression` for the codec
+
+|`java.io.File`
+|`java.nio.file.Path`
+|===
+
+== Creating
+
+[source,java]
+----
+// JArchiveLib
+Archiver archiver = ArchiverFactory.createArchiver(ArchiveFormat.TAR, CompressionType.GZIP);
+archiver.create("example", destDir, sourceDir);
+----
+
+[source,java]
+----
+// Compress4J
+include::example$java/com/example/JarchivelibMigrationExamples.java[tag=create,indent=0]
+----
+
+The creator takes the full archive path, extension included. JArchiveLib appended the extension to the name you gave it.
+
+== Extracting
+
+[source,java]
+----
+// JArchiveLib
+Archiver archiver = ArchiverFactory.createArchiver(archive);
+archiver.extract(archive, destDir);
+----
+
+[source,java]
+----
+// Compress4J
+include::example$java/com/example/JarchivelibMigrationExamples.java[tag=extract,indent=0]
+----
+
+For an archive you do not trust, also set `maxEntrySize` and `maxTotalSize` on the builder: the defaults leave absolute sizes unlimited. See xref:security.adoc#_limits[the limits].
+
+== Reading entries
+
+[source,java]
+----
+// JArchiveLib
+try (ArchiveStream stream = archiver.stream(archive)) {
+    ArchiveEntry entry;
+    while ((entry = stream.getNextEntry()) != null) {
+        System.out.println(entry.getName());
+    }
+}
+----
+
+[source,java]
+----
+// Compress4J
+include::example$java/com/example/JarchivelibMigrationExamples.java[tag=stream,indent=0]
+----
+
+An item's content is readable only while it is the current one. See xref:streaming.adoc[].
+
+== Behavior differences
+
+* **Safety.** Extraction rejects path traversal and escaping symlinks, and applies default limits of 1,000,000 entries and an expansion ratio of 100 (checked after the first MiB). Absolute sizes are unlimited until you set `maxEntrySize` or `maxTotalSize`. A rejected entry fails with `UnsafeEntryException` or `LimitExceededException`, which no error handler can suppress. See xref:security.adoc#_limits[the limits] to tune them.
+* **Resource handling.** Creators and extractors are `Closeable`; use try-with-resources.
+* **Formats.** Compress4J adds Zstandard, LZ4, Snappy and others, and reads Brotli, Deflate64, ARJ and UNIX dump. See xref:index.adoc[] for the list. XZ, LZMA, Zstandard and Brotli need an extra dependency; see xref:additional_formats.adoc[].
+* **Builder options.** `filter`, `stripComponents`, `overwrite`, `errorHandler` and `postProcessor` have no JArchiveLib equivalent.
+* **Single files.** `Compressor` and `Decompressor` handle one compressed file without an archive.
