@@ -26,3 +26,4 @@
 ** xref:security.adoc[]
 ** xref:migration_5.adoc[]
 ** xref:migration_4.adoc[]
+** xref:migration_jarchivelib.adoc[]
