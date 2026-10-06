@@ -15,8 +15,23 @@
  */
 package com.hominux.compress4j.internal.codec;
 
+import com.hominux.compress4j.compressors.Brotli;
+import com.hominux.compress4j.compressors.Bzip2;
 import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Deflate;
+import com.hominux.compress4j.compressors.Deflate64;
 import com.hominux.compress4j.compressors.DeflateStrategy;
+import com.hominux.compress4j.compressors.Gzip;
+import com.hominux.compress4j.compressors.Lz4Block;
+import com.hominux.compress4j.compressors.Lz4Framed;
+import com.hominux.compress4j.compressors.Lzma;
+import com.hominux.compress4j.compressors.None;
+import com.hominux.compress4j.compressors.Pack200;
+import com.hominux.compress4j.compressors.SnappyFramed;
+import com.hominux.compress4j.compressors.SnappyRaw;
+import com.hominux.compress4j.compressors.UnixZ;
+import com.hominux.compress4j.compressors.Xz;
+import com.hominux.compress4j.compressors.Zstd;
 import com.hominux.compress4j.internal.io.PlainInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -70,27 +85,26 @@ public final class Codecs {
      */
     public static InputStream decompressing(Compression compression, InputStream in) throws IOException {
         return switch (compression) {
-            case Compression.None none -> in;
-            case Compression.Gzip g ->
+            case None none -> in;
+            case Gzip g ->
                 GzipCompressorInputStream.builder()
                         .setInputStream(in)
                         .setDecompressConcatenated(g.decompressConcatenated())
                         .setFileNameCharset(g.fileNameCharset())
                         .get();
-            case Compression.Bzip2 b -> new BZip2CompressorInputStream(in, b.decompressConcatenated());
-            case Compression.Xz x -> OptionalCodecs.xzInput(in, x);
-            case Compression.Lzma l -> OptionalCodecs.lzmaInput(in, l);
-            case Compression.Lz4Block block -> new BlockLZ4CompressorInputStream(in);
-            case Compression.Lz4Framed f -> new FramedLZ4CompressorInputStream(in, f.decompressConcatenated());
-            case Compression.Zstd zstd -> OptionalCodecs.zstdInput(in);
-            case Compression.Deflate d -> new DeflateCompressorInputStream(in, deflateParameters(d));
-            case Compression.Deflate64 d64 -> new Deflate64CompressorInputStream(in);
-            case Compression.SnappyRaw raw -> new SnappyCompressorInputStream(in);
-            case Compression.SnappyFramed framed -> new FramedSnappyCompressorInputStream(in);
-            case Compression.Brotli brotli -> OptionalCodecs.brotliInput(in);
-            case Compression.UnixZ z -> new ZCompressorInputStream(in, Z_MEMORY_LIMIT_KIB);
-            case Compression.Pack200 p ->
-                new Pack200CompressorInputStream(new PlainInputStream(in), strategy(p), p.properties());
+            case Bzip2 b -> new BZip2CompressorInputStream(in, b.decompressConcatenated());
+            case Xz x -> OptionalCodecs.xzInput(in, x);
+            case Lzma l -> OptionalCodecs.lzmaInput(in, l);
+            case Lz4Block block -> new BlockLZ4CompressorInputStream(in);
+            case Lz4Framed f -> new FramedLZ4CompressorInputStream(in, f.decompressConcatenated());
+            case Zstd zstd -> OptionalCodecs.zstdInput(in);
+            case Deflate d -> new DeflateCompressorInputStream(in, deflateParameters(d));
+            case Deflate64 d64 -> new Deflate64CompressorInputStream(in);
+            case SnappyRaw raw -> new SnappyCompressorInputStream(in);
+            case SnappyFramed framed -> new FramedSnappyCompressorInputStream(in);
+            case Brotli brotli -> OptionalCodecs.brotliInput(in);
+            case UnixZ z -> new ZCompressorInputStream(in, Z_MEMORY_LIMIT_KIB);
+            case Pack200 p -> new Pack200CompressorInputStream(new PlainInputStream(in), strategy(p), p.properties());
         };
     }
 
@@ -106,22 +120,22 @@ public final class Codecs {
      */
     public static OutputStream compressing(Compression compression, OutputStream out) throws IOException {
         return switch (compression) {
-            case Compression.None none -> out;
-            case Compression.Gzip g -> new GzipCompressorOutputStream(out, gzipParameters(g));
-            case Compression.Bzip2 b -> new BZip2CompressorOutputStream(out, b.blockSize());
-            case Compression.Xz x -> OptionalCodecs.xzOutput(out, x);
-            case Compression.Lzma l -> OptionalCodecs.lzmaOutput(out);
-            case Compression.Lz4Block block -> new BlockLZ4CompressorOutputStream(out);
-            case Compression.Lz4Framed f -> new FramedLZ4CompressorOutputStream(out);
-            case Compression.Zstd z -> OptionalCodecs.zstdOutput(out, z.level());
-            case Compression.Deflate d -> new DeflateCompressorOutputStream(out, deflateParameters(d));
-            case Compression.SnappyRaw raw ->
+            case None none -> out;
+            case Gzip g -> new GzipCompressorOutputStream(out, gzipParameters(g));
+            case Bzip2 b -> new BZip2CompressorOutputStream(out, b.blockSize());
+            case Xz x -> OptionalCodecs.xzOutput(out, x);
+            case Lzma l -> OptionalCodecs.lzmaOutput(out);
+            case Lz4Block block -> new BlockLZ4CompressorOutputStream(out);
+            case Lz4Framed f -> new FramedLZ4CompressorOutputStream(out);
+            case Zstd z -> OptionalCodecs.zstdOutput(out, z.level());
+            case Deflate d -> new DeflateCompressorOutputStream(out, deflateParameters(d));
+            case SnappyRaw raw ->
                 new SnappyCompressorOutputStream(out, raw.uncompressedSize().orElseThrow(Codecs::snappyRawNeedsSize));
-            case Compression.SnappyFramed framed -> new FramedSnappyCompressorOutputStream(out);
-            case Compression.Pack200 p -> OptionalCodecs.pack200Output(out, strategy(p), p.properties());
-            case Compression.Deflate64 d64 -> throw readOnly(compression);
-            case Compression.Brotli brotli -> throw readOnly(compression);
-            case Compression.UnixZ z -> throw readOnly(compression);
+            case SnappyFramed framed -> new FramedSnappyCompressorOutputStream(out);
+            case Pack200 p -> OptionalCodecs.pack200Output(out, strategy(p), p.properties());
+            case Deflate64 d64 -> throw readOnly(compression);
+            case Brotli brotli -> throw readOnly(compression);
+            case UnixZ z -> throw readOnly(compression);
         };
     }
 
@@ -136,11 +150,11 @@ public final class Codecs {
      */
     public static Compression detectForReading(InputStream in) throws IOException {
         return switch (detect(in)) {
-            case Compression.Pack200 pack200 -> Compression.none();
-            case Compression.Gzip gzip -> gzip.decompressConcatenated(true);
-            case Compression.Bzip2 bzip2 -> bzip2.decompressConcatenated(true);
-            case Compression.Xz xz -> xz.decompressConcatenated(true);
-            case Compression.Lz4Framed lz4 -> lz4.decompressConcatenated(true);
+            case Pack200 pack200 -> Compression.none();
+            case Gzip gzip -> gzip.decompressConcatenated(true);
+            case Bzip2 bzip2 -> bzip2.decompressConcatenated(true);
+            case Xz xz -> xz.decompressConcatenated(true);
+            case Lz4Framed lz4 -> lz4.decompressConcatenated(true);
             case Compression other -> other;
         };
     }
@@ -155,7 +169,7 @@ public final class Codecs {
         if (!compression.canWrite()) {
             throw readOnly(compression);
         }
-        if (compression instanceof Compression.SnappyRaw raw) {
+        if (compression instanceof SnappyRaw raw) {
             raw.uncompressedSize().orElseThrow(Codecs::snappyRawNeedsSize);
         }
     }
@@ -237,7 +251,7 @@ public final class Codecs {
         return new IllegalArgumentException(compression.getClass().getSimpleName() + " can only be read");
     }
 
-    private static GzipParameters gzipParameters(Compression.Gzip g) {
+    private static GzipParameters gzipParameters(Gzip g) {
         GzipParameters parameters = new GzipParameters();
         parameters.setCompressionLevel(g.level());
         parameters.setBufferSize(g.bufferSize());
@@ -258,7 +272,7 @@ public final class Codecs {
         };
     }
 
-    private static DeflateParameters deflateParameters(Compression.Deflate d) {
+    private static DeflateParameters deflateParameters(Deflate d) {
         DeflateParameters parameters = new DeflateParameters();
         if (d.level() != Deflater.DEFAULT_COMPRESSION) {
             parameters.setCompressionLevel(d.level());
@@ -267,9 +281,7 @@ public final class Codecs {
         return parameters;
     }
 
-    private static Pack200Strategy strategy(Compression.Pack200 p) {
-        return p.strategy() == Compression.Pack200.Strategy.TEMP_FILE
-                ? Pack200Strategy.TEMP_FILE
-                : Pack200Strategy.IN_MEMORY;
+    private static Pack200Strategy strategy(Pack200 p) {
+        return p.strategy() == Pack200.Strategy.TEMP_FILE ? Pack200Strategy.TEMP_FILE : Pack200Strategy.IN_MEMORY;
     }
 }

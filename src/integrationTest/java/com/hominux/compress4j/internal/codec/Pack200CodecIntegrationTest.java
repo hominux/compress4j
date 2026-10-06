@@ -18,6 +18,7 @@ package com.hominux.compress4j.internal.codec;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Pack200;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -53,8 +54,8 @@ class Pack200CodecIntegrationTest {
     }
 
     @ParameterizedTest
-    @EnumSource(Compression.Pack200.Strategy.class)
-    void writesAndReadsAJar(Compression.Pack200.Strategy strategy) throws IOException {
+    @EnumSource(Pack200.Strategy.class)
+    void writesAndReadsAJar(Pack200.Strategy strategy) throws IOException {
         var pack200 = Compression.pack200().strategy(strategy);
         var packed = new ByteArrayOutputStream();
         try (OutputStream out = Codecs.compressing(pack200, packed)) {

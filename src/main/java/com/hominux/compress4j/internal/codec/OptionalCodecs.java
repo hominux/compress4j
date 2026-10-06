@@ -15,7 +15,8 @@
  */
 package com.hominux.compress4j.internal.codec;
 
-import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Lzma;
+import com.hominux.compress4j.compressors.Xz;
 import com.hominux.compress4j.internal.util.ArchiverDependencyChecker;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,7 +40,7 @@ final class OptionalCodecs {
 
     private OptionalCodecs() {}
 
-    static InputStream xzInput(InputStream in, Compression.Xz x) throws IOException {
+    static InputStream xzInput(InputStream in, Xz x) throws IOException {
         ArchiverDependencyChecker.checkXZ();
         return XZCompressorInputStream.builder()
                 .setInputStream(in)
@@ -48,7 +49,7 @@ final class OptionalCodecs {
                 .get();
     }
 
-    static OutputStream xzOutput(OutputStream out, Compression.Xz x) throws IOException {
+    static OutputStream xzOutput(OutputStream out, Xz x) throws IOException {
         ArchiverDependencyChecker.checkXZ();
         return XZCompressorOutputStream.builder()
                 .setOutputStream(out)
@@ -56,7 +57,7 @@ final class OptionalCodecs {
                 .get();
     }
 
-    static InputStream lzmaInput(InputStream in, Compression.Lzma l) throws IOException {
+    static InputStream lzmaInput(InputStream in, Lzma l) throws IOException {
         ArchiverDependencyChecker.checkLZMA();
         return LZMACompressorInputStream.builder()
                 .setInputStream(in)

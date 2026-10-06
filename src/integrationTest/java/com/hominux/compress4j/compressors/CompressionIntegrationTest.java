@@ -128,7 +128,7 @@ class CompressionIntegrationTest {
                 return in.readAllBytes();
             }
         }
-        Compression compression = format.compression() instanceof Compression.SnappyRaw raw
+        Compression compression = format.compression() instanceof SnappyRaw raw
                 ? raw.uncompressedSize(TEXT.length)
                 : format.compression();
         var bytes = new ByteArrayOutputStream();

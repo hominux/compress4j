@@ -49,9 +49,7 @@ class CodecContractTest {
     }
 
     private static Compression forWriting(CodecFormat format) {
-        return format.compression() instanceof Compression.SnappyRaw raw
-                ? raw.uncompressedSize(TEXT.length)
-                : format.compression();
+        return format.compression() instanceof SnappyRaw raw ? raw.uncompressedSize(TEXT.length) : format.compression();
     }
 
     private static byte[] compress(CodecFormat format) throws IOException {

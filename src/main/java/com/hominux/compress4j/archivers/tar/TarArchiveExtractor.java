@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers.tar;
 
 import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
+import com.hominux.compress4j.compressors.Pack200;
 import com.hominux.compress4j.internal.archive.EntryReader;
 import com.hominux.compress4j.internal.codec.Codecs;
 import com.hominux.compress4j.internal.io.CountingInputStream;
@@ -118,7 +119,7 @@ public final class TarArchiveExtractor extends ArchiveExtractor {
          */
         public Builder compression(Compression compression) {
             Objects.requireNonNull(compression, "compression");
-            if (compression instanceof Compression.Pack200) {
+            if (compression instanceof Pack200) {
                 throw new IllegalArgumentException(PACK200_MESSAGE);
             }
             this.compression = Optional.of(compression);

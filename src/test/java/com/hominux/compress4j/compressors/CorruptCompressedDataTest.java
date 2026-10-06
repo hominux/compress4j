@@ -45,7 +45,7 @@ class CorruptCompressedDataTest {
     }
 
     private static byte[] compress(CodecFormat format) throws IOException {
-        Compression compression = format.compression() instanceof Compression.SnappyRaw raw
+        Compression compression = format.compression() instanceof SnappyRaw raw
                 ? raw.uncompressedSize(TEXT.length)
                 : format.compression();
         var bytes = new ByteArrayOutputStream();
@@ -80,7 +80,7 @@ class CorruptCompressedDataTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("readOnlyCodecs")
     void garbageForReadOnlyCodecsOnlyThrowsIOException(CodecFormat format) {
-        byte[] magic = format.compression() instanceof Compression.UnixZ ? new byte[] {0x1F, (byte) 0x9D} : new byte[0];
+        byte[] magic = format.compression() instanceof UnixZ ? new byte[] {0x1F, (byte) 0x9D} : new byte[0];
         assertThat(failures(format, Corruptions.garbageAfter(magic, 512, FLIPS)))
                 .as("seed %d", Corruptions.SEED)
                 .isEmpty();
