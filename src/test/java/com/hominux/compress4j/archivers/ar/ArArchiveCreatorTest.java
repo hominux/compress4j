@@ -282,7 +282,7 @@ class ArArchiveCreatorTest {
     }
 
     @Test
-    void testAddNullFileName() throws IOException {
+    void testAddNullFileName() {
         // given
         byte[] content = "content".getBytes(StandardCharsets.UTF_8);
 
@@ -291,7 +291,7 @@ class ArArchiveCreatorTest {
     }
 
     @Test
-    void testAddNullContent() throws IOException {
+    void testAddNullContent() {
         // when & then
         assertThatThrownBy(() -> EntrySource.file("test.txt", (byte[]) null)).isInstanceOf(NullPointerException.class);
     }

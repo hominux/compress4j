@@ -23,10 +23,15 @@ import com.hominux.compress4j.compressors.Decompressor;
 import com.hominux.compress4j.exceptions.UnsafeInputException;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Keeps the snippets in README.adoc compiling; edit both together. */
 @SuppressWarnings({"unused"})
 public class ReadmeExamples {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReadmeExamples.class);
+    private static final Path OUTPUT_DIR = Path.of("outputDir");
+
     private ReadmeExamples() {
         /* no-op */
     }
@@ -46,7 +51,7 @@ public class ReadmeExamples {
         // tag::readme-extract[]
         try (TarArchiveExtractor extractor =
                 TarArchiveExtractor.builder(Path.of("example.tar.gz")).build()) {
-            extractor.extract(Path.of("outputDir"));
+            extractor.extract(OUTPUT_DIR);
         }
         // end::readme-extract[]
     }
@@ -75,9 +80,9 @@ public class ReadmeExamples {
         try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
                 .maxTotalSize(1024L * 1024 * 1024)
                 .build()) {
-            extractor.extract(Path.of("outputDir"));
+            extractor.extract(OUTPUT_DIR);
         } catch (UnsafeInputException e) {
-            System.err.println("Rejected: " + e.getMessage());
+            LOGGER.warn("Rejected: {}", e.getMessage());
         }
         // end::readme-glance[]
     }
@@ -89,7 +94,7 @@ public class ReadmeExamples {
                 .maxEntrySize(100L * 1024 * 1024)
                 .maxTotalSize(1024L * 1024 * 1024)
                 .build()) {
-            extractor.extract(Path.of("outputDir"));
+            extractor.extract(OUTPUT_DIR);
         }
         // end::readme-extract-untrusted[]
     }
