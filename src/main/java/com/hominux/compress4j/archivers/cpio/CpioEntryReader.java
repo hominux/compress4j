@@ -66,8 +66,7 @@ final class CpioEntryReader implements EntryReader {
     private Entry toEntry(CpioArchiveEntry ce, Entry.Type type) throws IOException {
         Entry base = new Entry(ce.getName(), type, (int) ce.getMode());
         Entry entry = type == Entry.Type.SYMLINK ? base.withLinkTarget(readLinkTarget(ce)) : base;
-        return EntryValues.withMetadata(
-                entry, Optional.ofNullable(ce.getLastModifiedDate()), type == Entry.Type.FILE ? ce.getSize() : 0);
+        return EntryValues.withMetadata(entry, ce, type == Entry.Type.FILE ? ce.getSize() : 0);
     }
 
     private String readLinkTarget(CpioArchiveEntry ce) throws IOException {

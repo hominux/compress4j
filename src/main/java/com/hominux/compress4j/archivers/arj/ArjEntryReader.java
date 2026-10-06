@@ -80,8 +80,6 @@ final class ArjEntryReader implements EntryReader {
         var type = fileType == UnixFileType.DIRECTORY ? Entry.Type.DIR : Entry.Type.FILE;
         var mode = entry.isHostOsUnix() ? entry.getUnixMode() : 0;
         return EntryValues.withMetadata(
-                new Entry(entry.getName(), type, mode),
-                Optional.ofNullable(entry.getLastModifiedDate()),
-                type == Entry.Type.FILE ? entry.getSize() : 0);
+                new Entry(entry.getName(), type, mode), entry, type == Entry.Type.FILE ? entry.getSize() : 0);
     }
 }

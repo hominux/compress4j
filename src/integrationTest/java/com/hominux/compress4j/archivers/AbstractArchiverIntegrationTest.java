@@ -158,8 +158,6 @@ public abstract class AbstractArchiverIntegrationTest {
                     List<Path> extractedFiles = files.toList();
                     Assertions.assertThat(extractedFiles).isNotEmpty();
                 }
-            } catch (IOException e) {
-                fail("Invalid archive", e);
             }
         } else {
             fail("Test archive file not found: " + osArchive);

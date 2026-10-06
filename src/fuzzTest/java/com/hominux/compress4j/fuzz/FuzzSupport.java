@@ -43,7 +43,7 @@ final class FuzzSupport {
         try {
             parse.run();
         } catch (IOException | UncheckedIOException malformedInput) {
-            return;
+            // Only malformed input may fail; any other exception escapes and fails the test.
         }
     }
 

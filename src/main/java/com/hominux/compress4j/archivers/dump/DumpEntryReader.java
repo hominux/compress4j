@@ -91,7 +91,7 @@ final class DumpEntryReader implements EntryReader {
     private static Entry toEntry(DumpArchiveEntry entry, Entry.Type type) {
         return EntryValues.withMetadata(
                 new Entry(entry.getName(), type, entry.getMode()),
-                Optional.ofNullable(entry.getLastModifiedDate()),
+                entry,
                 type == Entry.Type.FILE ? entry.getSize() : 0);
     }
 }

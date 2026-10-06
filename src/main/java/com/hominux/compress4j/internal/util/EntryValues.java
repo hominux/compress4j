@@ -17,8 +17,8 @@ package com.hominux.compress4j.internal.util;
 
 import com.hominux.compress4j.archivers.Entry;
 import java.nio.file.attribute.FileTime;
-import java.util.Date;
 import java.util.Optional;
+import org.apache.commons.compress.archivers.ArchiveEntry;
 
 /** Applies possibly-absent commons-compress values to an {@link Entry}; an absent value leaves the entry unchanged. */
 public final class EntryValues {
@@ -37,27 +37,18 @@ public final class EntryValues {
     }
 
     /**
-     * Returns the entry with the given last-modified time, or the entry itself when the date is absent.
+     * Returns the entry with the given size and, when the source reports one, its last-modified time.
      *
      * @param entry the entry
-     * @param modified the last-modified date, possibly absent
-     * @return the resulting entry
-     */
-    public static Entry withLastModified(Entry entry, Optional<Date> modified) {
-        return modified.map(d -> FileTime.fromMillis(d.getTime()))
-                .map(entry::withLastModified)
-                .orElse(entry);
-    }
-
-    /**
-     * Returns the entry with the given size and, when present, the given last-modified time.
-     *
-     * @param entry the entry
-     * @param modified the last-modified date, possibly absent
+     * @param source the commons-compress entry whose last-modified date, when present, is applied
      * @param bytes the size; negative means unknown
      * @return the resulting entry
      */
-    public static Entry withMetadata(Entry entry, Optional<Date> modified, long bytes) {
-        return withLastModified(entry, modified).withSize(bytes);
+    public static Entry withMetadata(Entry entry, ArchiveEntry source, long bytes) {
+        return Optional.ofNullable(source.getLastModifiedDate())
+                .map(modified -> FileTime.fromMillis(modified.getTime()))
+                .map(entry::withLastModified)
+                .orElse(entry)
+                .withSize(bytes);
     }
 }
