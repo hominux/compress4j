@@ -267,7 +267,7 @@ public abstract class ArchiveExtractor implements Closeable {
             case DIR -> {
                 boolean existed = Files.exists(outputFile, LinkOption.NOFOLLOW_LINKS);
                 EntryPaths.makeDirectory(outputFile);
-                if (entry.mode() != 0) {
+                if (entry.mode() != 0 && !outputFile.equals(outputDir)) {
                     if (!existed && Files.isDirectory(outputFile, LinkOption.NOFOLLOW_LINKS)) {
                         HostFileSystem.of(outputFile).applyMode(outputFile, interimDirectoryMode(entry.mode()));
                     }

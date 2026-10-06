@@ -34,7 +34,8 @@ final class EntryPaths {
 
     /**
      * Validates entry and returns the path using the output directory. This method protects against path traversal
-     * vulnerabilities.
+     * vulnerabilities. A name made only of {@code .} or empty segments, such as {@code ./} or {@code /}, maps to the
+     * output directory itself.
      *
      * @param outputDir the directory to extract the archive to
      * @param entryName the name of the entry
@@ -42,9 +43,16 @@ final class EntryPaths {
      * @throws IOException if an I/O error occurs, a path traversal vulnerability is detected or the name is invalid
      */
     static Path entryFile(Path outputDir, String entryName) throws IOException {
+        if (isOutputDirectory(entryName)) {
+            return outputDir;
+        }
         Path destinationFile = resolveName(outputDir, entryName);
         checkValidPath(destinationFile, outputDir);
         return destinationFile;
+    }
+
+    private static boolean isOutputDirectory(String entryName) {
+        return Arrays.stream(entryName.split("/")).allMatch(segment -> segment.isEmpty() || segment.equals("."));
     }
 
     private static Path resolveName(Path outputDir, String entryName) throws IOException {
