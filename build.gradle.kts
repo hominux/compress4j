@@ -133,6 +133,29 @@ val integrationTest by testing.suites.registering(JvmTestSuite::class) {
     }}
 }
 
+val fuzzTest by testing.suites.registering(JvmTestSuite::class) {
+    useJUnitJupiter(libs.versions.junit5.bom)
+
+    dependencies {
+        implementation(platform(libs.junit5.bom))
+        implementation(project())
+        implementation(libs.commons.compress)
+        implementation(libs.jazzer.junit)
+
+        runtimeOnly(libs.org.tukaani.xz)
+        runtimeOnly(libs.com.github.luben.zstd.jni)
+        runtimeOnly(libs.org.brotli.dec)
+    }
+
+    targets.all { testTask.configure {
+        shouldRunAfter(tasks.test)
+        extensions.configure<JacocoTaskExtension> { isEnabled = false }
+        if (providers.environmentVariable("JAZZER_FUZZ").isPresent) {
+            systemProperty("jazzer.instrument", "com.hominux.compress4j.**,org.apache.commons.compress.**")
+        }
+    }}
+}
+
 val errorProneJvmArgs: List<String> = listOf(
     "api", "code", "comp", "file", "main", "model", "parser", "processing", "tree", "util"
 ).map { "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" } +
@@ -305,13 +328,17 @@ tasks.check {
     )
 }
 
+if (System.getProperty("os.name").startsWith("Linux")) {
+    tasks.check { dependsOn(fuzzTest) }
+}
+
 sonar {
     properties {
         property("sonar.projectKey", "compress4j_compress4j")
         property("sonar.organization", "hominux")
         property("sonar.host.url", "https://sonarcloud.io")
         property("sonar.sources", "src/main/java,src/examples/java,.github/workflows")
-        property("sonar.tests", "src/test/java,src/integrationTest/java,src/testFixtures/java")
+        property("sonar.tests", "src/test/java,src/integrationTest/java,src/fuzzTest/java,src/testFixtures/java")
         property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml")
         property(
             "sonar.coverage.exclusions",

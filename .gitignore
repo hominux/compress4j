@@ -19,3 +19,5 @@ htmlReport/
 out/
 target/
 /.envrc
+
+.cifuzz-corpus/
