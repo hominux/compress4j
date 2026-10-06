@@ -17,6 +17,28 @@ https://github.com/thrau/jarchivelib[JArchiveLib].
 * *Streams.* Read entries as a Java Stream, write from a Stream of files or another archive, repack between formats.
 * *Java 21+, JPMS-ready,* published to Maven Central.
 
+== At a glance
+
+[source,kotlin]
+----
+implementation("com.hominux:compress4j:<version>")
+----
+
+Extract an untrusted archive. Zip Slip entries and escaping symlinks fail with `UnsafeEntryException`, and
+decompression bombs with `LimitExceededException` (the default ratio plus the size limit below). Both extend
+`UnsafeInputException`, and nothing is written outside `outputDir`:
+
+[source,java]
+----
+try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrusted.tar.gz"))
+        .maxTotalSize(1024L * 1024 * 1024)
+        .build()) {
+    extractor.extract(Path.of("outputDir"));
+} catch (UnsafeInputException e) {
+    System.err.println("Rejected: " + e.getMessage());
+}
+----
+
 == Installation
 
 Requires Java 21 or later.
@@ -123,9 +145,11 @@ try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrus
 
 Breaching a limit throws `LimitExceededException`. It and `UnsafeEntryException` (traversal, escaping symlinks) both extend `UnsafeInputException`, which an error handler cannot suppress. Raise `maxRatio` for legitimate highly compressible data, or pass `limits(ExtractionLimits.noLimits())` for trusted input.
 
+Pack200 is the one codec the limits do not bound: it unpacks the whole JAR in `build()`, before any metering. `Decompressor` never detects it, so choose `Compression.pack200()` only for input you trust.
+
 == Supported formats
 
-AR, CPIO, 7z, ARJ (read-only), UNIX dump (read-only), Deflate, Deflate64 (read-only), BZip2, Brotli (read-only), Gzip, LZ4, LZMA, Pack200, Snappy, Tar (plain, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.lzma`, `.tar.lz4`, `.tar.zst`, `.tar.Z` read-only), Unix compress (`.Z`, read-only), XZ, Zstandard and Zip.
+AR, CPIO, 7z, ARJ (read-only), UNIX dump (read-only), Deflate, Deflate64 (read-only), BZip2, Brotli (read-only), Gzip, LZ4, LZMA, Pack200 (trusted input only, see <<safe-extraction>>), Snappy, Tar (plain, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.lzma`, `.tar.lz4`, `.tar.zst`, `.tar.Z` read-only), Unix compress (`.Z`, read-only), XZ, Zstandard and Zip.
 
 == Documentation
 
