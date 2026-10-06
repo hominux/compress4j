@@ -286,7 +286,7 @@ Zips written by 4.x still extract their symlinks as regular files. Only archives
 |`comment`, `fallbackToUtf8`, `useLanguageEncodingFlag`, `encoding(Charset)`
 
 |Zip `setIgnoreLocalFileHeader`, `setMaxNumberOfDisks`, `setUseUnicodeExtraFields`, `setZstdInputStreamFactory`
-|`ignoreLocalFileHeader`, `maxNumberOfDisks`, `useUnicodeExtraFields`, `zstdInputStreamFactory`
+|`ignoreLocalFileHeader`, `maxNumberOfDisks`, `useUnicodeExtraFields`, `zstdInputStreamFactory`, now taking a `ZipArchiveExtractor.ZstdStreamFactory`
 |===
 
 New in 5.0: `SevenZArchiveCreator.builder(...).contentCompression(SevenZMethod)` with the `SevenZMethod` enum `COPY`, `LZMA2`, `LZMA`, `BZIP2` and `DEFLATE`.
@@ -318,5 +318,5 @@ The zip creator's `compressionMethod`, `comment`, `zip64` and `encoding` reject 
 * `FileUtils.DOS_READ_ONLY`, `DOS_HIDDEN` and `NO_MODE`; `archivers.Compressor`, `utils.StringUtil` and `utils.ExcludeFromJacocoGeneratedReport`. The `utils` package is now the unexported `internal.util`.
 * Custom formats: the format classes are `final`, and `ArchiveExtractor` and `ArchiveCreator` cannot be subclassed outside the library. The reader and writer SPI (`internal.archive`) is not exported from the module. Their constructors take internal types, and `nextEntry`, `openEntryStream`, `closeEntryStream`, `readEntryContent`, `writeDirectoryEntry` and `writeFileEntry` are gone.
 * `MissingArchiveDependencyException` is `final`.
-* commons-compress is not an `api` dependency and no module requires it transitively. It moves to runtime scope in the published POM. Code that uses its types declares the dependency and `requires org.apache.commons.compress` itself.
+* commons-compress and commons-io are not `api` dependencies and no module requires them transitively. They move to runtime scope in the published POM. Code that uses their types declares the dependency and `requires org.apache.commons.compress` or `org.apache.commons.io` itself. `EntrySource.File` content is an `EntrySource.ContentSupplier` and `zstdInputStreamFactory` takes a `ZipArchiveExtractor.ZstdStreamFactory`, where both took commons-io function types (`IOSupplier<InputStream>` and `IOFunction<InputStream, InputStream>`). Lambdas and method references compile unchanged; a variable typed with the commons-io type, or an `IOSupplier` passed from `content()`, must change to the new type.
 * `jakarta.annotation-api` is no longer a dependency. Compress4J requires the JSpecify module (`org.jspecify`) and every exported package is `@NullMarked`, so Kotlin and NullAway see non-null parameters and return types.

@@ -33,6 +33,7 @@ class ArchitectureTest {
 
     static final String INTERNAL = "com.hominux.compress4j.internal..";
     static final String COMMONS_COMPRESS = "org.apache.commons.compress..";
+    static final String COMMONS_IO = "org.apache.commons.io..";
     private static final String ARCHIVERS = "com.hominux.compress4j.archivers.";
     private static final String SPI = "com.hominux.compress4j.internal.archive.";
     private static final String[] FORMAT_PACKAGES = Stream.of("ar", "arj", "cpio", "dump", "sevenz", "tar", "zip")
@@ -60,6 +61,12 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule exportedTypesDoNotDeclareCommonsCompress = ApiSignatures.typesDoNotExpose(COMMONS_COMPRESS);
+
+    @ArchTest
+    static final ArchRule exportedMembersDoNotExposeCommonsIo = ApiSignatures.membersDoNotExpose(COMMONS_IO, Set.of());
+
+    @ArchTest
+    static final ArchRule exportedTypesDoNotDeclareCommonsIo = ApiSignatures.typesDoNotExpose(COMMONS_IO);
 
     @ArchTest
     static final ArchRule exportedMembersDoNotExposeInternalTypes =

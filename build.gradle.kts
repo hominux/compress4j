@@ -56,10 +56,10 @@ val examplesImplementation: Configuration by configurations
 val mockitoAgent: Configuration = configurations.create("mockitoAgent")
 
 dependencies {
-    api(libs.commons.io)
     api(libs.jspecify)
 
     implementation(libs.commons.compress)
+    implementation(libs.commons.io)
     implementation(libs.commons.lang3)
     implementation(libs.slf4j.api)
 

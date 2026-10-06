@@ -42,6 +42,19 @@ import org.apache.commons.io.function.IOFunction;
  */
 public final class ZipArchiveExtractor extends ArchiveExtractor {
 
+    /** Wraps the compressed content of a Zstandard entry in a decompressing stream. */
+    @FunctionalInterface
+    public interface ZstdStreamFactory {
+        /**
+         * Wraps the compressed entry content.
+         *
+         * @param compressed the compressed entry content
+         * @return the decompressing stream
+         * @throws IOException if the stream cannot be created
+         */
+        InputStream wrap(InputStream compressed) throws IOException;
+    }
+
     private ZipArchiveExtractor(ArchiveExtractor.Builder<?, ?> builder, EntryReader reader, LongSupplier compressed) {
         super(builder, reader, compressed);
     }
@@ -138,13 +151,14 @@ public final class ZipArchiveExtractor extends ArchiveExtractor {
          * Sets the factory for the stream that decompresses Zstandard entries, to plug in an alternate implementation.
          * Defaults to the commons-compress Zstandard stream.
          *
-         * @param factory wraps the compressed entry content in a decompressing stream
+         * @param factory the factory
          * @return this builder
          * @throws NullPointerException if the factory is null
          * @since 5.0
          */
-        public Builder zstdInputStreamFactory(IOFunction<InputStream, InputStream> factory) {
-            this.zstdInputStreamFactory = Optional.of(Objects.requireNonNull(factory, "zstdInputStreamFactory"));
+        public Builder zstdInputStreamFactory(ZstdStreamFactory factory) {
+            Objects.requireNonNull(factory, "zstdInputStreamFactory");
+            this.zstdInputStreamFactory = Optional.of(factory::wrap);
             return this;
         }
 
