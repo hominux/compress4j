@@ -66,11 +66,9 @@ public abstract class ArchiveExtractor implements Closeable {
 
     private final EntryReader reader;
     private final EscapingSymlinkPolicy escapingSymlinkPolicy;
-    private final Predicate<Entry> entryFilter;
     private final BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandler;
     private final BiConsumer<Entry, ? super Path> postProcessor;
     private final DirectoryModeApplier directoryModeApplier;
-    private final int stripComponents;
     private final boolean overwrite;
 
     private final EntryPipeline pipeline;
@@ -84,15 +82,17 @@ public abstract class ArchiveExtractor implements Closeable {
      */
     protected ArchiveExtractor(Builder<?, ?> builder, EntryReader reader, LongSupplier compressedBytes) {
         this.reader = reader;
-        this.entryFilter = builder.entryFilter;
         this.errorHandler = builder.errorHandlerFunction;
         this.postProcessor = builder.postProcessor;
-        this.stripComponents = builder.stripComponents;
         this.overwrite = builder.overwrite;
         this.escapingSymlinkPolicy = builder.escapingSymlinkPolicy;
         this.directoryModeApplier = builder.directoryModeApplier;
         this.pipeline = new EntryPipeline(
-                reader, stripComponents, entryFilter, builder.limits, builder.claimMeter(compressedBytes));
+                reader,
+                builder.stripComponents,
+                builder.entryFilter,
+                builder.limits,
+                builder.claimMeter(compressedBytes));
     }
 
     /**
@@ -477,9 +477,8 @@ public abstract class ArchiveExtractor implements Closeable {
             return getThis();
         }
 
-        B directoryModeApplier(DirectoryModeApplier applier) {
+        void directoryModeApplier(DirectoryModeApplier applier) {
             this.directoryModeApplier = applier;
-            return getThis();
         }
 
         /**

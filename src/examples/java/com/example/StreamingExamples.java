@@ -64,7 +64,7 @@ public final class StreamingExamples {
         // tag::stale-item[]
         try (var extractor = TarArchiveExtractor.builder(archive).build()) {
             var items = extractor.stream().toList(); // advances past every entry
-            items.get(0).content(); // throws IllegalStateException: entry ... is no longer current
+            items.getFirst().content(); // throws IllegalStateException: entry ... is no longer current
         }
         // end::stale-item[]
     }

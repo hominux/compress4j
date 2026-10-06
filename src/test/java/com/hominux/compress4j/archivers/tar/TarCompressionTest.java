@@ -247,8 +247,8 @@ class TarCompressionTest {
                 .build()) {
             var entries = extractor.stream().map(ArchiveItem::entry).toList();
             assertThat(entries).hasSize(1);
-            assertThat(entries.get(0).name()).isEqualTo(longName);
-            assertThat(entries.get(0).mode() & 0777).isEqualTo(0755);
+            assertThat(entries.getFirst().name()).isEqualTo(longName);
+            assertThat(entries.getFirst().mode() & 0777).isEqualTo(0755);
         }
     }
 

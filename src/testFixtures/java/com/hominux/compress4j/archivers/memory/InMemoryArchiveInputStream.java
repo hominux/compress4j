@@ -35,10 +35,6 @@ public class InMemoryArchiveInputStream extends ArchiveInputStream<InMemoryArchi
     private InMemoryArchiveEntry currentEntry;
     private int pointer;
 
-    public InMemoryArchiveInputStream(final InputStream inputStream) throws IOException {
-        this(from(inputStream));
-    }
-
     public InMemoryArchiveInputStream(final List<InMemoryArchiveEntry> entries) {
         this.entries = entries;
     }
@@ -65,9 +61,5 @@ public class InMemoryArchiveInputStream extends ArchiveInputStream<InMemoryArchi
     @Override
     public int read() {
         return 0;
-    }
-
-    public String readString() {
-        return currentEntry.getContent();
     }
 }

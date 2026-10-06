@@ -47,6 +47,7 @@ include::example$java/com/example/StreamingExamples.java[tag=repack,indent=0]
 
 The creator checks entry names on write, so repacking an archive with `../` names fails with `UnsafeEntryException`.
 
+[[format-capabilities]]
 == Format capabilities
 
 Verified by the contract suite on every build:

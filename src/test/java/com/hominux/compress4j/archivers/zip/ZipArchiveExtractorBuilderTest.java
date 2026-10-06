@@ -110,11 +110,11 @@ class ZipArchiveExtractorBuilderTest {
                 .encoding(StandardCharsets.US_ASCII)
                 .createUnicodeExtraFields(ZipUnicodeExtraFields.ALWAYS)
                 .build()) {
-            creator.add(EntrySource.file("caf\u00e9.txt", NOT_A_ZIP));
+            creator.add(EntrySource.file("café.txt", NOT_A_ZIP));
         }
 
-        assertThat(namesRead(zip, true)).containsExactly("caf\u00e9.txt");
-        assertThat(namesRead(zip, false)).doesNotContain("caf\u00e9.txt");
+        assertThat(namesRead(zip, true)).containsExactly("café.txt");
+        assertThat(namesRead(zip, false)).doesNotContain("café.txt");
     }
 
     private static List<String> namesRead(Path zip, boolean useUnicodeExtraFields) throws IOException {

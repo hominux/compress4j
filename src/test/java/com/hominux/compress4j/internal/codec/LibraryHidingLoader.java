@@ -52,7 +52,7 @@ public final class LibraryHidingLoader extends URLClassLoader {
     }
 
     Object compression(String factory) throws Exception {
-        return invoke(loadClass(Compression.class.getName()).getMethod(factory), null);
+        return invoke(loadClass(Compression.class.getName()).getMethod(factory));
     }
 
     InputStream decompressing(Object compression, InputStream in) throws Exception {

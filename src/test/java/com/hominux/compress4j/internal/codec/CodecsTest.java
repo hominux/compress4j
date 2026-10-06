@@ -294,10 +294,10 @@ class CodecsTest {
 
     @Test
     void gzipFileNameUsesTheConfiguredCharset() throws IOException {
-        var gzip = Compression.gzip().fileNameCharset(StandardCharsets.UTF_8).fileName("\u00e9.txt");
+        var gzip = Compression.gzip().fileNameCharset(StandardCharsets.UTF_8).fileName("é.txt");
         try (var in =
                 (GzipCompressorInputStream) Codecs.decompressing(gzip, new ByteArrayInputStream(compress(gzip)))) {
-            assertThat(in.getMetaData().getFileName()).isEqualTo("\u00e9.txt");
+            assertThat(in.getMetaData().getFileName()).isEqualTo("é.txt");
         }
     }
 

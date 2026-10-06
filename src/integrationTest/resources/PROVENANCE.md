@@ -3,7 +3,7 @@
 Fixtures marked "upstream" are copied unmodified from https://github.com/apache/commons-compress (`src/test/resources`), licensed under the Apache License 2.0, the same licence as this project.
 
 | Fixture | Source | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `archives/upstream-bla.tar.lzma` | upstream `bla.tar.lzma` | unmodified |
 | `archives/archive.tar.lzma` | generated | `lzma -c` of `archives/archive.tar` |
 | `compression/compress.txt.lzma` | generated | `lzma -c` of the decompressed `compression/compress.txt.xz` |

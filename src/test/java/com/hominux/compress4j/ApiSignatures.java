@@ -113,7 +113,7 @@ final class ApiSignatures {
     }
 
     private static Stream<JavaType> declaredTypes(JavaClass type) {
-        return Stream.<Stream<? extends JavaType>>of(
+        return Stream.of(
                         type.getSuperclass().stream(), type.getInterfaces().stream(), type.getTypeParameters().stream())
                 .flatMap(s -> s);
     }
@@ -127,7 +127,7 @@ final class ApiSignatures {
             return Stream.of(field.getType());
         }
         if (member instanceof JavaCodeUnit unit) {
-            return Stream.<Stream<? extends JavaType>>of(
+            return Stream.of(
                             unit.getParameterTypes().stream(),
                             Stream.of(unit.getReturnType()),
                             unit.getThrowsClause().getTypes().stream(),

@@ -27,9 +27,9 @@ plugins {
 
 val stagingDir: Provider<Directory> = layout.buildDirectory.dir("staging-deploy")
 val relocationStagingDir: Provider<Directory> = layout.buildDirectory.dir("staging-deploy-relocation")
-val snapshotVersion: String = "\${describe.tag.version.major}." +
-        "\${describe.tag.version.minor}." +
-        "\${describe.tag.version.patch.next}-SNAPSHOT"
+val snapshotVersion: String = $$"${describe.tag.version.major}." +
+        $$"${describe.tag.version.minor}." +
+        $$"${describe.tag.version.patch.next}-SNAPSHOT"
 
 group = "com.hominux"
 description = "A simple archiving and compression library for Java."
@@ -398,7 +398,7 @@ gitVersioning.apply {
             version = snapshotVersion
         }
         tag("v(?<version>.*)") {
-            version = "\${ref.version}"
+            version = $$"${ref.version}"
         }
     }
 

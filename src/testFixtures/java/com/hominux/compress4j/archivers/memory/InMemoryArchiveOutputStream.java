@@ -27,7 +27,6 @@ import org.apache.commons.compress.archivers.ArchiveOutputStream;
 
 public class InMemoryArchiveOutputStream extends ArchiveOutputStream<InMemoryArchiveEntry> {
     private static final ObjectMapper mapper = new ObjectMapper();
-    private int someOption = 0;
 
     public InMemoryArchiveOutputStream(OutputStream outputStream) {
         super(outputStream);
@@ -64,13 +63,5 @@ public class InMemoryArchiveOutputStream extends ArchiveOutputStream<InMemoryArc
     @Override
     public void putArchiveEntry(InMemoryArchiveEntry entry) throws IOException {
         out.write(mapper.writeValueAsBytes(entry));
-    }
-
-    public int getSomeOption() {
-        return someOption;
-    }
-
-    public void setSomeOption(int someOption) {
-        this.someOption = someOption;
     }
 }

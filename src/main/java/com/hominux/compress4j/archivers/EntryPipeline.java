@@ -97,7 +97,7 @@ final class EntryPipeline {
     }
 
     InputStream content(ArchiveItem item) {
-        if (!isCurrent(item.position())) {
+        if (isStale(item.position())) {
             throw new IllegalStateException(staleMessage(item.entry()));
         }
         if (item.entry().type() != Entry.Type.FILE) {
@@ -116,8 +116,8 @@ final class EntryPipeline {
         return guardedContent.orElseThrow();
     }
 
-    private boolean isCurrent(long itemPosition) {
-        return itemPosition == position;
+    private boolean isStale(long itemPosition) {
+        return itemPosition != position;
     }
 
     private Optional<Entry> strip(Entry entry) {
@@ -163,7 +163,7 @@ final class EntryPipeline {
         }
 
         private void checkCurrent() throws IOException {
-            if (!isCurrent(item.position())) {
+            if (isStale(item.position())) {
                 throw new IOException(staleMessage(item.entry()));
             }
         }

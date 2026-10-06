@@ -230,7 +230,7 @@ class UnsupportedEntryTest {
         try (var extractor = CpioArchiveExtractor.builder(cpio).build()) {
             var entries = extractor.stream().map(ArchiveItem::entry).toList();
             assertThat(entries).extracting(Entry::type).containsExactly(Entry.Type.SYMLINK);
-            assertThat(entries.get(0).linkTarget()).contains("a.txt");
+            assertThat(entries.getFirst().linkTarget()).contains("a.txt");
         }
     }
 
@@ -247,7 +247,7 @@ class UnsupportedEntryTest {
         try (var extractor = ZipArchiveExtractor.builder(zip).build()) {
             var entries = extractor.stream().map(ArchiveItem::entry).toList();
             assertThat(entries).extracting(Entry::type).containsExactly(Entry.Type.SYMLINK);
-            assertThat(entries.get(0).linkTarget()).contains("a.txt");
+            assertThat(entries.getFirst().linkTarget()).contains("a.txt");
         }
     }
 
