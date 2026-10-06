@@ -59,8 +59,6 @@ import org.slf4j.LoggerFactory;
 public abstract class ArchiveExtractor implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveExtractor.class);
 
-    private static final Predicate<Entry> ACCEPT_ALL = entry -> true;
-
     private static final DirectoryModeApplier DEFAULT_MODE_APPLIER =
             (path, mode) -> HostFileSystem.of(path).applyMode(path, mode);
 
@@ -80,6 +78,7 @@ public abstract class ArchiveExtractor implements Closeable {
      * @param reader the format reader, closed by {@link #close()}
      * @param compressedBytes supplies the compressed bytes consumed so far, for the expansion ratio limit
      */
+    @SuppressWarnings("exports") // EntryReader stays unexported: subclassing is closed to code outside the module
     protected ArchiveExtractor(Builder<?, ?> builder, EntryReader reader, LongSupplier compressedBytes) {
         this.reader = reader;
         this.errorHandler = builder.errorHandlerFunction;
@@ -230,7 +229,7 @@ public abstract class ArchiveExtractor implements Closeable {
 
     private void writeFile(ArchiveItem item, Path outputFile) throws IOException {
         Entry entry = item.entry();
-        if (overwrite || !Files.exists(outputFile)) {
+        if (overwrite || !Files.exists(outputFile, LinkOption.NOFOLLOW_LINKS)) {
             InputStream content = contentOf(item);
             EntryPaths.makeDirectory(EntryPaths.requireParent(outputFile));
             try (OutputStream outputStream = Files.newOutputStream(
@@ -245,6 +244,10 @@ public abstract class ArchiveExtractor implements Closeable {
         } else {
             LOGGER.debug("Skipping file entry: {} (already exists)", entry.name());
         }
+    }
+
+    private static boolean acceptAll(Entry entry) {
+        return true;
     }
 
     private static int interimDirectoryMode(int archiveMode) {
@@ -290,7 +293,7 @@ public abstract class ArchiveExtractor implements Closeable {
     public abstract static class Builder<B extends Builder<B, E>, E extends ArchiveExtractor> {
         EscapingSymlinkPolicy escapingSymlinkPolicy = EscapingSymlinkPolicy.DISALLOW;
 
-        Predicate<Entry> entryFilter = ACCEPT_ALL;
+        Predicate<Entry> entryFilter = ArchiveExtractor::acceptAll;
 
         BiFunction<Entry, ? super IOException, ErrorHandlerChoice> errorHandlerFunction =
                 (x, y) -> ErrorHandlerChoice.ABORT;
@@ -493,6 +496,7 @@ public abstract class ArchiveExtractor implements Closeable {
          *
          * @return a new reader context for the options set so far, owned by the extractor of this build
          */
+        @SuppressWarnings("exports") // ReaderContext stays unexported: only in-module format builders call this
         protected final ReaderContext readerContext() {
             var source = new AtomicReference<LongSupplier>(() -> 0);
             var meter = new ExpansionMeter(limits, () -> source.get().getAsLong());

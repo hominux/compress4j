@@ -22,7 +22,6 @@ import com.hominux.compress4j.internal.util.EntryValues;
 import com.hominux.compress4j.internal.util.UnixFileType;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.Optional;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
@@ -32,8 +31,6 @@ import org.apache.commons.io.function.IOFunction;
 import org.apache.commons.io.input.CloseShieldInputStream;
 
 final class ZipEntryReader implements EntryReader {
-
-    static final long MAX_SYMLINK_TARGET_BYTES = 4096;
 
     private final ZipFile file;
     private final ReaderContext context;
@@ -86,13 +83,8 @@ final class ZipEntryReader implements EntryReader {
         if (!ze.isUnixSymlink()) {
             return Optional.empty();
         }
-        if (ze.getSize() > MAX_SYMLINK_TARGET_BYTES) {
-            throw new IOException("Symlink target of '" + ze.getName() + "' exceeds " + MAX_SYMLINK_TARGET_BYTES
-                    + " bytes: " + ze.getSize());
-        }
         try (InputStream in = file.getInputStream(ze)) {
-            return Optional.of(
-                    new String(context.readDeclared(ze.getName(), in, ze.getSize()), StandardCharsets.UTF_8));
+            return Optional.of(context.readLinkTarget(ze.getName(), in, ze.getSize()));
         }
     }
 
