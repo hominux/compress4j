@@ -1,0 +1,25 @@
+name: Announce
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to announce, for example v5.0.0'
+        type: string
+        required: true
+
+permissions: {}
+
+jobs:
+  announce:
+    name: Announce the release
+    if: github.ref == 'refs/heads/main'
+    permissions: {}
+    uses: hominux/.github/.github/workflows/announce-release.yml@d59901b71a130937b8f81ae033aa671b0ec79aff # main
+    with:
+      tag: ${{ inputs.tag }}
+    secrets:
+      MASTODON_INSTANCE_URL: ${{ secrets.MASTODON_INSTANCE_URL }}
+      MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+      BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+      BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
