@@ -1,7 +1,7 @@
 [versions]
 apache-commons-compress = "1.28.0"
 archunit = "1.5.1"
-asm = "9.10.1"
+asm = "9.11"
 assertJ = "3.27.7"
 build-health = "3.19.2"
 error-prone-core = "2.50.0"
