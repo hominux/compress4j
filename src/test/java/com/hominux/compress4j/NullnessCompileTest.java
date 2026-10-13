@@ -29,8 +29,11 @@ import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
 import org.junit.jupiter.api.io.TempDir;
 
+@EnabledForJreRange(min = JRE.JAVA_21)
 class NullnessCompileTest {
 
     private static final String BUILD_ARGS = System.getProperty("compile.errorprone.args", "");

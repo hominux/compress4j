@@ -237,11 +237,16 @@ public sealed interface EntrySource permits EntrySource.File, EntrySource.Direct
      * @return the copy, of the same variant
      */
     default EntrySource withLastModified(FileTime lastModified) {
-        return switch (this) {
-            case File f -> new File(f.name(), f.mode(), lastModified, f.size(), f.content());
-            case Directory d -> new Directory(d.name(), d.mode(), lastModified);
-            case Symlink s -> new Symlink(s.name(), s.target(), s.mode(), lastModified);
-        };
+        if (this instanceof File f) {
+            return new File(f.name(), f.mode(), lastModified, f.size(), f.content());
+        }
+        if (this instanceof Directory d) {
+            return new Directory(d.name(), d.mode(), lastModified);
+        }
+        if (this instanceof Symlink s) {
+            return new Symlink(s.name(), s.target(), s.mode(), lastModified);
+        }
+        throw new IllegalStateException("Unknown entry source " + this);
     }
 
     /**

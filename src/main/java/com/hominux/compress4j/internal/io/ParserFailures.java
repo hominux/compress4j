@@ -80,12 +80,16 @@ public final class ParserFailures {
     }
 
     private static IOException translate(RuntimeException e, String what) throws IOException {
-        return switch (e) {
-            case CallbackFailure callback -> throw callback.failure();
-            case MissingArchiveDependencyException missing -> throw missing;
-            case UncheckedIOException unchecked -> throw unchecked.getCause();
-            default -> new IOException("Corrupt " + what, e);
-        };
+        if (e instanceof CallbackFailure callback) {
+            throw callback.failure();
+        }
+        if (e instanceof MissingArchiveDependencyException missing) {
+            throw missing;
+        }
+        if (e instanceof UncheckedIOException unchecked) {
+            throw unchecked.getCause();
+        }
+        return new IOException("Corrupt " + what, e);
     }
 
     /**
