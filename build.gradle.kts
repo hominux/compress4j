@@ -311,9 +311,10 @@ tasks.withType<Javadoc> {
 }
 
 tasks.testCodeCoverageReport {
-    dependsOn(tasks.test, integrationTest)
     executionData(
-        fileTree(layout.buildDirectory).include("jacoco/*.exec")
+        tasks.test.get(),
+        tasks.named<Test>("integrationTest").get(),
+        tasks.named<Test>("java21Test").get()
     )
     reports {
         xml.required = true
