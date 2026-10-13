@@ -93,10 +93,15 @@ public sealed interface Sink {
      * @throws IOException if the sink cannot be opened
      */
     default Opened open() throws IOException {
-        return switch (this) {
-            case OfPath(Path path) -> new Opened(Files.newOutputStream(path), true);
-            case OfChannel(SeekableByteChannel channel) -> new Opened(Channels.newOutputStream(channel), false);
-            case OfStream(OutputStream stream) -> new Opened(stream, false);
-        };
+        if (this instanceof OfPath p) {
+            return new Opened(Files.newOutputStream(p.path()), true);
+        }
+        if (this instanceof OfChannel c) {
+            return new Opened(Channels.newOutputStream(c.channel()), false);
+        }
+        if (this instanceof OfStream s) {
+            return new Opened(s.stream(), false);
+        }
+        throw new IllegalStateException("Unknown sink " + this);
     }
 }

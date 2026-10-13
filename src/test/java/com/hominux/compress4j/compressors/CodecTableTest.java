@@ -42,23 +42,52 @@ class CodecTableTest {
     }
 
     private static String factory(Compression compression) {
-        return switch (compression) {
-            case None c -> "none";
-            case Gzip c -> "gzip";
-            case Bzip2 c -> "bzip2";
-            case Xz c -> "xz";
-            case Lzma c -> "lzma";
-            case Lz4Block c -> "lz4Block";
-            case Lz4Framed c -> "lz4Framed";
-            case Zstd c -> "zstd";
-            case Deflate c -> "deflate";
-            case Deflate64 c -> "deflate64";
-            case SnappyRaw c -> "snappyRaw";
-            case SnappyFramed c -> "snappyFramed";
-            case Brotli c -> "brotli";
-            case UnixZ c -> "unixZ";
-            case Pack200 c -> "pack200";
-        };
+        if (compression instanceof None) {
+            return "none";
+        }
+        if (compression instanceof Gzip) {
+            return "gzip";
+        }
+        if (compression instanceof Bzip2) {
+            return "bzip2";
+        }
+        if (compression instanceof Xz) {
+            return "xz";
+        }
+        if (compression instanceof Lzma) {
+            return "lzma";
+        }
+        if (compression instanceof Lz4Block) {
+            return "lz4Block";
+        }
+        if (compression instanceof Lz4Framed) {
+            return "lz4Framed";
+        }
+        if (compression instanceof Zstd) {
+            return "zstd";
+        }
+        if (compression instanceof Deflate) {
+            return "deflate";
+        }
+        if (compression instanceof Deflate64) {
+            return "deflate64";
+        }
+        if (compression instanceof SnappyRaw) {
+            return "snappyRaw";
+        }
+        if (compression instanceof SnappyFramed) {
+            return "snappyFramed";
+        }
+        if (compression instanceof Brotli) {
+            return "brotli";
+        }
+        if (compression instanceof UnixZ) {
+            return "unixZ";
+        }
+        if (compression instanceof Pack200) {
+            return "pack200";
+        }
+        throw new IllegalStateException("Unknown compression " + compression);
     }
 
     @Test

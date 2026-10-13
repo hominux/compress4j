@@ -146,12 +146,16 @@ class CodecsTest {
     }
 
     private static Compression withConcatenation(Compression compression) {
-        return switch (compression) {
-            case Bzip2 b -> b.decompressConcatenated(true);
-            case Xz x -> x.decompressConcatenated(true);
-            case Lz4Framed l -> l.decompressConcatenated(true);
-            default -> throw new IllegalArgumentException(compression.toString());
-        };
+        if (compression instanceof Bzip2 b) {
+            return b.decompressConcatenated(true);
+        }
+        if (compression instanceof Xz x) {
+            return x.decompressConcatenated(true);
+        }
+        if (compression instanceof Lz4Framed l) {
+            return l.decompressConcatenated(true);
+        }
+        throw new IllegalArgumentException(compression.toString());
     }
 
     @ParameterizedTest

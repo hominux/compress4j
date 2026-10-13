@@ -216,11 +216,16 @@ public final class ZipArchiveCreator extends ArchiveCreator {
          */
         @Override
         public ZipArchiveCreator build() throws IOException {
-            return switch (sink) {
-                case Sink.OfPath(Path path) -> create(new ZipArchiveOutputStream(path));
-                case Sink.OfChannel(SeekableByteChannel channel) -> create(new ZipArchiveOutputStream(channel));
-                case Sink.OfStream(OutputStream stream) -> create(new ZipArchiveOutputStream(stream));
-            };
+            if (sink instanceof Sink.OfPath p) {
+                return create(new ZipArchiveOutputStream(p.path()));
+            }
+            if (sink instanceof Sink.OfChannel c) {
+                return create(new ZipArchiveOutputStream(c.channel()));
+            }
+            if (sink instanceof Sink.OfStream s) {
+                return create(new ZipArchiveOutputStream(s.stream()));
+            }
+            throw new IllegalStateException("Unknown sink " + sink);
         }
 
         private ZipArchiveCreator create(ZipArchiveOutputStream out) {

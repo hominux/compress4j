@@ -15,7 +15,7 @@ https://github.com/thrau/jarchivelib[JArchiveLib].
   <<safe-extraction>>.
 * *One API for every format.* Tar, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.lzma`, `.tar.lz4`, `.tar.zst`, Zip, 7z, AR, CPIO and more share the same builders.
 * *Streams.* Read entries as a Java Stream, write from a Stream of files or another archive, repack between formats.
-* *Java 21+, JPMS-ready,* published to Maven Central.
+* *Java 17+, JPMS-ready,* published to Maven Central.
 
 == At a glance
 
@@ -41,7 +41,7 @@ try (TarArchiveExtractor extractor = TarArchiveExtractor.builder(Path.of("untrus
 
 == Installation
 
-Requires Java 21 or later.
+Requires Java 17 or later.
 
 Gradle:
 

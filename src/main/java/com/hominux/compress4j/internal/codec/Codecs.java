@@ -84,28 +84,56 @@ public final class Codecs {
      * @throws IOException if the codec rejects the stream header
      */
     public static InputStream decompressing(Compression compression, InputStream in) throws IOException {
-        return switch (compression) {
-            case None none -> in;
-            case Gzip g ->
-                GzipCompressorInputStream.builder()
-                        .setInputStream(in)
-                        .setDecompressConcatenated(g.decompressConcatenated())
-                        .setFileNameCharset(g.fileNameCharset())
-                        .get();
-            case Bzip2 b -> new BZip2CompressorInputStream(in, b.decompressConcatenated());
-            case Xz x -> OptionalCodecs.xzInput(in, x);
-            case Lzma l -> OptionalCodecs.lzmaInput(in, l);
-            case Lz4Block block -> new BlockLZ4CompressorInputStream(in);
-            case Lz4Framed f -> new FramedLZ4CompressorInputStream(in, f.decompressConcatenated());
-            case Zstd zstd -> OptionalCodecs.zstdInput(in);
-            case Deflate d -> new DeflateCompressorInputStream(in, deflateParameters(d));
-            case Deflate64 d64 -> new Deflate64CompressorInputStream(in);
-            case SnappyRaw raw -> new SnappyCompressorInputStream(in);
-            case SnappyFramed framed -> new FramedSnappyCompressorInputStream(in);
-            case Brotli brotli -> OptionalCodecs.brotliInput(in);
-            case UnixZ z -> new ZCompressorInputStream(in, Z_MEMORY_LIMIT_KIB);
-            case Pack200 p -> new Pack200CompressorInputStream(new PlainInputStream(in), strategy(p), p.properties());
-        };
+        if (compression instanceof None) {
+            return in;
+        }
+        if (compression instanceof Gzip g) {
+            return GzipCompressorInputStream.builder()
+                    .setInputStream(in)
+                    .setDecompressConcatenated(g.decompressConcatenated())
+                    .setFileNameCharset(g.fileNameCharset())
+                    .get();
+        }
+        if (compression instanceof Bzip2 b) {
+            return new BZip2CompressorInputStream(in, b.decompressConcatenated());
+        }
+        if (compression instanceof Xz x) {
+            return OptionalCodecs.xzInput(in, x);
+        }
+        if (compression instanceof Lzma l) {
+            return OptionalCodecs.lzmaInput(in, l);
+        }
+        if (compression instanceof Lz4Block) {
+            return new BlockLZ4CompressorInputStream(in);
+        }
+        if (compression instanceof Lz4Framed f) {
+            return new FramedLZ4CompressorInputStream(in, f.decompressConcatenated());
+        }
+        if (compression instanceof Zstd) {
+            return OptionalCodecs.zstdInput(in);
+        }
+        if (compression instanceof Deflate d) {
+            return new DeflateCompressorInputStream(in, deflateParameters(d));
+        }
+        if (compression instanceof Deflate64) {
+            return new Deflate64CompressorInputStream(in);
+        }
+        if (compression instanceof SnappyRaw) {
+            return new SnappyCompressorInputStream(in);
+        }
+        if (compression instanceof SnappyFramed) {
+            return new FramedSnappyCompressorInputStream(in);
+        }
+        if (compression instanceof Brotli) {
+            return OptionalCodecs.brotliInput(in);
+        }
+        if (compression instanceof UnixZ) {
+            return new ZCompressorInputStream(in, Z_MEMORY_LIMIT_KIB);
+        }
+        if (compression instanceof Pack200 p) {
+            return new Pack200CompressorInputStream(new PlainInputStream(in), strategy(p), p.properties());
+        }
+        throw new IllegalStateException("Unknown compression " + compression);
     }
 
     /**
@@ -119,24 +147,53 @@ public final class Codecs {
      * @throws IllegalArgumentException if the codec is read-only or lacks a required option
      */
     public static OutputStream compressing(Compression compression, OutputStream out) throws IOException {
-        return switch (compression) {
-            case None none -> out;
-            case Gzip g -> new GzipCompressorOutputStream(out, gzipParameters(g));
-            case Bzip2 b -> new BZip2CompressorOutputStream(out, b.blockSize());
-            case Xz x -> OptionalCodecs.xzOutput(out, x);
-            case Lzma l -> OptionalCodecs.lzmaOutput(out);
-            case Lz4Block block -> new BlockLZ4CompressorOutputStream(out);
-            case Lz4Framed f -> new FramedLZ4CompressorOutputStream(out);
-            case Zstd z -> OptionalCodecs.zstdOutput(out, z.level());
-            case Deflate d -> new DeflateCompressorOutputStream(out, deflateParameters(d));
-            case SnappyRaw raw ->
-                new SnappyCompressorOutputStream(out, raw.uncompressedSize().orElseThrow(Codecs::snappyRawNeedsSize));
-            case SnappyFramed framed -> new FramedSnappyCompressorOutputStream(out);
-            case Pack200 p -> OptionalCodecs.pack200Output(out, strategy(p), p.properties());
-            case Deflate64 d64 -> throw readOnly(compression);
-            case Brotli brotli -> throw readOnly(compression);
-            case UnixZ z -> throw readOnly(compression);
-        };
+        if (compression instanceof None) {
+            return out;
+        }
+        if (compression instanceof Gzip g) {
+            return new GzipCompressorOutputStream(out, gzipParameters(g));
+        }
+        if (compression instanceof Bzip2 b) {
+            return new BZip2CompressorOutputStream(out, b.blockSize());
+        }
+        if (compression instanceof Xz x) {
+            return OptionalCodecs.xzOutput(out, x);
+        }
+        if (compression instanceof Lzma) {
+            return OptionalCodecs.lzmaOutput(out);
+        }
+        if (compression instanceof Lz4Block) {
+            return new BlockLZ4CompressorOutputStream(out);
+        }
+        if (compression instanceof Lz4Framed) {
+            return new FramedLZ4CompressorOutputStream(out);
+        }
+        if (compression instanceof Zstd z) {
+            return OptionalCodecs.zstdOutput(out, z.level());
+        }
+        if (compression instanceof Deflate d) {
+            return new DeflateCompressorOutputStream(out, deflateParameters(d));
+        }
+        if (compression instanceof SnappyRaw raw) {
+            return new SnappyCompressorOutputStream(
+                    out, raw.uncompressedSize().orElseThrow(Codecs::snappyRawNeedsSize));
+        }
+        if (compression instanceof SnappyFramed) {
+            return new FramedSnappyCompressorOutputStream(out);
+        }
+        if (compression instanceof Pack200 p) {
+            return OptionalCodecs.pack200Output(out, strategy(p), p.properties());
+        }
+        if (compression instanceof Deflate64) {
+            throw readOnly(compression);
+        }
+        if (compression instanceof Brotli) {
+            throw readOnly(compression);
+        }
+        if (compression instanceof UnixZ) {
+            throw readOnly(compression);
+        }
+        throw new IllegalStateException("Unknown compression " + compression);
     }
 
     /**
@@ -149,14 +206,23 @@ public final class Codecs {
      * @throws IllegalArgumentException if the stream does not support mark
      */
     public static Compression detectForReading(InputStream in) throws IOException {
-        return switch (detect(in)) {
-            case Pack200 pack200 -> Compression.none();
-            case Gzip gzip -> gzip.decompressConcatenated(true);
-            case Bzip2 bzip2 -> bzip2.decompressConcatenated(true);
-            case Xz xz -> xz.decompressConcatenated(true);
-            case Lz4Framed lz4 -> lz4.decompressConcatenated(true);
-            case Compression other -> other;
-        };
+        var selected = detect(in);
+        if (selected instanceof Pack200) {
+            return Compression.none();
+        }
+        if (selected instanceof Gzip gzip) {
+            return gzip.decompressConcatenated(true);
+        }
+        if (selected instanceof Bzip2 bzip2) {
+            return bzip2.decompressConcatenated(true);
+        }
+        if (selected instanceof Xz xz) {
+            return xz.decompressConcatenated(true);
+        }
+        if (selected instanceof Lz4Framed lz4) {
+            return lz4.decompressConcatenated(true);
+        }
+        return selected;
     }
 
     /**

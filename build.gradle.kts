@@ -176,6 +176,22 @@ tasks.withType<Test>().configureEach {
     })
 }
 
+val java21Test by testing.suites.registering(JvmTestSuite::class) {
+    useJUnitJupiter()
+
+    dependencies {
+        implementation(platform(libs.junit.bom))
+        implementation(project())
+        implementation(libs.assertj.core)
+        implementation(libs.junit.jupiter.api)
+    }
+
+    targets.all { testTask.configure {
+        shouldRunAfter(tasks.test)
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    }}
+}
+
 tasks.test {
     jvmArgumentProviders.add(CommandLineArgumentProvider {
         val errorprone = tasks.compileJava.get().options.errorprone
@@ -264,6 +280,7 @@ dependencyAnalysis {
 tasks.withType<JavaCompile> {
     options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-serial"))
     options.encoding = "UTF-8"
+    options.release = if (name == "compileJava21TestJava") 21 else 17
 }
 
 tasks.named<JavaCompile>("compileJava") {
@@ -332,6 +349,7 @@ tasks.check {
         tasks.spotlessCheck,
         checkApiCompatibility,
         integrationTest,
+        java21Test,
         tasks.testCodeCoverageReport,
         testCodeCoverageVerification,
         gradle.includedBuild("${rootProject.name}-build-logic").task(":test")

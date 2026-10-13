@@ -149,11 +149,15 @@ public sealed interface Source {
      * @throws IOException if the source cannot be opened
      */
     default Opened open() throws IOException {
-        return switch (this) {
-            case OfPath(Path path) -> new Opened(new CountingInputStream(Files.newInputStream(path)), true);
-            case OfChannel(SeekableByteChannel channel) ->
-                new Opened(new CountingInputStream(Channels.newInputStream(channel)), false);
-            case OfStream(InputStream stream) -> new Opened(new CountingInputStream(stream), false);
-        };
+        if (this instanceof OfPath p) {
+            return new Opened(new CountingInputStream(Files.newInputStream(p.path())), true);
+        }
+        if (this instanceof OfChannel c) {
+            return new Opened(new CountingInputStream(Channels.newInputStream(c.channel())), false);
+        }
+        if (this instanceof OfStream s) {
+            return new Opened(new CountingInputStream(s.stream()), false);
+        }
+        throw new IllegalStateException("Unknown source " + this);
     }
 }

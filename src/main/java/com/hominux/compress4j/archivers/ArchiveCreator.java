@@ -122,12 +122,14 @@ public abstract class ArchiveCreator implements Closeable {
     }
 
     private void write(EntrySource source) throws IOException {
-        switch (source) {
-            case EntrySource.Directory(var name, var mode, var lastModified) ->
-                writer.writeDirectory(name, mode, lastModified);
-            case EntrySource.Symlink(var name, var target, var mode, var lastModified) ->
-                writer.writeSymlink(name, target, mode, lastModified);
-            case EntrySource.File f -> writeFile(f);
+        if (source instanceof EntrySource.Directory d) {
+            writer.writeDirectory(d.name(), d.mode(), d.lastModified());
+        } else if (source instanceof EntrySource.Symlink s) {
+            writer.writeSymlink(s.name(), s.target(), s.mode(), s.lastModified());
+        } else if (source instanceof EntrySource.File f) {
+            writeFile(f);
+        } else {
+            throw new IllegalStateException("Unknown entry source " + source);
         }
     }
 
@@ -151,11 +153,16 @@ public abstract class ArchiveCreator implements Closeable {
     }
 
     private static EntrySource renamed(EntrySource source, String name) {
-        return switch (source) {
-            case EntrySource.File f -> new EntrySource.File(name, f.mode(), f.lastModified(), f.size(), f.content());
-            case EntrySource.Directory d -> new EntrySource.Directory(name, d.mode(), d.lastModified());
-            case EntrySource.Symlink s -> new EntrySource.Symlink(name, s.target(), s.mode(), s.lastModified());
-        };
+        if (source instanceof EntrySource.File f) {
+            return new EntrySource.File(name, f.mode(), f.lastModified(), f.size(), f.content());
+        }
+        if (source instanceof EntrySource.Directory d) {
+            return new EntrySource.Directory(name, d.mode(), d.lastModified());
+        }
+        if (source instanceof EntrySource.Symlink s) {
+            return new EntrySource.Symlink(name, s.target(), s.mode(), s.lastModified());
+        }
+        throw new IllegalStateException("Unknown entry source " + source);
     }
 
     /**
