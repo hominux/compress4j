@@ -56,7 +56,7 @@ class ZipArchiveCreatorTest {
 
     @BeforeEach
     void setUp() {
-        creator = new ZipEntryWriter(mockZipStream);
+        creator = new ZipEntryWriter(mockZipStream, false);
     }
 
     @Test

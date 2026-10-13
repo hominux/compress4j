@@ -17,10 +17,10 @@ package com.hominux.compress4j.archivers.zip;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.hominux.compress4j.archivers.ArchiveItem;
 import com.hominux.compress4j.archivers.EntrySource;
+import com.hominux.compress4j.test.util.OpenFiles;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -64,7 +64,7 @@ class ZipArchiveExtractorBuilderTest {
 
         ZipArchiveExtractor.builder(zip).ignoreLocalFileHeader(true).maxNumberOfDisks(2);
 
-        assertDoesNotThrow(() -> Files.delete(zip));
+        OpenFiles.assertReleased(zip);
     }
 
     @Test
@@ -81,7 +81,7 @@ class ZipArchiveExtractorBuilderTest {
 
         assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
 
-        assertDoesNotThrow(() -> Files.delete(zip));
+        OpenFiles.assertReleased(zip);
     }
 
     @Test

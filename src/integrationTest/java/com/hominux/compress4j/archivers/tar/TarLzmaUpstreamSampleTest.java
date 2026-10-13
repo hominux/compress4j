@@ -17,6 +17,7 @@ package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hominux.compress4j.UpstreamSamples;
 import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,10 +32,7 @@ class TarLzmaUpstreamSampleTest {
 
     @Test
     void shouldExtractUpstreamSample() throws IOException {
-        var sample = Files.createTempFile(tempDir, "sample", ".tar.lzma");
-        try (var in = TarLzmaUpstreamSampleTest.class.getResourceAsStream("/archives/upstream-bla.tar.lzma")) {
-            Files.copy(in, sample, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        }
+        var sample = UpstreamSamples.copy("/archives/upstream-bla.tar.lzma", tempDir);
         var out = Files.createDirectory(tempDir.resolve("out"));
 
         try (var extractor = TarArchiveExtractor.builder(sample)

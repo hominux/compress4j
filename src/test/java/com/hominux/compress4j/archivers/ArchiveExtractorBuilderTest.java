@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers;
 import static com.hominux.compress4j.archivers.ErrorHandlerChoice.SKIP;
 import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.DISALLOW;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveEntry;
 import com.hominux.compress4j.archivers.memory.InMemoryArchiveExtractor;
@@ -78,5 +79,12 @@ class ArchiveExtractorBuilderTest {
         // then
         assertThat(tempDir.resolve("kept")).hasContent("k");
         assertThat(tempDir.resolve("some-skipped")).doesNotExist();
+    }
+
+    @Test
+    void negativeStripComponentsIsRejectedWhenConfigured() throws IOException {
+        InMemoryArchiveExtractorBuilder builder = InMemoryArchiveExtractor.builder(List.of());
+
+        assertThatThrownBy(() -> builder.stripComponents(-1)).isInstanceOf(IllegalArgumentException.class);
     }
 }

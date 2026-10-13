@@ -341,14 +341,17 @@ class CodecsTest {
         assertThatThrownBy(() -> Codecs.detect(withoutMark)).isInstanceOf(IllegalArgumentException.class);
     }
 
-    @Test
-    void readOnlyCodecsCannotCompress() {
-        for (Compression c : new Compression[] {Compression.unixZ(), Compression.brotli(), Compression.deflate64()}) {
-            var sink = new ByteArrayOutputStream();
-            assertThatThrownBy(() -> Codecs.compressing(c, sink))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("can only be read");
-        }
+    static Stream<Compression> readOnlyCodecs() {
+        return Stream.of(Compression.unixZ(), Compression.brotli(), Compression.deflate64());
+    }
+
+    @ParameterizedTest
+    @MethodSource("readOnlyCodecs")
+    void readOnlyCodecsCannotCompress(Compression c) {
+        var sink = new ByteArrayOutputStream();
+        assertThatThrownBy(() -> Codecs.compressing(c, sink))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("can only be read");
     }
 
     @Test

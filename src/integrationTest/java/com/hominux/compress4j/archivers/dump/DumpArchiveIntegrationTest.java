@@ -71,8 +71,10 @@ class DumpArchiveIntegrationTest {
             extractor.extract(fromStream);
         }
 
-        assertThat(fromFile.resolve("test1.xml")).isNotEmptyFile();
-        assertThat(fromStream.resolve("test2.xml")).isNotEmptyFile();
+        for (var out : new Path[] {fromFile, fromStream}) {
+            assertThat(out.resolve("test1.xml")).isNotEmptyFile();
+            assertThat(out.resolve("test2.xml")).isNotEmptyFile();
+        }
     }
 
     @Test

@@ -18,7 +18,7 @@ object JapicmpReport {
 
     /** Reads a japicmp XML report and returns the API changes that ask for a version bump, most specific first. */
     fun changes(report: File): List<ApiChange> {
-        if (!report.isFile) return emptyList()
+        check(report.isFile) { "The japicmp report ${report.path} was not produced, cannot verify the API compatibility" }
         val factory = DocumentBuilderFactory.newInstance().apply {
             setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             isXIncludeAware = false

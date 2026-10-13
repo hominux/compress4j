@@ -18,8 +18,10 @@ class JapicmpReportTest {
         }
 
     @Test
-    fun `a missing report yields no changes`() {
-        assertThat(JapicmpReport.changes(tempDir.resolve("absent.xml").toFile())).isEmpty()
+    fun `a missing report is refused`() {
+        assertThatThrownBy { JapicmpReport.changes(tempDir.resolve("absent.xml").toFile()) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("absent.xml")
     }
 
     @Test

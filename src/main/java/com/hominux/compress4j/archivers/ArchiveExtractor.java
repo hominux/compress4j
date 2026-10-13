@@ -59,6 +59,8 @@ import org.slf4j.LoggerFactory;
 public abstract class ArchiveExtractor implements Closeable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ArchiveExtractor.class);
 
+    private static final int GROUP_OTHER_WRITE = 0022;
+
     private static final DirectoryModeApplier DEFAULT_MODE_APPLIER =
             (path, mode) -> HostFileSystem.of(path).applyMode(path, mode);
 
@@ -68,6 +70,7 @@ public abstract class ArchiveExtractor implements Closeable {
     private final BiConsumer<Entry, ? super Path> postProcessor;
     private final DirectoryModeApplier directoryModeApplier;
     private final boolean overwrite;
+    private final boolean preservePermissions;
 
     private final EntryPipeline pipeline;
 
@@ -84,6 +87,7 @@ public abstract class ArchiveExtractor implements Closeable {
         this.errorHandler = builder.errorHandlerFunction;
         this.postProcessor = builder.postProcessor;
         this.overwrite = builder.overwrite;
+        this.preservePermissions = builder.preservePermissions;
         this.escapingSymlinkPolicy = builder.escapingSymlinkPolicy;
         this.directoryModeApplier = builder.directoryModeApplier;
         this.pipeline = new EntryPipeline(
@@ -240,10 +244,14 @@ public abstract class ArchiveExtractor implements Closeable {
                     LinkOption.NOFOLLOW_LINKS)) {
                 content.transferTo(outputStream);
             }
-            HostFileSystem.of(outputFile).applyMode(outputFile, entry.mode());
+            HostFileSystem.of(outputFile).applyMode(outputFile, permitted(entry.mode()));
         } else {
             LOGGER.debug("Skipping file entry: {} (already exists)", entry.name());
         }
+    }
+
+    private int permitted(int archiveMode) {
+        return preservePermissions ? archiveMode : archiveMode & ~GROUP_OTHER_WRITE;
     }
 
     private static int interimDirectoryMode(int archiveMode) {
@@ -268,9 +276,10 @@ public abstract class ArchiveExtractor implements Closeable {
                 EntryPaths.makeDirectory(outputFile);
                 if (entry.mode() != 0 && !outputFile.equals(outputDir)) {
                     if (!existed && Files.isDirectory(outputFile, LinkOption.NOFOLLOW_LINKS)) {
-                        HostFileSystem.of(outputFile).applyMode(outputFile, interimDirectoryMode(entry.mode()));
+                        HostFileSystem.of(outputFile)
+                                .applyMode(outputFile, interimDirectoryMode(permitted(entry.mode())));
                     }
-                    directoryModes.add(new DirectoryMode(outputFile, entry.mode(), entry));
+                    directoryModes.add(new DirectoryMode(outputFile, permitted(entry.mode()), entry));
                 }
             }
             case FILE -> writeFile(item, outputFile);
@@ -297,6 +306,7 @@ public abstract class ArchiveExtractor implements Closeable {
         Consumer<UnsupportedEntry> unsupportedEntryHandler = entry -> {};
         int stripComponents = 0;
         boolean overwrite = false;
+        boolean preservePermissions = false;
         ExtractionLimits limits = ExtractionLimits.defaults();
         private Optional<PendingBuild> pending = Optional.empty();
         DirectoryModeApplier directoryModeApplier = DEFAULT_MODE_APPLIER;
@@ -379,8 +389,12 @@ public abstract class ArchiveExtractor implements Closeable {
          *
          * @param level the number of leading path components to strip
          * @return this builder
+         * @throws IllegalArgumentException if the level is negative
          */
         public final B stripComponents(int level) {
+            if (level < 0) {
+                throw new IllegalArgumentException("stripComponents must not be negative: " + level);
+            }
             this.stripComponents = level;
             return getThis();
         }
@@ -473,6 +487,18 @@ public abstract class ArchiveExtractor implements Closeable {
          */
         public final B maxRatio(long maxRatio) {
             this.limits = limits.withMaxRatio(maxRatio);
+            return getThis();
+        }
+
+        /**
+         * Keeps the permission bits stored in the archive. By default the group and other write bits are cleared from
+         * every extracted file and directory, because the JVM cannot read the process umask.
+         *
+         * @return this builder
+         * @since 5.1
+         */
+        public final B preservePermissions() {
+            this.preservePermissions = true;
             return getThis();
         }
 

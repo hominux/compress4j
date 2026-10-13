@@ -37,6 +37,8 @@ import org.apache.commons.compress.archivers.sevenz.SevenZFile;
  */
 public final class SevenZArchiveExtractor extends ArchiveExtractor {
 
+    private static final int DECODER_MEMORY_LIMIT_KIB = 256 * 1024;
+
     private SevenZArchiveExtractor(Builder builder, EntryReader reader, LongSupplier compressedBytes) {
         super(builder, reader, compressedBytes);
     }
@@ -125,6 +127,7 @@ public final class SevenZArchiveExtractor extends ArchiveExtractor {
         private SevenZFile open(Source.OpenedChannel opened) throws IOException {
             SevenZFile.Builder file = SevenZFile.builder()
                     .setUseDefaultNameForUnnamedEntries(true)
+                    .setMaxMemoryLimitKiB(DECODER_MEMORY_LIMIT_KIB)
                     .setSeekableByteChannel(opened.channel());
             defaultName.ifPresent(file::setDefaultName);
             password.ifPresent(file::setPassword);

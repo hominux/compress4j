@@ -136,3 +136,46 @@ dependencies {
 }
 ----
 ====
+
+== Pack200 Support
+
+Writing Pack200 needs `org.ow2.asm:asm` on the class path. Without it, opening a Pack200 write throws `MissingArchiveDependencyException`. Compress4J is tested against ASM 9.11.
+
+[tabs]
+====
+Maven::
++
+[source,xml]
+----
+<dependency>
+    <groupId>com.hominux</groupId>
+    <artifactId>compress4j</artifactId>
+    <version>YOUR_VERSION</version>
+</dependency>
+<dependency>
+    <groupId>org.ow2.asm</groupId>
+    <artifactId>asm</artifactId>
+    <version>YOUR_ASM_VERSION</version>
+</dependency>
+----
+
+Gradle Groovy::
++
+[source,groovy]
+----
+dependencies {
+    implementation 'com.hominux:compress4j:YOUR_VERSION'
+    implementation 'org.ow2.asm:asm:YOUR_ASM_VERSION'
+}
+----
+
+Gradle Kotlin::
++
+[source,kotlin]
+----
+dependencies {
+    implementation("com.hominux:compress4j:YOUR_VERSION")
+    implementation("org.ow2.asm:asm:YOUR_ASM_VERSION")
+}
+----
+====

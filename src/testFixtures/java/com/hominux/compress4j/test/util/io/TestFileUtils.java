@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -34,9 +35,12 @@ public class TestFileUtils {
     private TestFileUtils() {}
 
     public static void deleteRecursively(Path pathToBeDeleted) throws IOException {
+        final List<Path> paths;
         try (Stream<Path> walker = Files.walk(pathToBeDeleted)) {
-            //noinspection ResultOfMethodCallIgnored
-            walker.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+            paths = walker.sorted(Comparator.reverseOrder()).toList();
+        }
+        for (Path path : paths) {
+            Files.delete(path);
         }
     }
 

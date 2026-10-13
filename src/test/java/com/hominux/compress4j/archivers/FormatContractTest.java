@@ -52,7 +52,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-@DisabledOnOs(OS.WINDOWS)
 class FormatContractTest {
 
     private static final FileTime MODIFIED = FileTime.from(Instant.parse("2024-05-01T10:00:00Z"));
@@ -68,14 +67,22 @@ class FormatContractTest {
         Path src = Files.createDirectories(tmp.resolve("src"));
         Path dir = Files.createDirectories(src.resolve("d"));
         Path file = Files.writeString(dir.resolve("run.sh"), "echo hi", StandardCharsets.UTF_8);
-        Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rwxr-x---"));
         Files.setLastModifiedTime(file, MODIFIED);
+        return src;
+    }
+
+    private Path posixSource() throws IOException {
+        Path src = source();
+        Files.setPosixFilePermissions(src.resolve("d/run.sh"), PosixFilePermissions.fromString("rwxr-x---"));
         Files.createSymbolicLink(src.resolve("link"), Path.of("d/run.sh"));
         return src;
     }
 
     private Path roundTrip(ArchiveFormat format) throws IOException {
-        Path src = source();
+        return roundTrip(format, source());
+    }
+
+    private Path roundTrip(ArchiveFormat format, Path src) throws IOException {
         Path archive = tmp.resolve("archive." + format.name());
         try (var creator =
                 FormatCatalog.writerOf(format).createAt().orElseThrow().apply(archive)) {
@@ -103,8 +110,9 @@ class FormatContractTest {
 
     @ParameterizedTest
     @MethodSource("readable")
+    @DisabledOnOs(OS.WINDOWS)
     void modesMatchDeclaration(ArchiveFormat format) throws IOException {
-        var file = entries(format, roundTrip(format)).get("d/run.sh");
+        var file = entries(format, roundTrip(format, posixSource())).get("d/run.sh");
         if (format.has(MODES)) {
             assertThat(file.mode() & 0777).isEqualTo(0750);
         } else {
@@ -114,8 +122,9 @@ class FormatContractTest {
 
     @ParameterizedTest
     @MethodSource("readable")
+    @DisabledOnOs(OS.WINDOWS)
     void symlinksMatchDeclaration(ArchiveFormat format) throws IOException {
-        var link = entries(format, roundTrip(format)).get("link");
+        var link = entries(format, roundTrip(format, posixSource())).get("link");
         if (format.has(SYMLINKS)) {
             assertThat(link.type()).isEqualTo(Entry.Type.SYMLINK);
             assertThat(link.linkTarget()).contains("d/run.sh");

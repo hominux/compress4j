@@ -71,7 +71,7 @@ public class InMemoryArchiveExtractor extends ArchiveExtractor {
 
         @Override
         public InputStream open(Entry entry) {
-            return new ByteArrayInputStream(current.orElseThrow().getContent().getBytes(StandardCharsets.UTF_8));
+            return new ByteArrayInputStream(current.orElseThrow().getContent().getBytes(StandardCharsets.ISO_8859_1));
         }
 
         @Override
@@ -82,8 +82,7 @@ public class InMemoryArchiveExtractor extends ArchiveExtractor {
         private static Entry entryOf(InMemoryArchiveEntry next) {
             return EntryValues.withMetadata(
                     EntryValues.withLinkTarget(
-                            new Entry(next.getName(), next.getType(), next.getMode()),
-                            Optional.ofNullable(next.getLinkName())),
+                            new Entry(next.getName(), next.getType(), next.getMode()), next.getLinkName()),
                     next,
                     next.getSize());
         }

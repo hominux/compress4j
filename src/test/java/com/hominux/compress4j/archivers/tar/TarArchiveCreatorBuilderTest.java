@@ -28,6 +28,8 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TarArchiveCreatorBuilderTest {
 
@@ -56,17 +58,22 @@ class TarArchiveCreatorBuilderTest {
         assertThat(bytes.size()).isEqualTo(1024);
     }
 
-    @Test
-    void shouldRejectInvalidBlockSizesBeforeWritingAnything() {
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1, 100, 513, -512})
+    void shouldRejectInvalidBlockSizesBeforeWritingAnything(int invalid) {
         var sink = new ByteArrayOutputStream();
         var builder = TarArchiveCreator.builder(sink);
 
-        for (int invalid : new int[] {0, -1, 100, 513, -512}) {
-            assertThatThrownBy(() -> builder.blockSize(invalid)).isInstanceOf(IllegalArgumentException.class);
-        }
+        assertThatThrownBy(() -> builder.blockSize(invalid)).isInstanceOf(IllegalArgumentException.class);
         assertThat(sink.size()).isZero();
-        assertThat(builder.blockSize(-511)).isSameAs(builder);
-        assertThat(builder.blockSize(512)).isSameAs(builder);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-511, 512})
+    void shouldAcceptBlockSizesThatAreMultiplesOf512InMagnitude(int valid) {
+        var builder = TarArchiveCreator.builder(new ByteArrayOutputStream());
+
+        assertThat(builder.blockSize(valid)).isSameAs(builder);
     }
 
     @Test

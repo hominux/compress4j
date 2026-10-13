@@ -22,6 +22,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
 final class FuzzSupport {
 
@@ -53,6 +58,26 @@ final class FuzzSupport {
                 extractor.stream().forEach(FuzzSupport::consume);
             }
         });
+        onlyIOException(() -> extractToTempDir(open));
+    }
+
+    private static void extractToTempDir(Open open) throws IOException {
+        Path outputDir = Files.createTempDirectory("compress4j-fuzz");
+        try (ArchiveExtractor extractor = open.open()) {
+            extractor.extract(outputDir);
+        } finally {
+            deleteRecursively(outputDir);
+        }
+    }
+
+    private static void deleteRecursively(Path root) throws IOException {
+        final List<Path> paths;
+        try (Stream<Path> walk = Files.walk(root)) {
+            paths = walk.sorted(Comparator.reverseOrder()).toList();
+        }
+        for (Path path : paths) {
+            Files.delete(path);
+        }
     }
 
     static void consume(InputStream in) throws IOException {

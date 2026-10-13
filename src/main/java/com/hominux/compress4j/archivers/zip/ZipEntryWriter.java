@@ -18,9 +18,14 @@ package com.hominux.compress4j.archivers.zip;
 import com.hominux.compress4j.internal.archive.EntryWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.OptionalLong;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
 import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
@@ -31,9 +36,11 @@ final class ZipEntryWriter implements EntryWriter {
     private static final int DEFAULT_SYMLINK_PERMISSIONS = 0777;
 
     private final ZipArchiveOutputStream archiveOutputStream;
+    private final boolean spoolForCrc;
 
-    ZipEntryWriter(ZipArchiveOutputStream archiveOutputStream) {
+    ZipEntryWriter(ZipArchiveOutputStream archiveOutputStream, boolean spoolForCrc) {
         this.archiveOutputStream = archiveOutputStream;
+        this.spoolForCrc = spoolForCrc;
     }
 
     @Override
@@ -61,9 +68,30 @@ final class ZipEntryWriter implements EntryWriter {
         if (mode != 0) {
             entry.setUnixMode(UnixStat.FILE_FLAG | mode);
         }
+        if (spoolForCrc) {
+            writeSpooled(entry, content);
+            return;
+        }
         archiveOutputStream.putArchiveEntry(entry);
         IOUtils.copy(content, archiveOutputStream);
         archiveOutputStream.closeArchiveEntry();
+    }
+
+    private void writeSpooled(ZipArchiveEntry entry, InputStream content) throws IOException {
+        Path spool = Files.createTempFile("compress4j-zip-", ".tmp");
+        try {
+            CRC32 crc = new CRC32();
+            try (OutputStream out = Files.newOutputStream(spool)) {
+                IOUtils.copy(new CheckedInputStream(content, crc), out);
+            }
+            entry.setSize(Files.size(spool));
+            entry.setCrc(crc.getValue());
+            archiveOutputStream.putArchiveEntry(entry);
+            Files.copy(spool, archiveOutputStream);
+            archiveOutputStream.closeArchiveEntry();
+        } finally {
+            Files.deleteIfExists(spool);
+        }
     }
 
     @Override

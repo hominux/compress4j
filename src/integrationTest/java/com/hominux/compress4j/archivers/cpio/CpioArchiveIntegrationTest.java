@@ -22,7 +22,8 @@ import com.hominux.compress4j.archivers.EntrySource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * End-to-end tests for CPIO archive functionality.
@@ -46,8 +47,9 @@ class CpioArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         return ".cpio";
     }
 
-    @Test
-    void testCpioSpecificFeatures() throws Exception {
+    @ParameterizedTest
+    @EnumSource(CpioFormat.class)
+    void roundTripsEveryHeaderFormat(CpioFormat format) throws Exception {
         // given
         var sourceFile = tempDir.resolve("test.txt");
         Files.write(sourceFile, "CPIO test content".getBytes());
@@ -57,7 +59,8 @@ class CpioArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         Files.createDirectories(extractDir);
 
         // when
-        try (var creator = CpioArchiveCreator.builder(archivePath).build()) {
+        try (var creator =
+                CpioArchiveCreator.builder(archivePath).format(format).build()) {
             creator.add(EntrySource.file("test.txt", sourceFile));
         }
 

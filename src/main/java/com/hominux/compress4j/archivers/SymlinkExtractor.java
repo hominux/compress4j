@@ -58,6 +58,9 @@ record SymlinkExtractor(EscapingSymlinkPolicy policy, boolean overwrite) {
     }
 
     private void extractLink(Path outputDir, Entry entry, Path outputFile, SymlinkGuard guard) throws IOException {
+        if (outputFile.equals(outputDir)) {
+            throw new UnsafeEntryException("Invalid symlink (replaces the output directory): " + entry.name());
+        }
         String target = entry.linkTarget()
                 .orElseThrow(() -> new IOException("Invalid symlink entry: " + entry.name() + " (empty target)"));
 

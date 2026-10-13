@@ -1,0 +1,50 @@
+name: Sonar fork coverage
+
+# Fork pull requests get no SONAR_TOKEN, so ci.yml cannot analyse them. This workflow runs the fork's build with the
+# secretless `pull_request` token only and must never gain `secrets:` access; sonar-fork-scan.yml analyses its output.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: sonar-fork-coverage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Build coverage for fork scan
+    # Same-repository pull requests are scanned directly by ci.yml.
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}  # The head, not the ephemeral merge commit, so Sonar's status attaches to it
+          fetch-depth: 0  # Sonar needs the history for new-code detection and blame
+          persist-credentials: false
+
+      - name: 'Set up JDK 21'
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: 'temurin'
+          java-version: 21
+          cache: 'gradle'
+
+      - name: Build
+        run: ./gradlew build --continue --no-daemon
+
+      - name: Archive workspace for the scan workflow
+        run: tar -czf "$RUNNER_TEMP/workspace.tar.gz" -C "$GITHUB_WORKSPACE" .
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sonar-fork-workspace
+          path: ${{ runner.temp }}/workspace.tar.gz
+          retention-days: 7

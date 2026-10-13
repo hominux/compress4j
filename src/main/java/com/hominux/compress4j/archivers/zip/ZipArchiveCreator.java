@@ -230,7 +230,8 @@ public final class ZipArchiveCreator extends ArchiveCreator {
 
         private ZipArchiveCreator create(ZipArchiveOutputStream out) {
             configure(out);
-            return new ZipArchiveCreator(this, new ZipEntryWriter(out));
+            boolean spool = method == ZipCompressionMethod.STORED && sink instanceof Sink.OfStream;
+            return new ZipArchiveCreator(this, new ZipEntryWriter(out, spool));
         }
 
         private void configure(ZipArchiveOutputStream out) {

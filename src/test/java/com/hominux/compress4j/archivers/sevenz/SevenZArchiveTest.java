@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
 import com.hominux.compress4j.ExtractionLimits;
 import com.hominux.compress4j.archivers.ArchiveItem;
 import com.hominux.compress4j.archivers.Entry;
@@ -32,16 +34,20 @@ import com.hominux.compress4j.archivers.EscapingSymlinkPolicy;
 import com.hominux.compress4j.exceptions.LimitExceededException;
 import com.hominux.compress4j.internal.archive.ReaderContext;
 import com.hominux.compress4j.internal.limits.ExpansionMeter;
+import com.hominux.compress4j.test.util.OpenFiles;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
+import java.util.zip.CRC32;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
@@ -51,6 +57,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class SevenZArchiveTest {
 
@@ -463,7 +471,7 @@ class SevenZArchiveTest {
 
         assertThatThrownBy(builder::build).isInstanceOf(IOException.class);
 
-        assertDoesNotThrow(() -> Files.delete(archive));
+        OpenFiles.assertReleased(archive);
     }
 
     @Test
@@ -475,21 +483,18 @@ class SevenZArchiveTest {
         assertThatThrownBy(() -> extractor.password(null)).isInstanceOf(NullPointerException.class);
     }
 
-    @Test
-    void contentCompressionSelectsTheMethod() throws IOException {
-        for (SevenZMethod method : SevenZMethod.values()) {
-            Path archive = tmp.resolve(method + ".7z");
-            try (var creator = SevenZArchiveCreator.builder(archive)
-                    .contentCompression(method)
-                    .build()) {
-                creator.add(EntrySource.file("a.txt", "alpha".repeat(100).getBytes(StandardCharsets.UTF_8)));
-            }
+    @ParameterizedTest
+    @EnumSource(SevenZMethod.class)
+    void contentCompressionSelectsTheMethod(SevenZMethod method) throws IOException {
+        Path archive = tmp.resolve(method + ".7z");
+        try (var creator =
+                SevenZArchiveCreator.builder(archive).contentCompression(method).build()) {
+            creator.add(EntrySource.file("a.txt", "alpha".repeat(100).getBytes(StandardCharsets.UTF_8)));
+        }
 
-            try (SevenZFile file = SevenZFile.builder().setPath(archive).get()) {
-                var configured =
-                        file.getNextEntry().getContentMethods().iterator().next();
-                assertThat(configured.getMethod().name()).isEqualTo(method.name());
-            }
+        try (SevenZFile file = SevenZFile.builder().setPath(archive).get()) {
+            var configured = file.getNextEntry().getContentMethods().iterator().next();
+            assertThat(configured.getMethod().name()).isEqualTo(method.name());
         }
     }
 
@@ -562,5 +567,57 @@ class SevenZArchiveTest {
                     .isInstanceOfSatisfying(LimitExceededException.class, e -> assertThat(e.limit())
                             .isEqualTo(LimitExceededException.Limit.RATIO));
         }
+    }
+
+    @Test
+    void creatorWritesToAPathOnANonDefaultFileSystem() throws IOException {
+        try (var fs = Jimfs.newFileSystem(Configuration.unix())) {
+            Path archive = fs.getPath("/out.7z");
+
+            try (var creator = SevenZArchiveCreator.builder(archive).build()) {
+                creator.add(EntrySource.file("a.txt", "alpha".getBytes(StandardCharsets.UTF_8)));
+            }
+
+            try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
+                assertThat(extractor.stream().map(i -> i.entry().name()).toList())
+                        .containsExactly("a.txt");
+            }
+        }
+    }
+
+    @Test
+    void declaredDictionaryAboveTheMemoryLimitIsRejected() throws IOException {
+        Path archive = withLzma2DictionaryCode(craft("big.txt", "x".repeat(64), null), 34);
+        Path out = tmp.resolve("bomb-out");
+
+        try (var extractor = SevenZArchiveExtractor.builder(archive).build()) {
+            assertThatThrownBy(() -> extractor.extract(out)).isInstanceOf(IOException.class);
+        }
+    }
+
+    private static Path withLzma2DictionaryCode(Path archive, int code) throws IOException {
+        byte[] bytes = Files.readAllBytes(archive);
+        ByteBuffer header = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        int start = Math.toIntExact(32 + header.getLong(12));
+        int size = Math.toIntExact(header.getLong(20));
+        int props = lzma2PropsIndex(bytes, start, start + size);
+        bytes[props] = (byte) code;
+        CRC32 nextHeader = new CRC32();
+        nextHeader.update(bytes, start, size);
+        header.putInt(28, (int) nextHeader.getValue());
+        CRC32 startHeader = new CRC32();
+        startHeader.update(bytes, 12, 20);
+        header.putInt(8, (int) startHeader.getValue());
+        Files.write(archive, bytes);
+        return archive;
+    }
+
+    private static int lzma2PropsIndex(byte[] bytes, int from, int to) {
+        for (int i = from; i + 3 < to; i++) {
+            if (bytes[i] == 0x21 && bytes[i + 1] == 0x21 && bytes[i + 2] == 0x01) {
+                return i + 3;
+            }
+        }
+        throw new AssertionError("no LZMA2 coder in header");
     }
 }

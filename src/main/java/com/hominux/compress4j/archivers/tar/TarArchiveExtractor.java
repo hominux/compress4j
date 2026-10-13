@@ -19,6 +19,7 @@ import com.hominux.compress4j.archivers.ArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.compressors.Pack200;
 import com.hominux.compress4j.internal.archive.EntryReader;
+import com.hominux.compress4j.internal.archive.ReaderContext;
 import com.hominux.compress4j.internal.codec.Codecs;
 import com.hominux.compress4j.internal.io.CountingInputStream;
 import com.hominux.compress4j.internal.io.ParserFailures;
@@ -150,8 +151,10 @@ public final class TarArchiveExtractor extends ArchiveExtractor {
         public TarArchiveExtractor build() throws IOException {
             Source.Opened opened = source.open();
             try {
-                TarArchiveInputStream tar = tarStream(opened.in());
-                return new TarArchiveExtractor(this, new TarEntryReader(tar, readerContext()), opened.in()::count);
+                ReaderContext context = readerContext();
+                GatedMeterInputStream metered = metered(opened.in(), context);
+                TarArchiveInputStream tar = new TarArchiveInputStream(metered, encoding.name());
+                return new TarArchiveExtractor(this, new TarEntryReader(tar, context, metered), opened.in()::count);
             } catch (IOException e) {
                 throw opened.closeIfOwned(e);
             } catch (RuntimeException e) {
@@ -159,14 +162,14 @@ public final class TarArchiveExtractor extends ArchiveExtractor {
             }
         }
 
-        private TarArchiveInputStream tarStream(CountingInputStream in) throws IOException {
+        private GatedMeterInputStream metered(CountingInputStream in, ReaderContext context) throws IOException {
             InputStream buffered = in.markSupported() ? in : new BufferedInputStream(in);
             Compression selected = compression.isPresent()
                     ? compression.orElseThrow()
                     : ParserFailures.call(() -> Codecs.detectForReading(buffered), ParserFailures.ARCHIVE);
             InputStream decoded =
                     ParserFailures.call(() -> Codecs.decompressing(selected, buffered), ParserFailures.ARCHIVE);
-            return new TarArchiveInputStream(decoded, encoding.name());
+            return new GatedMeterInputStream(decoded, context.meter());
         }
     }
 }

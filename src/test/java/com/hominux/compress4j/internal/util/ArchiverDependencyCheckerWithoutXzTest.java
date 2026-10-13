@@ -18,17 +18,12 @@ package com.hominux.compress4j.internal.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.exceptions.MissingArchiveDependencyException;
+import com.hominux.compress4j.internal.codec.LibraryHidingLoader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Path;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -40,36 +35,8 @@ class ArchiverDependencyCheckerWithoutXzTest {
             " In addition to Apache Commons Compress you need the XZ for Java library"
                     + " - see https://tukaani.org/xz/java.html";
 
-    private static final class XzHidingClassLoader extends URLClassLoader {
-        XzHidingClassLoader(URL[] urls) {
-            super(urls, ClassLoader.getPlatformClassLoader());
-        }
-
-        @Override
-        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            if (name.startsWith(XZ_PACKAGE)) {
-                throw new ClassNotFoundException(name);
-            }
-            return super.loadClass(name, resolve);
-        }
-    }
-
-    private static URL[] classpathUrls() {
-        return Stream.of(System.getProperty("java.class.path").split(File.pathSeparator))
-                .map(entry -> toUrl(Path.of(entry)))
-                .toArray(URL[]::new);
-    }
-
-    private static URL toUrl(Path path) {
-        try {
-            return path.toUri().toURL();
-        } catch (MalformedURLException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private static Throwable checkWithoutXz(String entryName) throws Exception {
-        try (XzHidingClassLoader loader = new XzHidingClassLoader(classpathUrls())) {
+        try (LibraryHidingLoader loader = new LibraryHidingLoader(XZ_PACKAGE)) {
             Class<?> checker = loader.loadClass(ArchiverDependencyChecker.class.getName());
             checker.getMethod("check", String.class).invoke(null, entryName);
             throw new AssertionError("Expected check to fail without xz");
@@ -89,7 +56,7 @@ class ArchiverDependencyCheckerWithoutXzTest {
 
     private static Throwable buildFailureWithoutXz(String builderClass, Class<?> argType, Object arg, String codec)
             throws Exception {
-        try (XzHidingClassLoader loader = new XzHidingClassLoader(classpathUrls())) {
+        try (LibraryHidingLoader loader = new LibraryHidingLoader(XZ_PACKAGE)) {
             Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
             Object builder = loader.loadClass(builderClass)
                     .getMethod("builder", argType, compression)
@@ -125,7 +92,7 @@ class ArchiverDependencyCheckerWithoutXzTest {
     }
 
     private static Throwable tarBuildFailure(String tarClass, Class<?> argType, Object arg) throws Exception {
-        try (var loader = new XzHidingClassLoader(classpathUrls())) {
+        try (var loader = new LibraryHidingLoader(XZ_PACKAGE)) {
             Object builder =
                     loader.loadClass(tarClass).getMethod("builder", argType).invoke(null, arg);
             Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");

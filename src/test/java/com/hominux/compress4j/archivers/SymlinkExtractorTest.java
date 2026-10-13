@@ -201,4 +201,16 @@ class SymlinkExtractorTest {
         assertThatThrownBy(() -> extract(new SymlinkExtractor(RELATIVIZE_ABSOLUTE, false), link("../../x")))
                 .isInstanceOf(UnsafeEntryException.class);
     }
+
+    @ParameterizedTest
+    @EnumSource(EscapingSymlinkPolicy.class)
+    @DisabledOnOs(OS.WINDOWS)
+    void symlinkNamedDotCannotReplaceTheOutputDirectory(EscapingSymlinkPolicy policy) {
+        Entry entry = new Entry(".", Entry.Type.SYMLINK, 0).withLinkTarget("inside");
+        var extractor = new SymlinkExtractor(policy, true);
+
+        assertThatThrownBy(() -> extractor.extract(outputDir, entry, outputDir, new SymlinkGuard(outputDir)))
+                .isInstanceOf(UnsafeEntryException.class);
+        assertThat(Files.isSymbolicLink(outputDir)).isFalse();
+    }
 }

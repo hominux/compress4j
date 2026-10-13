@@ -18,6 +18,7 @@ package com.hominux.compress4j.archivers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import com.hominux.compress4j.archivers.tar.TarArchiveExtractor;
 import com.hominux.compress4j.exceptions.UnsafeEntryException;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.stream.Stream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -172,11 +174,20 @@ class SymlinkGuardTest {
         }
     }
 
+    private static void deleteTree(Path root) throws IOException {
+        try (Stream<Path> paths = Files.walk(root)) {
+            for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(p);
+            }
+        }
+    }
+
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void relativeOutputDirStillReportsUnsafeEntryAndRemovesLink() throws IOException {
         // Given
-        Path out = Path.of("build/tmp/rel-guard-" + System.nanoTime() + "/out");
+        Path base = Path.of("build/tmp/rel-guard-" + System.nanoTime());
+        Path out = base.resolve("out");
         Files.createDirectories(out);
         try (var extractor = TarArchiveExtractor.builder(new ByteArrayInputStream(chainArchive()))
                 .build()) {
@@ -187,7 +198,7 @@ class SymlinkGuardTest {
             assertThat(Files.exists(out.resolve("A"), LinkOption.NOFOLLOW_LINKS))
                     .isFalse();
         } finally {
-            Files.deleteIfExists(out.resolve("s/n"));
+            deleteTree(base);
         }
     }
 
@@ -217,15 +228,9 @@ class SymlinkGuardTest {
         guard.remember(link);
 
         // When
-        UnsafeEntryException first = null;
-        try {
-            guard.verify();
-        } catch (UnsafeEntryException e) {
-            first = e;
-        }
+        var firstFailure = catchThrowableOfType(UnsafeEntryException.class, guard::verify);
 
         // Then
-        var firstFailure = first;
         assertThat(firstFailure).isNotNull();
         assertThatThrownBy(guard::verify).isSameAs(firstFailure);
         assertThat(firstFailure.getSuppressed()).isEmpty();

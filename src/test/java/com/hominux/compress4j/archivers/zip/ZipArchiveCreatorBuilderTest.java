@@ -220,4 +220,21 @@ class ZipArchiveCreatorBuilderTest {
 
         assertThat(Files.size(zip)).isPositive();
     }
+
+    @Test
+    void storedEntriesWriteToAnOutputStreamSink() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        try (var creator = ZipArchiveCreator.builder(bytes)
+                .compressionMethod(ZipCompressionMethod.STORED)
+                .build()) {
+            creator.add(EntrySource.file("a.txt", CONTENT));
+        }
+
+        try (var file = ZipFile.builder().setByteArray(bytes.toByteArray()).get()) {
+            ZipArchiveEntry entry = file.getEntry("a.txt");
+            assertThat(entry.getMethod()).isEqualTo(ZipEntry.STORED);
+            assertThat(file.getInputStream(entry).readAllBytes()).isEqualTo(CONTENT);
+        }
+    }
 }

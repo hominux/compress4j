@@ -28,6 +28,7 @@ import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.DISALLOW;
 import static com.hominux.compress4j.archivers.EscapingSymlinkPolicy.RELATIVIZE_ABSOLUTE;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -1556,16 +1557,10 @@ class ArchiveExtractorTest {
                 InMemoryArchiveEntry.builder().name("../evil.txt").content("x").build());
 
         try (var extractor = InMemoryArchiveExtractor.builder(entries).build()) {
-            // When
-            IOException caught = null;
-            try {
-                extractor.extract(out);
-            } catch (IOException e) {
-                caught = e;
-            }
-
             // Then
-            assertThat(caught).isInstanceOf(UnsafeEntryException.class);
+            assertThatExceptionOfType(IOException.class)
+                    .isThrownBy(() -> extractor.extract(out))
+                    .isInstanceOf(UnsafeEntryException.class);
         }
     }
 

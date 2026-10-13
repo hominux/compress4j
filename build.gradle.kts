@@ -76,7 +76,7 @@ dependencies {
     testFixturesApi(libs.logback.core)
 
     testFixturesImplementation(platform(libs.junit.bom))
-    testFixturesImplementation(libs.jackson.annotations)
+    testFixturesApi(libs.jackson.annotations)
     testFixturesImplementation(libs.jackson.databind)
     testFixturesImplementation(libs.mockito.core)
 
@@ -217,6 +217,8 @@ val newestDownloadableBaselineVersion: String by lazy {
         detachedBaselineConfiguration(it, null).incoming.artifactView { lenient(true) }.artifacts.artifacts.isNotEmpty()
     }
     when {
+        published == null && candidates.isNotEmpty() && System.getenv("CI") == "true" ->
+            throw GradleException("None of the release tags $candidates resolves from the configured repositories")
         published == null -> "".also {
             logger.warn("None of the release tags $candidates is published, skipping the API compatibility check")
         }

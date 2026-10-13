@@ -33,15 +33,22 @@ final class TarEntryReader implements EntryReader {
 
     private final TarArchiveInputStream archiveInputStream;
     private final ReaderContext context;
+    private final GatedMeterInputStream headerMeter;
     private boolean started;
 
     TarEntryReader(TarArchiveInputStream archiveInputStream, ReaderContext context) {
+        this(archiveInputStream, context, new GatedMeterInputStream(InputStream.nullInputStream(), context.meter()));
+    }
+
+    TarEntryReader(TarArchiveInputStream archiveInputStream, ReaderContext context, GatedMeterInputStream headerMeter) {
         this.archiveInputStream = archiveInputStream;
         this.context = context;
+        this.headerMeter = headerMeter;
     }
 
     @Override
     public Optional<Entry> next() throws IOException {
+        headerMeter.resume();
         return getNextTarArchiveEntry().map(TarEntryReader::toEntry);
     }
 
@@ -53,6 +60,7 @@ final class TarEntryReader implements EntryReader {
 
     @Override
     public InputStream open(Entry entry) {
+        headerMeter.pause();
         return CloseShieldInputStream.wrap(archiveInputStream);
     }
 
