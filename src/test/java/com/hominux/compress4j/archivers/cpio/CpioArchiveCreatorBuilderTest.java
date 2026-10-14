@@ -26,9 +26,16 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
+import org.apache.commons.compress.archivers.cpio.CpioArchiveEntry;
 import org.apache.commons.compress.archivers.cpio.CpioArchiveInputStream;
+import org.apache.commons.compress.archivers.cpio.CpioConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CpioArchiveCreatorBuilderTest {
 
@@ -70,96 +77,46 @@ class CpioArchiveCreatorBuilderTest {
 
     @Test
     void testBuilderWithDefaultConfiguration() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Path testFile = tempDir.resolve("test.txt");
-        Files.write(testFile, "Test content".getBytes());
+        var outputStream = new ByteArrayOutputStream();
+        Path testFile = writeSource();
 
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(outputStream).build()) {
             creator.add(EntrySource.file("test.txt", testFile));
         }
 
-        assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream)) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test.txt");
-        }
+        CpioArchiveEntry entry = firstEntry(outputStream.toByteArray(), 512);
+        assertThat(entry.getName()).isEqualTo("test.txt");
+        assertThat(entry.getFormat()).isEqualTo(CpioConstants.FORMAT_NEW);
     }
 
-    @Test
-    void testBuilderWithNewFormat() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Path testFile = tempDir.resolve("test.txt");
-        Files.write(testFile, "Test content".getBytes());
+    static Stream<Arguments> formats() {
+        return Stream.of(
+                Arguments.of(CpioFormat.NEW, CpioConstants.FORMAT_NEW),
+                Arguments.of(CpioFormat.OLD_ASCII, CpioConstants.FORMAT_OLD_ASCII),
+                Arguments.of(CpioFormat.OLD_BINARY, CpioConstants.FORMAT_OLD_BINARY));
+    }
+
+    @ParameterizedTest
+    @MethodSource("formats")
+    void testBuilderWritesRequestedFormat(CpioFormat format, short expected) throws IOException {
+        var outputStream = new ByteArrayOutputStream();
+        Path testFile = writeSource();
 
         try (CpioArchiveCreator creator =
-                CpioArchiveCreator.builder(outputStream).format(CpioFormat.NEW).build()) {
-
+                CpioArchiveCreator.builder(outputStream).format(format).build()) {
             creator.add(EntrySource.file("test.txt", testFile));
         }
 
-        assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream)) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test.txt");
-        }
-    }
-
-    @Test
-    void testBuilderWithOldAsciiFormat() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Path testFile = tempDir.resolve("test.txt");
-        Files.write(testFile, "Test content".getBytes());
-
-        try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .format(CpioFormat.OLD_ASCII)
-                .build()) {
-            creator.add(EntrySource.file("test.txt", testFile));
-        }
-
-        assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream)) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test.txt");
-        }
-    }
-
-    @Test
-    void testBuilderWithOldBinaryFormat() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Path testFile = tempDir.resolve("test.txt");
-        Files.write(testFile, "Test content".getBytes());
-
-        try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .format(CpioFormat.OLD_BINARY)
-                .build()) {
-            creator.add(EntrySource.file("test.txt", testFile));
-        }
-
-        assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream)) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test.txt");
-        }
+        CpioArchiveEntry entry = firstEntry(outputStream.toByteArray(), 512);
+        assertThat(entry.getName()).isEqualTo("test.txt");
+        assertThat(entry.getFormat()).isEqualTo(expected);
     }
 
     @Test
     void testBuilderWithCustomBlockSize() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Path testFile = tempDir.resolve("test.txt");
-        Files.write(testFile, "Test content".getBytes());
+        var outputStream = new ByteArrayOutputStream();
+        Path testFile = writeSource();
 
         try (CpioArchiveCreator creator =
                 CpioArchiveCreator.builder(outputStream).blockSize(1024).build()) {
@@ -168,19 +125,13 @@ class CpioArchiveCreatorBuilderTest {
         }
 
         assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream, 1024)) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test.txt");
-        }
+        assertThat(firstEntry(outputStream.toByteArray(), 1024).getName()).isEqualTo("test.txt");
     }
 
     @Test
     void testBuilderWithCustomEncoding() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Path testFile = tempDir.resolve("test-äöü.txt");
+        var outputStream = new ByteArrayOutputStream();
+        Path testFile = tempDir.resolve("source.txt");
         Files.write(testFile, "Test content with special chars".getBytes());
 
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
@@ -189,55 +140,47 @@ class CpioArchiveCreatorBuilderTest {
             creator.add(EntrySource.file("test-äöü.txt", testFile));
         }
 
-        assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream, 512, "UTF-8")) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test-äöü.txt");
-        }
+        assertThat(firstEntry(outputStream.toByteArray(), 512, "UTF-8").getName())
+                .isEqualTo("test-äöü.txt");
     }
 
     @Test
     void testBuilderWithAllCustomOptions() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        var outputStream = new ByteArrayOutputStream();
         Path testFile = tempDir.resolve("test-complete.txt");
         Files.write(testFile, "Complete configuration test".getBytes());
 
         try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                .format(CpioFormat.NEW)
+                .format(CpioFormat.OLD_ASCII)
                 .blockSize(2048)
                 .encoding(StandardCharsets.UTF_8)
                 .build()) {
             creator.add(EntrySource.file("test-complete.txt", testFile));
         }
 
-        assertThat(outputStream.size()).isGreaterThan(0);
-
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-        try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream, 2048, "UTF-8")) {
-            var entry = cpioInput.getNextEntry();
-            assertThat(entry).isNotNull();
-            assertThat(entry.getName()).isEqualTo("test-complete.txt");
-            assertThat(entry.getSize()).isEqualTo("Complete configuration test".length());
-        }
+        CpioArchiveEntry entry = firstEntry(outputStream.toByteArray(), 2048, "UTF-8");
+        assertThat(entry.getName()).isEqualTo("test-complete.txt");
+        assertThat(entry.getSize()).isEqualTo("Complete configuration test".length());
+        assertThat(entry.getFormat()).isEqualTo(CpioConstants.FORMAT_OLD_ASCII);
     }
 
     @Test
     void testBuilderChaining() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        var outputStream = new ByteArrayOutputStream();
+        Path testFile = writeSource();
 
         CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream)
-                .format(CpioFormat.NEW)
+                .format(CpioFormat.OLD_BINARY)
                 .blockSize(1024)
                 .encoding(StandardCharsets.UTF_8);
 
-        assertThat(builder).isNotNull();
-
         try (CpioArchiveCreator creator = builder.build()) {
-            assertThat(creator).isNotNull();
+            creator.add(EntrySource.file("test.txt", testFile));
         }
+
+        CpioArchiveEntry entry = firstEntry(outputStream.toByteArray(), 1024, "UTF-8");
+        assertThat(entry.getFormat()).isEqualTo(CpioConstants.FORMAT_OLD_BINARY);
+        assertThat(entry.getName()).isEqualTo("test.txt");
     }
 
     @Test
@@ -261,96 +204,88 @@ class CpioArchiveCreatorBuilderTest {
 
     @Test
     void testMultipleBuildsFromSameBuilder() throws IOException {
-        ByteArrayOutputStream outputStream1 = new ByteArrayOutputStream();
-        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream1);
+        Path testFile = writeSource();
+        var first = new ByteArrayOutputStream();
+        var second = new ByteArrayOutputStream();
 
-        try (CpioArchiveCreator creator1 = builder.build()) {
-            assertThat(creator1).isNotNull();
+        try (CpioArchiveCreator creator1 =
+                CpioArchiveCreator.builder(first).format(CpioFormat.OLD_ASCII).build()) {
+            creator1.add(EntrySource.file("test.txt", testFile));
+        }
+        try (CpioArchiveCreator creator2 =
+                CpioArchiveCreator.builder(second).format(CpioFormat.OLD_ASCII).build()) {
+            creator2.add(EntrySource.file("again.txt", testFile));
         }
 
-        try (CpioArchiveCreator creator2 = builder.build()) {
-            assertThat(creator2).isNotNull();
-        }
+        assertThat(firstEntry(first.toByteArray(), 512).getName()).isEqualTo("test.txt");
+        assertThat(firstEntry(second.toByteArray(), 512).getName()).isEqualTo("again.txt");
+        assertThat(firstEntry(second.toByteArray(), 512).getFormat()).isEqualTo(CpioConstants.FORMAT_OLD_ASCII);
     }
 
     @Test
-    void testBuilderOutputStreamConfiguration() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    void testBuilderSettersReturnSameBuilder() {
+        var builder = CpioArchiveCreator.builder(new ByteArrayOutputStream());
 
-        var builderInstance = CpioArchiveCreator.builder(outputStream);
-        assertThat(builderInstance).isNotNull();
-
-        var configuredBuilder =
-                builderInstance.format(CpioFormat.NEW).blockSize(1024).encoding(StandardCharsets.UTF_8);
-
-        assertThat(configuredBuilder).isSameAs(builderInstance);
-
-        try (CpioArchiveCreator creator = configuredBuilder.build()) {
-            assertThat(creator).isNotNull();
-        }
+        assertThat(builder.format(CpioFormat.NEW)).isSameAs(builder);
+        assertThat(builder.blockSize(1024)).isSameAs(builder);
+        assertThat(builder.encoding(StandardCharsets.UTF_8)).isSameAs(builder);
     }
 
-    @Test
-    void testBuilderGetThis() throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        CpioArchiveCreator.Builder builder = CpioArchiveCreator.builder(outputStream);
+    @ParameterizedTest
+    @ValueSource(ints = {256, 512, 1024, 2048, 4096})
+    void testBuilderWithDifferentBlockSizes(int blockSize) throws IOException {
+        Path testFile = writeSource();
+        var outputStream = new ByteArrayOutputStream();
 
-        try (CpioArchiveCreator creator = builder.build()) {
-            assertThat(creator).isNotNull();
+        try (CpioArchiveCreator creator =
+                CpioArchiveCreator.builder(outputStream).blockSize(blockSize).build()) {
+            creator.add(EntrySource.file("test.txt", testFile));
         }
+
+        assertThat(outputStream.size()).isGreaterThan(0);
+        assertThat(firstEntry(outputStream.toByteArray(), blockSize).getName()).isEqualTo("test.txt");
     }
 
-    @Test
-    void testBuilderWithDifferentBlockSizes() throws IOException {
+    static Stream<Arguments> encodings() {
+        return Stream.of(
+                Arguments.of("UTF-8", "test-äöü.txt"),
+                Arguments.of("ISO-8859-1", "test-äöü.txt"),
+                Arguments.of("US-ASCII", "test-encoding.txt"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("encodings")
+    void testBuilderWithDifferentEncodings(String encoding, String entryName) throws IOException {
+        Path testFile = writeSource();
+        var outputStream = new ByteArrayOutputStream();
+        Charset charset = Charset.forName(encoding);
+
+        try (CpioArchiveCreator creator =
+                CpioArchiveCreator.builder(outputStream).encoding(charset).build()) {
+            creator.add(EntrySource.file(entryName, testFile));
+        }
+
+        assertThat(firstEntry(outputStream.toByteArray(), 512, encoding).getName())
+                .isEqualTo(entryName);
+        assertThat(new String(outputStream.toByteArray(), StandardCharsets.ISO_8859_1))
+                .contains(new String(entryName.getBytes(charset), StandardCharsets.ISO_8859_1));
+    }
+
+    private Path writeSource() throws IOException {
         Path testFile = tempDir.resolve("test.txt");
         Files.write(testFile, "Test content".getBytes());
+        return testFile;
+    }
 
-        int[] blockSizes = {256, 512, 1024, 2048, 4096};
-
-        for (int blockSize : blockSizes) {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-            try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                    .blockSize(blockSize)
-                    .build()) {
-                creator.add(EntrySource.file("test.txt", testFile));
-            }
-
-            assertThat(outputStream.size()).isGreaterThan(0);
-
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-            try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream, blockSize)) {
-                var entry = cpioInput.getNextEntry();
-                assertThat(entry).isNotNull();
-                assertThat(entry.getName()).isEqualTo("test.txt");
-            }
+    private static CpioArchiveEntry firstEntry(byte[] archive, int blockSize) throws IOException {
+        try (var in = new CpioArchiveInputStream(new ByteArrayInputStream(archive), blockSize)) {
+            return in.getNextEntry();
         }
     }
 
-    @Test
-    void testBuilderWithDifferentEncodings() throws IOException {
-        Path testFile = tempDir.resolve("test-encoding.txt");
-        Files.write(testFile, "Test content".getBytes());
-
-        String[] encodings = {"UTF-8", "ISO-8859-1", "US-ASCII"};
-
-        for (String encoding : encodings) {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-            try (CpioArchiveCreator creator = CpioArchiveCreator.builder(outputStream)
-                    .encoding(Charset.forName(encoding))
-                    .build()) {
-                creator.add(EntrySource.file("test-encoding.txt", testFile));
-            }
-
-            assertThat(outputStream.size()).isGreaterThan(0);
-
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
-            try (CpioArchiveInputStream cpioInput = new CpioArchiveInputStream(inputStream, 512, encoding)) {
-                var entry = cpioInput.getNextEntry();
-                assertThat(entry).isNotNull();
-                assertThat(entry.getName()).isEqualTo("test-encoding.txt");
-            }
+    private static CpioArchiveEntry firstEntry(byte[] archive, int blockSize, String encoding) throws IOException {
+        try (var in = new CpioArchiveInputStream(new ByteArrayInputStream(archive), blockSize, encoding)) {
+            return in.getNextEntry();
         }
     }
 }

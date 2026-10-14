@@ -17,12 +17,12 @@ package com.hominux.compress4j.archivers.tar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hominux.compress4j.UpstreamSamples;
 import com.hominux.compress4j.compressors.Compression;
 import com.hominux.compress4j.compressors.Decompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -32,11 +32,7 @@ class TarLz4UpstreamSampleTest {
     Path tempDir;
 
     private Path sample(String name) throws IOException {
-        var target = tempDir.resolve(name);
-        try (var in = TarLz4UpstreamSampleTest.class.getResourceAsStream("/archives/" + name)) {
-            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-        }
-        return target;
+        return UpstreamSamples.copy("/archives/" + name, tempDir);
     }
 
     @Test

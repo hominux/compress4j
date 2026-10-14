@@ -53,6 +53,7 @@ class TarArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
 
     @Test
     void testTarSpecificFeatures() throws Exception {
+        var longName = "d".repeat(60) + "/" + "f".repeat(60) + "/executable.sh";
         var sourceFile = tempDir.resolve("executable.sh");
         Files.write(sourceFile, "#!/bin/bash\necho 'Hello World'".getBytes());
 
@@ -63,7 +64,7 @@ class TarArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
         try (var creator = TarArchiveCreator.builder(Files.newOutputStream(archivePath))
                 .longFileMode(TarLongFileMode.GNU)
                 .build()) {
-            creator.add(EntrySource.file("executable.sh", sourceFile));
+            creator.add(EntrySource.file(longName, sourceFile));
         }
 
         try (var extractor =
@@ -71,6 +72,6 @@ class TarArchiveIntegrationTest extends AbstractArchiverIntegrationTest {
             extractor.extract(extractDir);
         }
 
-        assertThat(extractDir.resolve("executable.sh")).exists().hasContent("#!/bin/bash\necho 'Hello World'");
+        assertThat(extractDir.resolve(longName)).exists().hasContent("#!/bin/bash\necho 'Hello World'");
     }
 }

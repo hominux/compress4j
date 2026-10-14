@@ -13,6 +13,8 @@ Compress4J is a Java library dedicated to simplifying the handling of various da
 Inspired by the need for a consistent way to interact with different compression techniques, Compress4J abstracts the specific implementations behind common interfaces, making it easier to incorporate compression into Java applications or to switch between compression formats.
 
 === Getting Started
+Compress4J needs Java 17 or later at runtime.
+
 To use Compress4J in your Java project, you typically need to include it as a dependency in your build configuration.
 
 [tabs]

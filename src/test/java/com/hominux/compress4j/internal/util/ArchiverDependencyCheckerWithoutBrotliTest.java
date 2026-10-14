@@ -18,51 +18,18 @@ package com.hominux.compress4j.internal.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hominux.compress4j.exceptions.MissingArchiveDependencyException;
+import com.hominux.compress4j.internal.codec.LibraryHidingLoader;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Path;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class ArchiverDependencyCheckerWithoutBrotliTest {
 
     private static final String BROTLI_PACKAGE = "org.brotli.";
 
-    private static final class BrotliHidingClassLoader extends URLClassLoader {
-        BrotliHidingClassLoader(URL[] urls) {
-            super(urls, ClassLoader.getPlatformClassLoader());
-        }
-
-        @Override
-        protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-            if (name.startsWith(BROTLI_PACKAGE)) {
-                throw new ClassNotFoundException(name);
-            }
-            return super.loadClass(name, resolve);
-        }
-    }
-
-    private static URL[] classpathUrls() {
-        return Stream.of(System.getProperty("java.class.path").split(File.pathSeparator))
-                .map(entry -> toUrl(Path.of(entry)))
-                .toArray(URL[]::new);
-    }
-
-    private static URL toUrl(Path path) {
-        try {
-            return path.toUri().toURL();
-        } catch (MalformedURLException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private static Throwable checkFailure(String entryName) throws Exception {
-        try (var loader = new BrotliHidingClassLoader(classpathUrls())) {
+        try (var loader = new LibraryHidingLoader(BROTLI_PACKAGE)) {
             loader.loadClass(ArchiverDependencyChecker.class.getName())
                     .getMethod("check", String.class)
                     .invoke(null, entryName);
@@ -74,7 +41,7 @@ class ArchiverDependencyCheckerWithoutBrotliTest {
 
     private static Throwable buildFailure(String builderClass, Class<?> argType, Object arg, String codec)
             throws Exception {
-        try (var loader = new BrotliHidingClassLoader(classpathUrls())) {
+        try (var loader = new LibraryHidingLoader(BROTLI_PACKAGE)) {
             Class<?> compression = loader.loadClass("com.hominux.compress4j.compressors.Compression");
             Object builder = loader.loadClass(builderClass)
                     .getMethod("builder", argType, compression)

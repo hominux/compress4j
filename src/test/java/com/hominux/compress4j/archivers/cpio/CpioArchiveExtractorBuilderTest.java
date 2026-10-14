@@ -27,9 +27,15 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CpioArchiveExtractorBuilderTest {
 
@@ -57,7 +63,8 @@ class CpioArchiveExtractorBuilderTest {
         // then
         assertThat(builder).isNotNull();
         try (var extractor = builder.build()) {
-            assertThat(extractor).isNotNull();
+            assertThat(extractor.stream().map(item -> item.entry().name()).toList())
+                    .containsExactly("test.txt");
         }
     }
 
@@ -72,7 +79,8 @@ class CpioArchiveExtractorBuilderTest {
         // then
         assertThat(builder).isNotNull();
         try (var extractor = builder.build()) {
-            assertThat(extractor).isNotNull();
+            assertThat(extractor.stream().map(item -> item.entry().name()).toList())
+                    .containsExactly("test.txt");
         }
     }
 
@@ -125,7 +133,8 @@ class CpioArchiveExtractorBuilderTest {
         // then
         assertThat(configuredBuilder).isSameAs(builder);
         try (var extractor = builder.build()) {
-            assertThat(extractor).isNotNull();
+            assertThat(extractor.stream().map(item -> item.entry().name()).toList())
+                    .containsExactly("test.txt");
         }
     }
 
@@ -137,7 +146,8 @@ class CpioArchiveExtractorBuilderTest {
 
         // when & then
         try (var extractor = builder.build()) {
-            assertThat(extractor).isNotNull();
+            assertThat(extractor.stream().map(item -> item.entry().name()).toList())
+                    .containsExactly("test.txt");
         }
     }
 
@@ -176,65 +186,71 @@ class CpioArchiveExtractorBuilderTest {
 
         // when & then
         try (var extractor1 = builder.build()) {
-            assertThat(extractor1).isNotNull();
+            assertThat(extractor1.stream().map(item -> item.entry().name()).toList())
+                    .containsExactly("test.txt");
         }
 
         InputStream inputStream2 = new ByteArrayInputStream(sampleArchive);
         var builder2 = CpioArchiveExtractor.builder(inputStream2);
 
         try (var extractor2 = builder2.build()) {
-            assertThat(extractor2).isNotNull();
+            assertThat(extractor2.stream().map(item -> item.entry().name()).toList())
+                    .containsExactly("test.txt");
         }
     }
 
-    @Test
-    void testBuilderWithVariousBlockSizes() throws IOException {
+    @ParameterizedTest
+    @ValueSource(ints = {256, 512, 1024, 2048, 4096})
+    void testBuilderWithVariousBlockSizes(int blockSize) throws IOException {
         // given
-        int[] blockSizes = {256, 512, 1024, 2048, 4096};
+        InputStream inputStream = new ByteArrayInputStream(sampleArchive);
 
-        for (int blockSize : blockSizes) {
-            InputStream inputStream = new ByteArrayInputStream(sampleArchive);
+        // when
+        try (var extractor =
+                CpioArchiveExtractor.builder(inputStream).blockSize(blockSize).build()) {
 
-            // when
-            try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                    .blockSize(blockSize)
-                    .build()) {
+            // then
+            var extractDir = tempDir.resolve("extract-block-" + blockSize);
+            Files.createDirectories(extractDir);
+            extractor.extract(extractDir);
 
-                // then
-                assertThat(extractor).isNotNull();
-
-                var extractDir = tempDir.resolve("extract-block-" + blockSize);
-                Files.createDirectories(extractDir);
-                extractor.extract(extractDir);
-
-                assertThat(extractDir.resolve("test.txt")).exists();
-                assertThat(Files.readString(extractDir.resolve("test.txt"))).isEqualTo("Sample content for testing");
-            }
+            assertThat(extractDir.resolve("test.txt")).exists();
+            assertThat(Files.readString(extractDir.resolve("test.txt"))).isEqualTo("Sample content for testing");
         }
     }
 
-    @Test
-    void testBuilderWithVariousEncodings() throws IOException {
+    static Stream<Arguments> encodings() {
+        return Stream.of(
+                Arguments.of("UTF-8", "UTF-8", "test-äöü.txt"),
+                Arguments.of("ISO-8859-1", "ISO-8859-1", "test-äöü.txt"),
+                Arguments.of("UTF-8", "ISO-8859-1", "test-Ã¤Ã¶Ã¼.txt"),
+                Arguments.of("US-ASCII", "US-ASCII", "test-plain.txt"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("encodings")
+    void testBuilderWithVariousEncodings(String writeEncoding, String readEncoding, String expectedName)
+            throws IOException {
         // given
-        String[] encodings = {"UTF-8", "ISO-8859-1", "US-ASCII"};
+        var source = tempDir.resolve("encoding-source.txt");
+        Files.write(source, "content".getBytes());
+        var archiveOutput = new ByteArrayOutputStream();
+        var entryName = "US-ASCII".equals(writeEncoding) ? "test-plain.txt" : "test-äöü.txt";
+        try (var creator = CpioArchiveCreator.builder(archiveOutput)
+                .encoding(Charset.forName(writeEncoding))
+                .build()) {
+            creator.add(EntrySource.file(entryName, source));
+        }
 
-        for (String encoding : encodings) {
-            InputStream inputStream = new ByteArrayInputStream(sampleArchive);
+        // when
+        try (var extractor = CpioArchiveExtractor.builder(new ByteArrayInputStream(archiveOutput.toByteArray()))
+                .encoding(Charset.forName(readEncoding))
+                .build()) {
 
-            // when
-            try (var extractor = CpioArchiveExtractor.builder(inputStream)
-                    .encoding(Charset.forName(encoding))
-                    .build()) {
-
-                // then
-                assertThat(extractor).isNotNull();
-
-                var extractDir = tempDir.resolve("extract-encoding-" + encoding.replace("-", ""));
-                Files.createDirectories(extractDir);
-                extractor.extract(extractDir);
-
-                assertThat(extractDir.resolve("test.txt")).exists();
-            }
+            // then
+            List<String> names =
+                    extractor.stream().map(item -> item.entry().name()).toList();
+            assertThat(names).containsExactly(expectedName);
         }
     }
 

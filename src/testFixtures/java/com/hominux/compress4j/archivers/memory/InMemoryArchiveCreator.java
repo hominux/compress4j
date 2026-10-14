@@ -69,7 +69,7 @@ public class InMemoryArchiveCreator extends ArchiveCreator {
                     .type(FILE)
                     .mode(mode)
                     .lastModifiedDate(lastModified)
-                    .content(new String(content.readAllBytes(), StandardCharsets.UTF_8))
+                    .content(new String(content.readAllBytes(), StandardCharsets.ISO_8859_1))
                     .build());
         }
 

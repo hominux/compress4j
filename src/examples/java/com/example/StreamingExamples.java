@@ -25,11 +25,11 @@ import com.hominux.compress4j.archivers.zip.ZipArchiveExtractor;
 import com.hominux.compress4j.compressors.Compression;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Optional;
@@ -118,12 +118,29 @@ public final class StreamingExamples {
 
     public static void sevenZFromStream(InputStream download, Path outputDir) throws IOException {
         // tag::sevenz-from-stream[]
+        long maxArchiveSize = 512L * 1024 * 1024;
         Files.createDirectories(outputDir);
         Path spool = Files.createTempFile(
-                outputDir, "archive", ".7z"); // 7z needs random access, so spool the stream to disk
+                outputDir.toAbsolutePath().getParent(),
+                "archive",
+                ".7z"); // 7z needs random access, so spool the stream to disk
         try {
-            Files.copy(download, spool, StandardCopyOption.REPLACE_EXISTING);
-            try (var extractor = SevenZArchiveExtractor.builder(spool).build()) {
+            try (OutputStream out = Files.newOutputStream(spool)) {
+                byte[] buffer = new byte[8192];
+                long copied = 0;
+                for (int read; (read = download.read(buffer)) != -1; ) {
+                    copied += read;
+                    if (copied > maxArchiveSize) {
+                        throw new IOException("Archive exceeds " + maxArchiveSize + " bytes");
+                    }
+                    out.write(buffer, 0, read);
+                }
+            }
+            try (var extractor = SevenZArchiveExtractor.builder(spool)
+                    .maxEntries(10_000)
+                    .maxEntrySize(100L * 1024 * 1024)
+                    .maxTotalSize(1024L * 1024 * 1024)
+                    .build()) {
                 extractor.extract(outputDir);
             }
         } finally {

@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +36,7 @@ class CapabilityTableTest {
     static String render() {
         String header = "|Format |"
                 + Arrays.stream(Capability.values())
-                        .map(c -> c.name().toLowerCase().replace('_', ' '))
+                        .map(c -> c.name().toLowerCase(Locale.ROOT).replace('_', ' '))
                         .collect(Collectors.joining(" |"));
         String rows = FormatCatalog.all().map(CapabilityTableTest::row).collect(Collectors.joining("\n"));
         return "[cols=\"2," + "1,".repeat(Capability.values().length - 1) + "1\",options=\"header\"]\n|===\n" + header

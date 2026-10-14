@@ -70,12 +70,16 @@ public class DirectoryAssert extends AbstractPathAssert<DirectoryAssert> {
         try (InputStream fi = Files.newInputStream(actual);
                 InputStream bi = new BufferedInputStream(fi);
                 TarArchiveInputStream o = new TarArchiveInputStream(bi)) {
+            final Map<String, String> seen = new TreeMap<>();
             ArchiveEntry e;
             while ((e = o.getNextEntry()) != null) {
                 if (e.isDirectory()) continue;
-                String content = new String(IOUtils.toByteArray(o), StandardCharsets.UTF_8).trim();
-                Assertions.assertThat(content).isEqualTo(expected.get(e.getName()));
+                String previous = seen.put(e.getName(), new String(IOUtils.toByteArray(o), StandardCharsets.UTF_8));
+                Assertions.assertThat(previous)
+                        .as("duplicate entry %s", e.getName())
+                        .isNull();
             }
+            Assertions.assertThat(seen).containsAllEntriesOf(expected);
         }
         return this;
     }
@@ -135,7 +139,7 @@ public class DirectoryAssert extends AbstractPathAssert<DirectoryAssert> {
                                 relativePath, actualIsDir ? "directory" : "file", expectedIsDir ? "directory" : "file"))
                         .isEqualTo(expectedPath);
             } else if (!actualIsDir) {
-                softly.assertThat(actualPath).as(relativePath).hasSameTextualContentAs(expectedPath);
+                softly.assertThat(actualPath).as(relativePath).hasSameBinaryContentAs(expectedPath);
             }
         }
 

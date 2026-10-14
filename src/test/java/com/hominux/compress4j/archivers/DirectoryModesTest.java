@@ -50,11 +50,11 @@ class DirectoryModesTest {
     }
 
     private static InMemoryArchiveEntry file(String name) {
-        return InMemoryArchiveEntry.builder()
-                .name(name)
-                .content("x")
-                .mode(0100644)
-                .build();
+        return file(name, 0100644);
+    }
+
+    private static InMemoryArchiveEntry file(String name, int mode) {
+        return InMemoryArchiveEntry.builder().name(name).content("x").mode(mode).build();
     }
 
     @Test
@@ -143,10 +143,23 @@ class DirectoryModesTest {
         Path existing = Files.createDirectory(dir.resolve("d"));
         Files.setPosixFilePermissions(existing, PosixFilePermissions.fromString("rwx------"));
         try (var extractor = InMemoryArchiveExtractor.builder(List.of(directory("d", 040777)))
+                .preservePermissions()
                 .build()) {
             extractor.extract(dir);
         }
         assertThat(Files.getPosixFilePermissions(existing)).isEqualTo(PosixFilePermissions.fromString("rwxrwxrwx"));
+    }
+
+    @Test
+    void defaultClearsGroupAndOtherWriteBitsOfDirectoriesAndFiles() throws IOException {
+        try (var extractor = InMemoryArchiveExtractor.builder(List.of(directory("d", 040777), file("d/f", 0100666)))
+                .build()) {
+            extractor.extract(dir);
+        }
+        assertThat(Files.getPosixFilePermissions(dir.resolve("d")))
+                .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(Files.getPosixFilePermissions(dir.resolve("d/f")))
+                .isEqualTo(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
     @Test

@@ -33,15 +33,24 @@ final class TarEntryReader implements EntryReader {
 
     private final TarArchiveInputStream archiveInputStream;
     private final ReaderContext context;
+    private final GatedMeterInputStream headerMeter;
     private boolean started;
+    private long pendingSkip;
 
     TarEntryReader(TarArchiveInputStream archiveInputStream, ReaderContext context) {
+        this(archiveInputStream, context, new GatedMeterInputStream(InputStream.nullInputStream(), context.meter()));
+    }
+
+    TarEntryReader(TarArchiveInputStream archiveInputStream, ReaderContext context, GatedMeterInputStream headerMeter) {
         this.archiveInputStream = archiveInputStream;
         this.context = context;
+        this.headerMeter = headerMeter;
     }
 
     @Override
     public Optional<Entry> next() throws IOException {
+        headerMeter.resume();
+        pendingSkip = Math.max(0, pendingSkip - headerMeter.takeContentRead());
         return getNextTarArchiveEntry().map(TarEntryReader::toEntry);
     }
 
@@ -53,6 +62,7 @@ final class TarEntryReader implements EntryReader {
 
     @Override
     public InputStream open(Entry entry) {
+        headerMeter.pause();
         return CloseShieldInputStream.wrap(archiveInputStream);
     }
 
@@ -71,9 +81,8 @@ final class TarEntryReader implements EntryReader {
     }
 
     private Optional<TarArchiveEntry> nextSupported() throws IOException {
-        for (TarArchiveEntry te = archiveInputStream.getNextEntry();
-                te != null;
-                te = archiveInputStream.getNextEntry()) {
+        for (Optional<TarArchiveEntry> next = advance(); next.isPresent(); next = advance()) {
+            TarArchiveEntry te = next.orElseThrow();
             started = true;
             requireValidChecksum(te);
             if (te.isGlobalPaxHeader()) {
@@ -86,6 +95,15 @@ final class TarEntryReader implements EntryReader {
             context.reportUnsupported(te.getName(), unsupported.orElseThrow());
         }
         return Optional.empty();
+    }
+
+    private Optional<TarArchiveEntry> advance() throws IOException {
+        headerMeter.creditSkip(pendingSkip);
+        Optional<TarArchiveEntry> next = Optional.ofNullable(archiveInputStream.getNextEntry());
+        pendingSkip = next.filter(te -> !te.isGlobalPaxHeader())
+                .map(TarArchiveEntry::getSize)
+                .orElse(0L);
+        return next;
     }
 
     private static void requireValidChecksum(TarArchiveEntry te) throws IOException {

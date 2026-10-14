@@ -24,6 +24,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CodecsWithoutOptionalLibrariesTest {
@@ -44,25 +45,27 @@ class CodecsWithoutOptionalLibrariesTest {
         }
     }
 
-    private static void assertMissing(Throwable failure, String library) {
+    private static Throwable assertMissing(Optional<Throwable> outcome, String library) {
+        Throwable failure = outcome.orElseThrow(() -> new AssertionError("expected a failure naming " + library));
         assertThat(failure.getClass().getName()).isEqualTo(MissingArchiveDependencyException.class.getName());
         assertThat(failure.getMessage()).contains(library);
+        return failure;
     }
 
-    private static Throwable writeFailure(LibraryHidingLoader loader, String factory) throws Exception {
+    private static Optional<Throwable> writeFailure(LibraryHidingLoader loader, String factory) throws Exception {
         try (var out = loader.compressing(loader.compression(factory), new ByteArrayOutputStream())) {
             out.write(1);
-            return null;
+            return Optional.empty();
         } catch (Exception e) {
-            return e;
+            return Optional.of(e);
         }
     }
 
-    private static Throwable readFailure(LibraryHidingLoader loader, String factory) throws Exception {
+    private static Optional<Throwable> readFailure(LibraryHidingLoader loader, String factory) throws Exception {
         try (var in = loader.decompressing(loader.compression(factory), new ByteArrayInputStream(new byte[16]))) {
-            return null;
+            return Optional.empty();
         } catch (Exception e) {
-            return e;
+            return Optional.of(e);
         }
     }
 
@@ -98,8 +101,7 @@ class CodecsWithoutOptionalLibrariesTest {
     void withoutAsmPack200WritingNamesTheLibrary() throws Exception {
         try (var loader = new LibraryHidingLoader("org.objectweb.asm.")) {
             assertGzipStillWorks(loader);
-            Throwable failure = writeFailure(loader, "pack200");
-            assertMissing(failure, "Pack200");
+            Throwable failure = assertMissing(writeFailure(loader, "pack200"), "Pack200");
             assertThat(failure.getMessage()).contains("ASM").contains("https://asm.ow2.io/");
         }
     }

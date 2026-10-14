@@ -18,7 +18,9 @@ package com.hominux.compress4j.archivers.sevenz;
 import com.hominux.compress4j.archivers.ArchiveCreator;
 import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
 import org.apache.commons.io.function.IOSupplier;
@@ -44,7 +46,16 @@ public final class SevenZArchiveCreator extends ArchiveCreator {
      */
     public static Builder builder(Path path) {
         Objects.requireNonNull(path, "path");
-        return new Builder(() -> new SevenZOutputFile(path.toFile()));
+        return new Builder(() -> new SevenZOutputFile(openForWrite(path)));
+    }
+
+    private static SeekableByteChannel openForWrite(Path path) throws IOException {
+        return Files.newByteChannel(
+                path,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.READ);
     }
 
     /**

@@ -17,14 +17,12 @@ package com.hominux.compress4j.archivers;
 
 import static com.hominux.compress4j.assertion.Compress4JAssertions.assertThat;
 import static com.hominux.compress4j.test.util.io.TestFileUtils.createFile;
-import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hominux.compress4j.UpstreamSamples;
 import com.hominux.compress4j.archivers.catalog.ArchiveFormat;
 import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Reader;
 import com.hominux.compress4j.archivers.catalog.ArchiveFormat.Writer;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -55,18 +53,8 @@ public abstract class AbstractArchiverIntegrationTest {
 
     protected abstract String getExtension();
 
-    protected Path getArchive() {
-        try {
-            String archivePathStr = "/archives/archive" + getExtension();
-            URL resource = getClass().getResource(archivePathStr);
-            Assertions.assertThat(resource)
-                    .as("Archive file not found: " + archivePathStr + " in resources")
-                    .isNotNull();
-            return Path.of(resource.toURI());
-        } catch (URISyntaxException e) {
-            fail("Failed to load test resource", e);
-            return null;
-        }
+    protected Path getArchive() throws IOException {
+        return UpstreamSamples.copy("/archives/archive" + getExtension(), tempDir);
     }
 
     @Test
@@ -147,20 +135,16 @@ public abstract class AbstractArchiverIntegrationTest {
     @Test
     void extractOsCreatedArchive() throws Exception {
         var osArchive = getArchive();
-        if (Files.exists(osArchive)) {
-            var extractDir = tempDir.resolve("os_extracted");
-            Files.createDirectories(extractDir);
+        var extractDir = tempDir.resolve("os_extracted");
+        Files.createDirectories(extractDir);
 
-            try (Reader extractor = readerAt(osArchive)) {
-                extractor.extract(extractDir);
+        try (Reader extractor = readerAt(osArchive)) {
+            extractor.extract(extractDir);
 
-                try (var files = Files.list(extractDir)) {
-                    List<Path> extractedFiles = files.toList();
-                    Assertions.assertThat(extractedFiles).isNotEmpty();
-                }
+            try (var files = Files.list(extractDir)) {
+                List<Path> extractedFiles = files.toList();
+                Assertions.assertThat(extractedFiles).isNotEmpty();
             }
-        } else {
-            fail("Test archive file not found: " + osArchive);
         }
     }
 
@@ -195,7 +179,7 @@ public abstract class AbstractArchiverIntegrationTest {
             extractor.extract(extractDir2);
         }
 
-        assertThat(extractDir1.resolve("round1.txt")).hasSameTextualContentAs(extractDir2.resolve("round1.txt"));
-        assertThat(extractDir1.resolve("round2.txt")).hasSameTextualContentAs(extractDir2.resolve("round2.txt"));
+        assertThat(extractDir1.resolve("round1.txt")).hasSameBinaryContentAs(extractDir2.resolve("round1.txt"));
+        assertThat(extractDir1.resolve("round2.txt")).hasSameBinaryContentAs(extractDir2.resolve("round2.txt"));
     }
 }

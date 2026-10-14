@@ -6,6 +6,10 @@ Options: `strategy` (`IN_MEMORY` or `TEMP_FILE` buffering) and `properties` (the
 
 `Decompressor` never detects Pack200, and the tar extractor does not read it. An explicit Pack200 decode runs eagerly in `build()` and extraction limits do not bound it: select it only for trusted input.
 
+== Dependency
+
+Writing Pack200 needs `org.ow2.asm:asm` on the class path. Without it, opening a Pack200 write throws `MissingArchiveDependencyException`. The test suite runs against ASM 9.11. See xref:additional_formats.adoc#_pack200_support[Additional Formats].
+
 == Example Usage
 
 .Pack200 Compression

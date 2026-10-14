@@ -45,11 +45,12 @@ class SemverBumpTest {
 
     @ParameterizedTest
     @CsvSource(
-        "1.2.3-SNAPSHOT,PATCH,1.2.4",
+        "1.2.3-SNAPSHOT,PATCH,1.2.3",
+        "5.0.0-rc.1,PATCH,5.0.0",
+        "1.2.3-rc.1+build.7,MAJOR,1.2.3",
         "1.2.3+build.7,MINOR,1.3.0",
-        "1.2.3-rc.1+build.7,MAJOR,2.0.0",
     )
-    fun `ignores the pre-release and build metadata of the previous version`(
+    fun `a pre-release finalises its own version and build metadata is ignored`(
         previous: String,
         bump: SemverBump,
         expected: String,

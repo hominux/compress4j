@@ -37,4 +37,4 @@ include::example$java/com/example/archivers/sevenz/SevenZExamples.java[tag=seven
 include::example$java/com/example/StreamingExamples.java[tag=sevenz-from-stream,indent=0]
 ----
 
-NOTE: 7z keeps its header at the end of the archive, so it reads only from a file or a `SeekableByteChannel`. The example holds the whole archive in memory; spool large archives to a temp file instead.
+NOTE: 7z keeps its header at the end of the archive, so it reads only from a file or a `SeekableByteChannel`. The example spools the stream to a temp file outside the output directory, stops the copy at a size cap, and applies extraction limits to the result. Choose both bounds for your input.

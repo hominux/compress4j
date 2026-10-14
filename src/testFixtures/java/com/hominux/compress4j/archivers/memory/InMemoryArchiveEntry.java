@@ -19,17 +19,23 @@ import static com.hominux.compress4j.archivers.Entry.Type.DIR;
 import static com.hominux.compress4j.archivers.Entry.Type.FILE;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hominux.compress4j.archivers.Entry.Type;
 import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.Date;
+import java.util.Optional;
 import org.apache.commons.compress.archivers.ArchiveEntry;
-import org.jspecify.annotations.Nullable;
 
 public final class InMemoryArchiveEntry implements ArchiveEntry {
     private final String name;
     private final Date lastModifiedDate;
     private final String content;
-    private final @Nullable String linkName;
+
+    @JsonProperty("linkName")
+    private final String linkName;
+
     private final int mode;
     private final long size;
     private final boolean directory;
@@ -37,7 +43,7 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
 
     @JsonCreator
     private InMemoryArchiveEntry() {
-        this("", "", FILE, 0, null, 0, new Date());
+        this("", "", FILE, 0, "", 0, Date.from(Instant.EPOCH));
     }
 
     /**
@@ -51,13 +57,7 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
      * @param lastModifiedDate the entry's last modified date
      */
     private InMemoryArchiveEntry(
-            String name,
-            String content,
-            Type type,
-            int mode,
-            @Nullable String linkName,
-            long size,
-            Date lastModifiedDate) {
+            String name, String content, Type type, int mode, String linkName, long size, Date lastModifiedDate) {
         this.name = name;
         this.content = content;
         this.type = type;
@@ -96,10 +96,11 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
     /**
      * Gets this entry's link name.
      *
-     * @return This entry's link name.
+     * @return This entry's link name, empty when the entry is not a link.
      */
-    public @Nullable String getLinkName() {
-        return linkName;
+    @JsonIgnore
+    public Optional<String> getLinkName() {
+        return Optional.ofNullable(linkName).filter(link -> !link.isEmpty());
     }
 
     /**
@@ -133,10 +134,10 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
     }
 
     public static class Builder {
-        private String name;
-        private Date lastModifiedDate = new Date();
-        private String content;
-        private @Nullable String linkName;
+        private String name = "";
+        private Date lastModifiedDate = Date.from(Instant.EPOCH);
+        private String content = "";
+        private String linkName = "";
         private int mode = 0;
         private long size = 0;
         private Type type = FILE;
@@ -151,12 +152,19 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
             return this;
         }
 
+        /**
+         * Sets the content as one char per byte (ISO-8859-1), so binary content round-trips unchanged; text with
+         * non-ASCII characters must be encoded by the caller first.
+         *
+         * @param content the content, one char per byte
+         * @return this builder
+         */
         public Builder content(String content) {
             this.content = content;
             return this;
         }
 
-        public Builder linkName(@Nullable String linkName) {
+        public Builder linkName(String linkName) {
             this.linkName = linkName;
             return this;
         }

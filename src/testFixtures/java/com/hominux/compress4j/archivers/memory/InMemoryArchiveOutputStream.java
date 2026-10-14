@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
 
@@ -54,7 +55,7 @@ public class InMemoryArchiveOutputStream extends ArchiveOutputStream<InMemoryArc
         } else {
             return InMemoryArchiveEntry.builder()
                     .name(inputFile.getName())
-                    .content(Files.readString(inputFile.toPath()))
+                    .content(new String(Files.readAllBytes(inputFile.toPath()), StandardCharsets.ISO_8859_1))
                     .size(inputFile.length())
                     .build();
         }

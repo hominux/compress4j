@@ -63,13 +63,9 @@ class FileUtilsTest {
 
     @Test
     void testIsInsideSafeDir_Path_false() throws IOException {
-        Path safe = tempDir;
-        Path outside = Files.createTempFile("outside", ".txt");
-        try {
-            assertFalse(FileUtils.isInsideSafeDir(outside, safe));
-        } finally {
-            Files.deleteIfExists(outside);
-        }
+        Path safe = Files.createDirectories(tempDir.resolve("safe"));
+        Path outside = Files.createFile(tempDir.resolve("outside.txt"));
+        assertFalse(FileUtils.isInsideSafeDir(outside, safe));
     }
 
     @Test
@@ -83,13 +79,9 @@ class FileUtilsTest {
 
     @Test
     void testIsInsideSafeDir_File_false() throws IOException {
-        File safe = tempDir.toFile();
-        File outside = File.createTempFile("outside", ".txt");
-        try {
-            assertFalse(FileUtils.isInsideSafeDir(outside, safe));
-        } finally {
-            outside.delete();
-        }
+        File safe = Files.createDirectories(tempDir.resolve("safe")).toFile();
+        File outside = Files.createFile(tempDir.resolve("outside.txt")).toFile();
+        assertFalse(FileUtils.isInsideSafeDir(outside, safe));
     }
 
     @Test
@@ -102,14 +94,10 @@ class FileUtilsTest {
 
     @Test
     void testCheckValidPath_Path_invalid() throws IOException {
-        Path safe = tempDir;
-        Path outside = Files.createTempFile("outside", ".txt");
-        try {
-            IOException ex = assertThrows(IOException.class, () -> FileUtils.checkValidPath(outside, safe));
-            assertTrue(ex.getMessage().contains("Path traversal vulnerability"));
-        } finally {
-            Files.deleteIfExists(outside);
-        }
+        Path safe = Files.createDirectories(tempDir.resolve("safe"));
+        Path outside = Files.createFile(tempDir.resolve("outside.txt"));
+        IOException ex = assertThrows(IOException.class, () -> FileUtils.checkValidPath(outside, safe));
+        assertTrue(ex.getMessage().contains("Path traversal vulnerability"));
     }
 
     @Test
@@ -122,14 +110,10 @@ class FileUtilsTest {
 
     @Test
     void testCheckValidPath_File_invalid() throws IOException {
-        File safe = tempDir.toFile();
-        File outside = File.createTempFile("outside", ".txt");
-        try {
-            IOException ex = assertThrows(IOException.class, () -> FileUtils.checkValidPath(outside, safe));
-            assertTrue(ex.getMessage().contains("Path traversal vulnerability"));
-        } finally {
-            outside.delete();
-        }
+        File safe = Files.createDirectories(tempDir.resolve("safe")).toFile();
+        File outside = Files.createFile(tempDir.resolve("outside.txt")).toFile();
+        IOException ex = assertThrows(IOException.class, () -> FileUtils.checkValidPath(outside, safe));
+        assertTrue(ex.getMessage().contains("Path traversal vulnerability"));
     }
 
     @Test

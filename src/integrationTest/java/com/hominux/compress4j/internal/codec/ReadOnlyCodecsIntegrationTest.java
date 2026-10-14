@@ -51,10 +51,9 @@ class ReadOnlyCodecsIntegrationTest {
     @Test
     void readsBrotliSampleToItsExpectedContent() throws IOException {
         try (InputStream in = Codecs.decompressing(
-                Compression.brotli(), resource("compression/upstream-brotli.testdata.compressed"))) {
-            assertThat(in.readAllBytes())
-                    .isEqualTo(resource("compression/upstream-brotli.testdata.uncompressed")
-                            .readAllBytes());
+                        Compression.brotli(), resource("compression/upstream-brotli.testdata.compressed"));
+                InputStream expected = resource("compression/upstream-brotli.testdata.uncompressed")) {
+            assertThat(in.readAllBytes()).isEqualTo(expected.readAllBytes());
         }
     }
 

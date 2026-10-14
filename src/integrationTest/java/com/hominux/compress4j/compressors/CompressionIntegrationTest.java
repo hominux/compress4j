@@ -29,7 +29,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
@@ -184,15 +183,18 @@ class CompressionIntegrationTest {
         assertThatThrownBy(() -> readAll(foreign, format.compression())).isInstanceOf(IOException.class);
     }
 
-    @Test
-    void xzAndLzmaReadWithDefaultLimit() throws IOException {
-        for (Compression compression : List.of(Compression.xz(), Compression.lzma())) {
-            var bytes = new ByteArrayOutputStream();
-            try (var compressor = Compressor.builder(bytes, compression).build()) {
-                compressor.write(new ByteArrayInputStream(TEXT));
-            }
-            assertThat(readAll(bytes.toByteArray(), compression)).isEqualTo(TEXT);
+    static Stream<Compression> xzAndLzma() {
+        return Stream.of(Compression.xz(), Compression.lzma());
+    }
+
+    @ParameterizedTest
+    @MethodSource("xzAndLzma")
+    void xzAndLzmaReadWithDefaultLimit(Compression compression) throws IOException {
+        var bytes = new ByteArrayOutputStream();
+        try (var compressor = Compressor.builder(bytes, compression).build()) {
+            compressor.write(new ByteArrayInputStream(TEXT));
         }
+        assertThat(readAll(bytes.toByteArray(), compression)).isEqualTo(TEXT);
     }
 
     @Test
