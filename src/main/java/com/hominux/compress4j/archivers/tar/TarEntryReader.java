@@ -81,7 +81,8 @@ final class TarEntryReader implements EntryReader {
     }
 
     private Optional<TarArchiveEntry> nextSupported() throws IOException {
-        for (TarArchiveEntry te = advance(); te != null; te = advance()) {
+        for (Optional<TarArchiveEntry> next = advance(); next.isPresent(); next = advance()) {
+            TarArchiveEntry te = next.orElseThrow();
             started = true;
             requireValidChecksum(te);
             if (te.isGlobalPaxHeader()) {
@@ -96,11 +97,13 @@ final class TarEntryReader implements EntryReader {
         return Optional.empty();
     }
 
-    private TarArchiveEntry advance() throws IOException {
+    private Optional<TarArchiveEntry> advance() throws IOException {
         headerMeter.creditSkip(pendingSkip);
-        TarArchiveEntry te = archiveInputStream.getNextEntry();
-        pendingSkip = te == null || te.isGlobalPaxHeader() ? 0 : te.getSize();
-        return te;
+        Optional<TarArchiveEntry> next = Optional.ofNullable(archiveInputStream.getNextEntry());
+        pendingSkip = next.filter(te -> !te.isGlobalPaxHeader())
+                .map(TarArchiveEntry::getSize)
+                .orElse(0L);
+        return next;
     }
 
     private static void requireValidChecksum(TarArchiveEntry te) throws IOException {

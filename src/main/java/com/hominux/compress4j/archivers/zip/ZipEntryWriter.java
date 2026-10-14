@@ -20,9 +20,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.OptionalLong;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
@@ -80,7 +83,7 @@ final class ZipEntryWriter implements EntryWriter {
     }
 
     private void writeSpooled(ZipArchiveEntry entry, InputStream content) throws IOException {
-        Path spool = Files.createTempFile("compress4j-zip-", ".tmp");
+        Path spool = Files.createTempFile("compress4j-zip-", ".tmp", ownerOnly());
         try {
             CRC32 crc = new CRC32();
             try (OutputStream out = Files.newOutputStream(spool)) {
@@ -94,6 +97,14 @@ final class ZipEntryWriter implements EntryWriter {
         } finally {
             Files.deleteIfExists(spool);
         }
+    }
+
+    private static FileAttribute<?>[] ownerOnly() {
+        return FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
+                ? new FileAttribute<?>[] {
+                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------"))
+                }
+                : new FileAttribute<?>[0];
     }
 
     @Override

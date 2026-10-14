@@ -120,7 +120,10 @@ public final class StreamingExamples {
         // tag::sevenz-from-stream[]
         long maxArchiveSize = 512L * 1024 * 1024;
         Files.createDirectories(outputDir);
-        Path spool = Files.createTempFile("archive", ".7z"); // 7z needs random access, so spool the stream to disk
+        Path spool = Files.createTempFile(
+                outputDir.toAbsolutePath().getParent(),
+                "archive",
+                ".7z"); // 7z needs random access, so spool the stream to disk
         try {
             try (OutputStream out = Files.newOutputStream(spool)) {
                 byte[] buffer = new byte[8192];

@@ -41,7 +41,9 @@ public final class OpenFiles {
      */
     public static void assertReleased(Path file) throws IOException {
         Path real = file.toRealPath();
-        assertThat(openTargets()).as("descriptors open on %s", real).doesNotContain(real);
+        assertThat(openTargets().contains(real))
+                .as("descriptor open on %s", real)
+                .isFalse();
         Files.delete(file);
     }
 
