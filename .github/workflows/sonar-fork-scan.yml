@@ -122,7 +122,7 @@ jobs:
 
       - name: Download the coverage workspace
         if: steps.run.outputs.id != ''
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: sonar-fork-workspace
           path: ${{ runner.temp }}/sonar-fork-workspace
@@ -135,7 +135,18 @@ jobs:
           ARCHIVE_DIR: ${{ runner.temp }}/sonar-fork-workspace
         run: |
           mkdir -p workspace
-          tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" -C workspace
+          # A symlink member could redirect a later member out of the workspace, so links are refused up front.
+          if tar -tvzf "$ARCHIVE_DIR/workspace.tar.gz" | grep -E '^[lh]'; then
+            echo "::error::The coverage workspace contains links; refusing to extract it."
+            exit 1
+          fi
+          tar -xzf "$ARCHIVE_DIR/workspace.tar.gz" --no-same-owner --no-same-permissions -C workspace
+
+      - name: Drop fork-controlled scanner configuration
+        if: steps.run.outputs.id != ''
+        run: |
+          # The scanner reads these from the project base directory.
+          rm -f workspace/sonar-project.properties workspace/.sonarcloud.properties
 
       # Keep these values in step with the `sonar` block of build.gradle.kts that ci.yml uses.
       - name: Sonar scan

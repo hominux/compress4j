@@ -25,6 +25,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.zip.ZipEntry;
 import org.apache.commons.compress.archivers.zip.Zip64Mode;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
@@ -235,6 +236,23 @@ class ZipArchiveCreatorBuilderTest {
             ZipArchiveEntry entry = file.getEntry("a.txt");
             assertThat(entry.getMethod()).isEqualTo(ZipEntry.STORED);
             assertThat(file.getInputStream(entry).readAllBytes()).isEqualTo(CONTENT);
+        }
+    }
+
+    @Test
+    void storedDirectoriesAndSymlinksWriteToAnOutputStreamSink() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        try (var creator = ZipArchiveCreator.builder(bytes)
+                .compressionMethod(ZipCompressionMethod.STORED)
+                .build()) {
+            creator.add(EntrySource.directory("d"));
+            creator.add(new EntrySource.Symlink("l", "a.txt", 0, FileTime.fromMillis(0)));
+        }
+
+        try (var file = ZipFile.builder().setByteArray(bytes.toByteArray()).get()) {
+            assertThat(file.getEntry("d/")).isNotNull();
+            assertThat(file.getInputStream(file.getEntry("l")).readAllBytes()).isEqualTo("a.txt".getBytes());
         }
     }
 }

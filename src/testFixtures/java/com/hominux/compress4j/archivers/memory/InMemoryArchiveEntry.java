@@ -100,7 +100,7 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
      */
     @JsonIgnore
     public Optional<String> getLinkName() {
-        return Optional.of(linkName).filter(link -> !link.isEmpty());
+        return Optional.ofNullable(linkName).filter(link -> !link.isEmpty());
     }
 
     /**
@@ -152,6 +152,13 @@ public final class InMemoryArchiveEntry implements ArchiveEntry {
             return this;
         }
 
+        /**
+         * Sets the content as one char per byte (ISO-8859-1), so binary content round-trips unchanged; text with
+         * non-ASCII characters must be encoded by the caller first.
+         *
+         * @param content the content, one char per byte
+         * @return this builder
+         */
         public Builder content(String content) {
             this.content = content;
             return this;

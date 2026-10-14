@@ -74,7 +74,10 @@ public class DirectoryAssert extends AbstractPathAssert<DirectoryAssert> {
             ArchiveEntry e;
             while ((e = o.getNextEntry()) != null) {
                 if (e.isDirectory()) continue;
-                seen.put(e.getName(), new String(IOUtils.toByteArray(o), StandardCharsets.UTF_8));
+                String previous = seen.put(e.getName(), new String(IOUtils.toByteArray(o), StandardCharsets.UTF_8));
+                Assertions.assertThat(previous)
+                        .as("duplicate entry %s", e.getName())
+                        .isNull();
             }
             Assertions.assertThat(seen).containsAllEntriesOf(expected);
         }

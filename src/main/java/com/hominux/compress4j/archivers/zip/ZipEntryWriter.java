@@ -52,6 +52,8 @@ final class ZipEntryWriter implements EntryWriter {
     public void writeDirectory(String name, int mode, FileTime lastModified) throws IOException {
         ZipArchiveEntry entry = new ZipArchiveEntry(name + '/');
         entry.setTime(lastModified);
+        entry.setSize(0);
+        entry.setCrc(0);
         if (mode != 0) {
             entry.setUnixMode(UnixStat.DIR_FLAG | mode);
         }
@@ -101,6 +103,9 @@ final class ZipEntryWriter implements EntryWriter {
         ZipArchiveEntry entry = new ZipArchiveEntry(name);
         entry.setTime(lastModified);
         entry.setSize(bytes.length);
+        CRC32 crc = new CRC32();
+        crc.update(bytes);
+        entry.setCrc(crc.getValue());
         entry.setUnixMode(UnixStat.LINK_FLAG | permissions);
         archiveOutputStream.putArchiveEntry(entry);
         archiveOutputStream.write(bytes);

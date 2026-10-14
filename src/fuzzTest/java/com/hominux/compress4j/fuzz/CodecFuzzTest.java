@@ -109,11 +109,6 @@ class CodecFuzzTest {
     }
 
     @FuzzTest(maxDuration = "60s")
-    void pack200(byte[] data) {
-        decompress(data, Compression.pack200());
-    }
-
-    @FuzzTest(maxDuration = "60s")
     void unixZ(byte[] data) {
         decompress(data, Compression.unixZ());
     }

@@ -206,19 +206,20 @@ class CpioArchiveCreatorBuilderTest {
     void testMultipleBuildsFromSameBuilder() throws IOException {
         Path testFile = writeSource();
         var first = new ByteArrayOutputStream();
-        var builder = CpioArchiveCreator.builder(first).format(CpioFormat.OLD_ASCII);
+        var second = new ByteArrayOutputStream();
 
-        try (CpioArchiveCreator creator1 = builder.build()) {
+        try (CpioArchiveCreator creator1 =
+                CpioArchiveCreator.builder(first).format(CpioFormat.OLD_ASCII).build()) {
             creator1.add(EntrySource.file("test.txt", testFile));
         }
-
-        try (CpioArchiveCreator creator2 = builder.build()) {
+        try (CpioArchiveCreator creator2 =
+                CpioArchiveCreator.builder(second).format(CpioFormat.OLD_ASCII).build()) {
             creator2.add(EntrySource.file("again.txt", testFile));
         }
 
-        var bytes = first.toByteArray();
-        assertThat(firstEntry(bytes, 512).getName()).isEqualTo("test.txt");
-        assertThat(firstEntry(bytes, 512).getFormat()).isEqualTo(CpioConstants.FORMAT_OLD_ASCII);
+        assertThat(firstEntry(first.toByteArray(), 512).getName()).isEqualTo("test.txt");
+        assertThat(firstEntry(second.toByteArray(), 512).getName()).isEqualTo("again.txt");
+        assertThat(firstEntry(second.toByteArray(), 512).getFormat()).isEqualTo(CpioConstants.FORMAT_OLD_ASCII);
     }
 
     @Test

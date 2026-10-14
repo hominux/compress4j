@@ -66,10 +66,10 @@ class TarMetadataLimitTest {
             digits++;
         }
         byte[] prefix = ((valueSize + 7 + digits) + " path=").getBytes(StandardCharsets.UTF_8);
-        byte[] record = Arrays.copyOf(prefix, prefix.length + valueSize + 1);
-        Arrays.fill(record, prefix.length, record.length - 1, (byte) 'a');
-        record[record.length - 1] = '\n';
-        return record;
+        byte[] paxRecord = Arrays.copyOf(prefix, prefix.length + valueSize + 1);
+        Arrays.fill(paxRecord, prefix.length, paxRecord.length - 1, (byte) 'a');
+        paxRecord[paxRecord.length - 1] = '\n';
+        return paxRecord;
     }
 
     private void assertRatioBreach(byte[] archive) throws IOException {
@@ -94,5 +94,31 @@ class TarMetadataLimitTest {
     @Test
     void paxRecordCountsAgainstTheRatio() throws IOException {
         assertRatioBreach(gzippedWithMetadata(TarConstants.LF_PAX_EXTENDED_HEADER_LC, paxPathRecord(HUGE)));
+    }
+
+    @Test
+    void skippedEntryBodiesDoNotCountAgainstTheTotalSizeLimit() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (var tar = new TarArchiveOutputStream(bytes)) {
+            var big = new TarArchiveEntry("big.bin");
+            big.setSize(1 << 20);
+            tar.putArchiveEntry(big);
+            tar.write(new byte[1 << 20]);
+            tar.closeArchiveEntry();
+            var small = new TarArchiveEntry("small.txt");
+            small.setSize(3);
+            tar.putArchiveEntry(small);
+            tar.write(new byte[] {'a', 'b', 'c'});
+            tar.closeArchiveEntry();
+        }
+
+        try (var extractor = TarArchiveExtractor.builder(new ByteArrayInputStream(bytes.toByteArray()))
+                .filter(entry -> entry.name().equals("small.txt"))
+                .maxTotalSize(1024)
+                .build()) {
+            extractor.extract(out);
+        }
+
+        assertThat(out.resolve("small.txt")).hasContent("abc");
     }
 }

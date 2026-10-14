@@ -22,11 +22,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Stream;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 
 final class FuzzSupport {
 
@@ -71,13 +73,30 @@ final class FuzzSupport {
     }
 
     private static void deleteRecursively(Path root) throws IOException {
-        final List<Path> paths;
-        try (Stream<Path> walk = Files.walk(root)) {
-            paths = walk.sorted(Comparator.reverseOrder()).toList();
-        }
-        for (Path path : paths) {
-            Files.delete(path);
-        }
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                if (Files.getFileAttributeView(dir, PosixFileAttributeView.class) != null) {
+                    Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwx------"));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException failure) throws IOException {
+                if (failure != null) {
+                    throw failure;
+                }
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     static void consume(InputStream in) throws IOException {

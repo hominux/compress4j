@@ -35,6 +35,7 @@ final class TarEntryReader implements EntryReader {
     private final ReaderContext context;
     private final GatedMeterInputStream headerMeter;
     private boolean started;
+    private long pendingSkip;
 
     TarEntryReader(TarArchiveInputStream archiveInputStream, ReaderContext context) {
         this(archiveInputStream, context, new GatedMeterInputStream(InputStream.nullInputStream(), context.meter()));
@@ -49,6 +50,7 @@ final class TarEntryReader implements EntryReader {
     @Override
     public Optional<Entry> next() throws IOException {
         headerMeter.resume();
+        pendingSkip = Math.max(0, pendingSkip - headerMeter.takeContentRead());
         return getNextTarArchiveEntry().map(TarEntryReader::toEntry);
     }
 
@@ -79,9 +81,7 @@ final class TarEntryReader implements EntryReader {
     }
 
     private Optional<TarArchiveEntry> nextSupported() throws IOException {
-        for (TarArchiveEntry te = archiveInputStream.getNextEntry();
-                te != null;
-                te = archiveInputStream.getNextEntry()) {
+        for (TarArchiveEntry te = advance(); te != null; te = advance()) {
             started = true;
             requireValidChecksum(te);
             if (te.isGlobalPaxHeader()) {
@@ -94,6 +94,13 @@ final class TarEntryReader implements EntryReader {
             context.reportUnsupported(te.getName(), unsupported.orElseThrow());
         }
         return Optional.empty();
+    }
+
+    private TarArchiveEntry advance() throws IOException {
+        headerMeter.creditSkip(pendingSkip);
+        TarArchiveEntry te = archiveInputStream.getNextEntry();
+        pendingSkip = te == null || te.isGlobalPaxHeader() ? 0 : te.getSize();
+        return te;
     }
 
     private static void requireValidChecksum(TarArchiveEntry te) throws IOException {

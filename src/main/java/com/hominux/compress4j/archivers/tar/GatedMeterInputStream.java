@@ -34,6 +34,8 @@ final class GatedMeterInputStream extends FilterInputStream {
     private final ExpansionMeter meter;
     private boolean metering = true;
     private long unmetered = FRAMING_ALLOWANCE;
+    private long skipCredit;
+    private long contentRead;
 
     GatedMeterInputStream(InputStream in, ExpansionMeter meter) {
         super(in);
@@ -42,6 +44,18 @@ final class GatedMeterInputStream extends FilterInputStream {
 
     void pause() {
         metering = false;
+    }
+
+    /** Returns the content bytes delivered while paused since the last call. */
+    long takeContentRead() {
+        long read = contentRead;
+        contentRead = 0;
+        return read;
+    }
+
+    /** Treats the next {@code bytes} consumed as skipped entry content, which the pipeline meters only when read. */
+    void creditSkip(long bytes) {
+        skipCredit = Math.max(0, bytes);
     }
 
     void resume() {
@@ -73,10 +87,17 @@ final class GatedMeterInputStream extends FilterInputStream {
     }
 
     private void count(long bytes) throws IOException {
-        if (metering) {
-            long forgiven = Math.max(0, Math.min(unmetered, bytes));
-            unmetered -= forgiven;
-            meter.produced(bytes - forgiven, Optional.empty());
+        if (bytes <= 0) {
+            return;
         }
+        if (!metering) {
+            contentRead += bytes;
+            return;
+        }
+        long skipped = Math.min(skipCredit, bytes);
+        skipCredit -= skipped;
+        long forgiven = Math.min(unmetered, bytes - skipped);
+        unmetered -= forgiven;
+        meter.produced(bytes - skipped - forgiven, Optional.empty());
     }
 }
