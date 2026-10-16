@@ -3,11 +3,11 @@ name: Sonar fork scan
 # The `scan` job holds SONAR_TOKEN and so never executes fork-derived code: it extracts the secretless artifact of
 # sonar-fork-coverage.yml and runs the scanner binary with arguments written here, not read from the fork.
 # A maintainer comment `/sonar` re-runs the scan for the current head.
-on: # zizmor: ignore[dangerous-triggers] only tar-extracts a secretless artifact; see the header
-  workflow_run:
+on:
+  workflow_run:  # zizmor: ignore[dangerous-triggers] only tar-extracts a secretless artifact; see the header
     workflows: [ 'Sonar fork coverage' ]
     types: [ completed ]
-  issue_comment:
+  issue_comment:  # zizmor: ignore[dangerous-triggers] only tar-extracts a secretless artifact; see the header
     types: [ created ]
 
 permissions: {}
