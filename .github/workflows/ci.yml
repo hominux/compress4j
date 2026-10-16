@@ -39,9 +39,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Audit workflows with zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
-          version: 1.30.1  # Pinned so a zizmor release adding audits cannot fail unrelated pull requests
+          version: 1.31.0  # Pinned so a zizmor release adding audits cannot fail unrelated pull requests
           advanced-security: false  # Findings surface as annotations and the job result, not as code scanning alerts
           annotations: true
 
@@ -107,7 +107,7 @@ jobs:
         run: ./gradlew build --continue --no-daemon --scan
       - name: Upload build reports
         if: always()  # A failed coverage gate is exactly when the reports are needed
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: build-reports-ubuntu-jdk21
           path: |
@@ -156,7 +156,7 @@ jobs:
         run: ./gradlew build --continue --no-daemon --scan "-Ptest.jdk=25"
       - name: Upload build reports
         if: always()  # A failed coverage gate is exactly when the reports are needed
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: build-reports-ubuntu-jdk25
           path: |
@@ -207,7 +207,7 @@ jobs:
         run: ./gradlew build --continue --no-daemon --scan "-Ptest.jdk=${{ matrix.java-version }}"
       - name: Upload build reports
         if: always()  # A failed coverage gate is exactly when the reports are needed
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: build-reports-${{ matrix.operating-system }}-jdk${{ matrix.java-version }}
           path: |
