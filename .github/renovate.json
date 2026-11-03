@@ -5,58 +5,12 @@
   ],
   "packageRules": [
     {
-      "description": "The build tooling never reaches users, so its updates must not trigger a release",
-      "matchManagers": [
-        "github-actions",
-        "gradle-wrapper"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest",
-        "pin"
-      ],
-      "groupName": "gradle and github actions",
-      "semanticCommitType": "chore"
-    },
-    {
-      "matchDepTypes": [
-        "plugin"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "gradle and github actions",
-      "semanticCommitType": "chore"
-    },
-    {
       "description": "Jazzer 0.30 fails on the ArgumentsProvider API of JUnit 5.14 and 6; 5.13 is untested, so the fuzz suite stays on 5.12",
       "matchPackageNames": [
         "org.junit:junit-bom"
       ],
       "matchCurrentVersion": "/^5\\./",
       "allowedVersions": "<5.13"
-    },
-    {
-      "description": "Test and build only libraries are not part of the published artifacts",
-      "matchPackageNames": [
-        "/^ch\\.qos\\.logback:/",
-        "/^com\\.fasterxml\\.jackson(\\.core)?:/",
-        "com.code-intelligence:jazzer-junit",
-        "com.google.errorprone:error_prone_core",
-        "com.uber.nullaway:nullaway",
-        "/^org\\.assertj:/",
-        "/^org\\.junit(\\.jupiter|\\.platform)?:/",
-        "/^org\\.mockito:/",
-        "/^org\\.ow2\\.asm:/"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "build and test dependencies",
-      "semanticCommitType": "chore"
     },
     {
       "description": "Runtime libraries reach users, so their updates are released as a patch. Listed exactly, never by pattern: a stray match here publishes to Maven Central.",
