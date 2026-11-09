@@ -178,7 +178,7 @@ jobs:
     needs: [plan, publish]
     if: needs.plan.outputs.release == 'true' && !inputs.dry_run
     permissions: {}
-    uses: hominux/.github/.github/workflows/announce-release.yml@bb78570522ccb51625c4dbbd0639f02e9e7769fe # main
+    uses: hominux/.github/.github/workflows/announce-release.yml@cf211f65cf1bc9fe20ecb53eada2de54893b7a27 # main
     with:
       tag: v${{ needs.plan.outputs.nextVersion }}
     secrets:
