@@ -18,24 +18,25 @@ jobs:
           # Only touch issues that have been parked pending a reproducer.
           # Everything else (active bugs, feature requests, etc.) stays open
           # until someone explicitly acts on it.
-          only-issue-labels: needs-reproducer
+          only-issue-labels: needs/repro
           days-before-issue-stale: 30
           days-before-issue-close: 14
           # PRs are not subject to this workflow.
           days-before-pr-stale: -1
           days-before-pr-close: -1
-          stale-issue-label: stale
+          stale-issue-label: status/stale
+          labels-to-remove-when-unstale: needs/repro
           remove-stale-when-updated: true
           close-issue-reason: not_planned
           stale-issue-message: |
-            This issue has been waiting on a reproducer for 30 days with no activity, so it's been marked as `stale`.
+            This issue has been waiting on a reproducer for 30 days with no activity, so it's been marked as `status/stale`.
 
             If you can still reproduce it on the latest [release](https://github.com/hominux/compress4j/releases/latest), please reply with:
             - The Compress4J version, the JDK version and the OS
             - A minimal reproducer — the few lines of code plus, if the archive matters, one that triggers it
             - The full stack trace
 
-            …and the `stale` and `needs-reproducer` labels will be removed.
+            …and the `status/stale` and `needs/repro` labels will be removed.
 
             Otherwise this issue will close in 14 days. Closing isn't a verdict — it just means we don't have enough information to act on it.
           close-issue-message: |
