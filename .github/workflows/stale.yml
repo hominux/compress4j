@@ -25,6 +25,7 @@ jobs:
           days-before-pr-stale: -1
           days-before-pr-close: -1
           stale-issue-label: status/stale
+          labels-to-remove-when-unstale: needs/repro
           remove-stale-when-updated: true
           close-issue-reason: not_planned
           stale-issue-message: |
