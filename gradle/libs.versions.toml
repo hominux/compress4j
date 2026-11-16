@@ -31,7 +31,7 @@ zstd-jni = "1.5.7-25"
 [libraries]
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "apache-commons-compress" }
 commons-io = { module = "commons-io:commons-io", version = "2.22.0" }
-commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.21.0" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.22.0" }
 error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "error-prone-core" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
 nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
