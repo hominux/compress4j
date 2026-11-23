@@ -41,7 +41,6 @@ jobs:
       - name: Audit workflows with zizmor
         uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with:
-          version: 1.32.0  # Pinned so a zizmor release adding audits cannot fail unrelated pull requests
           advanced-security: false  # Findings surface as annotations and the job result, not as code scanning alerts
           annotations: true
 
